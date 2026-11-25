@@ -3,12 +3,18 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   BriefValidationError,
+  ConstraintError,
   GateError,
   TransitionError,
+  answerConstraint,
+  blockingQuestions,
   compileBrief,
+  createConstraintState,
   decideGate,
   develop,
+  findQuestion,
   newId,
+  nextQuestion,
   renderBriefMarkdown,
   transition,
 } from "@latent/core";
@@ -17,6 +23,7 @@ import type {
   Fragment,
   GateStatus,
   Idea,
+  QuestionDefinition,
 } from "@latent/core";
 import { TemplateReconstructor } from "@latent/adapters";
 import { Store } from "@latent/store";
@@ -90,11 +97,34 @@ function parseGateStatus(value: string | true | undefined): GateStatus {
   throw new CliError("gate status must be pass, fail, unknown or waive", 1);
 }
 
+function parseAnswer(
+  question: QuestionDefinition | null,
+  raw: string,
+): unknown {
+  const trimmed = raw.trim();
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (question) {
+    const byValue = question.options.find((o) => String(o.value) === trimmed);
+    if (byValue) return byValue.value;
+    const byLabel = question.options.find(
+      (o) => o.label.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (byLabel) return byLabel.value;
+  }
+  const numeric = Number(trimmed);
+  if (trimmed !== "" && !Number.isNaN(numeric)) return numeric;
+  return trimmed;
+}
+
 const HELP = `latent — capture a fragment, develop it, decide the gates, compile a brief
 
 Usage:
   latent capture <text>                       capture a text fragment
   latent develop <fragment-id>                reconstruct into hypotheses + gates
+  latent ask <idea-id>                        the next highest-information question
+  latent answer <idea-id> <var> <value>       answer one constraint (human)
+  latent constraints <idea-id>                show the constraint state
   latent confirm <idea-id> <assumption-id>    confirm one assumption (human)
   latent confirm <idea-id> --all [--refute]   confirm/refute every assumption (human)
   latent decide <idea-id> --all <status>      decide every gate (human)
@@ -150,10 +180,12 @@ async function main(): Promise<number> {
         store.putIdea(result.idea);
         store.putClaims(result.idea.id, result.claims);
         store.putGates(result.idea.id, result.gates);
+        store.putConstraintState(result.idea.id, result.constraint);
         store.appendEvent("idea.developed", result.idea.id, {
           fragment_id: fragment.id,
           gates: result.gates.length,
         });
+        const first = nextQuestion(result.constraint, igem.questions);
         print({
           id: result.idea.id,
           status: result.idea.status,
@@ -167,6 +199,8 @@ async function main(): Promise<number> {
             status: a.status,
           })),
           questions: result.idea.open_questions?.map((q) => q.question) ?? [],
+          blocking: result.constraint.blocking_unknowns,
+          first_question: first,
           gates: result.gates.map((g) => ({ id: g.id, name: g.name, status: g.status })),
         });
         return 0;
@@ -252,11 +286,82 @@ async function main(): Promise<number> {
         return 0;
       }
 
+      case "ask": {
+        const idea = requireIdea(store, positionals[0]);
+        const state =
+          store.getConstraintState(idea.id) ??
+          createConstraintState(idea.vertical ?? "igem", igem.questions);
+        const blocking = blockingQuestions(state, igem.questions).map(
+          (q) => q.variable,
+        );
+        print({
+          idea_id: idea.id,
+          ready: blocking.length === 0,
+          blocking,
+          question: nextQuestion(state, igem.questions),
+        });
+        return 0;
+      }
+
+      case "answer": {
+        const idea = requireIdea(store, positionals[0]);
+        const variable = positionals[1];
+        const raw = positionals.slice(2).join(" ").trim();
+        if (!variable || raw === "") {
+          throw new CliError(
+            "usage: latent answer <idea-id> <variable> <value>",
+            1,
+          );
+        }
+        const state =
+          store.getConstraintState(idea.id) ??
+          createConstraintState(idea.vertical ?? "igem", igem.questions);
+        const question = findQuestion(igem.questions, variable);
+        const value = parseAnswer(question, raw);
+        const updated = answerConstraint(state, igem.questions, variable, value, 1);
+        store.putConstraintState(idea.id, updated);
+        store.appendEvent("constraint.answered", idea.id, { variable });
+        print({
+          idea_id: idea.id,
+          variable,
+          value,
+          blocking: blockingQuestions(updated, igem.questions).map(
+            (q) => q.variable,
+          ),
+          next_question: nextQuestion(updated, igem.questions),
+        });
+        return 0;
+      }
+
+      case "constraints": {
+        const idea = requireIdea(store, positionals[0]);
+        const state =
+          store.getConstraintState(idea.id) ??
+          createConstraintState(idea.vertical ?? "igem", igem.questions);
+        print({
+          idea_id: idea.id,
+          state,
+          blocking: blockingQuestions(state, igem.questions).map(
+            (q) => q.variable,
+          ),
+          next_question: nextQuestion(state, igem.questions),
+        });
+        return 0;
+      }
+
       case "brief": {
         const ideaId = positionals[0];
         const idea = requireIdea(store, ideaId);
         const claims = store.listClaims(idea.id);
         const gates = store.listGates(idea.id);
+
+        const constraint = store.getConstraintState(idea.id);
+        if (constraint) {
+          const blocking = blockingQuestions(constraint, igem.questions);
+          if (blocking.length > 0) {
+            throw new ConstraintError(blocking.map((q) => q.variable));
+          }
+        }
 
         let next = idea;
         if (next.status === "developed") next = transition(next, "verifying");
@@ -316,6 +421,11 @@ main()
     if (error instanceof BriefValidationError) {
       console.error("brief blocked:");
       for (const issue of error.issues) console.error(`  - ${issue}`);
+      process.exit(3);
+    }
+    if (error instanceof ConstraintError) {
+      console.error("blocking constraints:");
+      for (const variable of error.variables) console.error(`  - ${variable}`);
       process.exit(3);
     }
     if (error instanceof TransitionError) {

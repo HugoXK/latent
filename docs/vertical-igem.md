@@ -55,6 +55,22 @@ The interviewer asks the question with the highest expected information gain, no
 fixed list. Questions are multiple-choice with a recommended guess and an "Other"
 escape hatch.
 
+### Question bank (`v0.2`)
+
+The runtime ships ten questions. Four are **blocking** and must be answered before
+the idea can move to `verifying`:
+
+- `lab.bsl` — BSL-1 / BSL-2 / BSL-3 / not sure;
+- `lab.readers` — plate reader, HPLC, flow, or none;
+- `time.summer_weeks` — how many full lab weeks;
+- `success.metric` — the one number that decides success.
+
+The other six are informative: `team.wet`, `budget.total`, `problem.who`,
+`skill.want`, `nogo.pathogen`, `asset.school`. `nextQuestion` scores by entropy
+discounted by the known confidence and gives blocking questions a 3× weight;
+`latent ask` prints the next one. A blocking question is satisfied at
+`confidence ≥ 0.6`; the default is `1.0` for a human answer.
+
 ### Phase 2 — Background
 
 Four things, or keep searching:

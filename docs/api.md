@@ -115,6 +115,26 @@ POST /v1/ideas
 }
 ```
 
+### Read the constraints
+
+```http
+GET /v1/ideas/{id}/constraints
+```
+
+```json
+{
+  "constraint": { "version": 1, "vertical": "igem", "variables": {}, "unknowns": ["lab.bsl"], "blocking_unknowns": ["lab.bsl"] },
+  "blocking": ["lab.bsl", "lab.readers"],
+  "next_question": {
+    "id": "q.success.metric",
+    "variable": "success.metric",
+    "prompt": "Which one number should decide whether the project succeeded?",
+    "blocking": true,
+    "options": [{ "value": "detection_limit", "label": "Limit of detection" }]
+  }
+}
+```
+
 ### Answer the next question
 
 ```http
@@ -122,10 +142,13 @@ POST /v1/ideas/{id}/constraints/answer
 {
   "variable": "lab.bsl",
   "value": 1,
-  "source": "user",
   "confidence": 1.0
 }
 ```
+
+The response returns the updated state, the remaining blocking variables and the
+next question. A string value that matches an option value or label is normalised
+to the option's typed value.
 
 ### Run gates
 
@@ -170,6 +193,18 @@ POST /v1/ideas/{id}/brief
 { "format": "markdown" }
 ```
 
+If a blocking constraint is unanswered, the route returns `409`:
+
+```json
+{
+  "error": {
+    "code": "BLOCKING_CONSTRAINTS",
+    "message": "Answer the blocking constraints first.",
+    "details": ["lab.bsl", "lab.readers"]
+  }
+}
+```
+
 The compiler refuses to write if any of the four validators fails:
 
 ```json
@@ -189,6 +224,9 @@ Shipped in `v0.2 alpha`:
 ```
 latent capture <text>
 latent develop <fragment-id>
+latent ask <idea-id>                        # highest-information-gain question
+latent answer <idea-id> <variable> <value>  # answer a blocking constraint
+latent constraints <idea-id>                # state, blocking set, next question
 latent confirm <idea-id> <assumption-id> | --all [--refute]
 latent decide <idea-id> <gate-id>|--all <pass|fail|unknown|waive> [--reason "..."]
 latent brief <idea-id> [--format md|json]
@@ -198,8 +236,6 @@ latent show <id>
 Targeted for `v0.3+`:
 
 ```
-latent ask <idea-id>                 # highest-information-gain question
-latent answer <idea-id> <variable> <value>
 latent export <idea-id> --out <dir>
 latent memory search <query>
 latent job list [--status running]

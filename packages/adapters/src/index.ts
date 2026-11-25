@@ -20,14 +20,22 @@ export class TemplateReconstructor implements Reconstructor {
     const text = input.fragment.content.trim();
     const short = text.length > 80 ? `${text.slice(0, 77)}...` : text;
 
+    const bsl = input.constraints?.variables["lab.bsl"]?.value;
+    const bslKnown = bsl === 1 || bsl === 2;
+    const weeks = input.constraints?.variables["time.summer_weeks"]?.value;
+    const dbtlRisk = typeof weeks === "number" && weeks >= 6 ? "medium" : "high";
+    const metric = input.constraints?.variables["success.metric"]?.value;
+    const metricText =
+      typeof metric === "string" ? ` The success metric is ${metric}.` : "";
+
     return {
       title: short.length > 0 ? short : "(untitled fragment)",
       one_liner: text.length > 0 ? text : "(empty fragment)",
       hypotheses: [
         {
           variant: "conservative",
-          statement: `Conservative reading: ${text} — keep the mechanism and choose the cheapest readout that has been characterised before.`,
-          confidence: 0.42,
+          statement: `Conservative reading: ${text} — keep the mechanism and choose the cheapest readout that has been characterised before.${metricText}`,
+          confidence: bslKnown ? 0.48 : 0.42,
           confidence_basis: "C",
         },
         {
@@ -50,11 +58,11 @@ export class TemplateReconstructor implements Reconstructor {
         },
         {
           statement: "The host and lab operations are within the team's BSL clearance.",
-          risk: "high",
+          risk: bslKnown ? "low" : "high",
         },
         {
           statement: "One DBTL loop can close within the season.",
-          risk: "medium",
+          risk: dbtlRisk,
         },
       ],
       claims: [

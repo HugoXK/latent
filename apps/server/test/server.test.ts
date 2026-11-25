@@ -32,6 +32,33 @@ test("API: fragment -> idea -> decide -> brief", async () => {
     });
     assert.equal(blocked.statusCode, 409);
 
+    const constraintsRes = await app.inject({
+      method: "GET",
+      url: `/v1/ideas/${body.idea.id}/constraints`,
+    });
+    assert.equal(constraintsRes.statusCode, 200);
+    const constraints = constraintsRes.json() as {
+      blocking: string[];
+      next_question: { blocking?: boolean } | null;
+    };
+    assert.ok(constraints.blocking.length > 0);
+    assert.equal(constraints.next_question?.blocking, true);
+
+    const answers: Array<[string, number | string]> = [
+      ["lab.bsl", 1],
+      ["lab.readers", "plate_reader"],
+      ["time.summer_weeks", 6],
+      ["success.metric", "detection_limit"],
+    ];
+    for (const [variable, value] of answers) {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/ideas/${body.idea.id}/constraints/answer`,
+        payload: { variable, value },
+      });
+      assert.equal(res.statusCode, 200);
+    }
+
     for (const assumption of body.idea.assumptions) {
       const res = await app.inject({
         method: "POST",

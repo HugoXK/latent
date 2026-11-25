@@ -1,3 +1,5 @@
+import { createConstraintState } from "./constraints.js";
+import type { ConstraintState } from "./constraints.js";
 import { newId } from "./ids.js";
 import type { Reconstructor } from "./ports.js";
 import type { Claim, Fragment, Gate, Idea } from "./types.js";
@@ -7,20 +9,26 @@ export interface DevelopResult {
   idea: Idea;
   claims: Claim[];
   gates: Gate[];
+  constraint: ConstraintState;
 }
 
 export interface DevelopInput {
   fragment: Fragment;
   vertical: VerticalPack;
   reconstructor: Reconstructor;
+  constraint?: ConstraintState;
   now?: string;
 }
 
 export async function develop(input: DevelopInput): Promise<DevelopResult> {
   const now = input.now ?? new Date().toISOString();
+  const constraint =
+    input.constraint ??
+    createConstraintState(input.vertical.id, input.vertical.questions, now);
   const output = await input.reconstructor.reconstruct({
     fragment: input.fragment,
     verticalId: input.vertical.id,
+    constraints: constraint,
     now,
   });
 
@@ -97,5 +105,5 @@ export async function develop(input: DevelopInput): Promise<DevelopResult> {
     schema_version: "1.0.0",
   };
 
-  return { idea, claims, gates };
+  return { idea, claims, gates, constraint };
 }

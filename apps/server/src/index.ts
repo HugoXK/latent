@@ -6,13 +6,23 @@ import {
   BriefValidationError,
   GateError,
   TransitionError,
+  answerConstraint,
+  blockingQuestions,
   compileBrief,
+  createConstraintState,
   decideGate,
   develop,
+  findQuestion,
   newId,
+  nextQuestion,
   transition,
 } from "@latent/core";
-import type { AssumptionStatus, Fragment, Idea } from "@latent/core";
+import type {
+  AssumptionStatus,
+  Fragment,
+  Idea,
+  QuestionDefinition,
+} from "@latent/core";
 import { TemplateReconstructor } from "@latent/adapters";
 import { Store } from "@latent/store";
 import { igem } from "@latent/vertical-igem";
@@ -23,6 +33,21 @@ export interface ServerOptions {
 }
 
 const VERSION = "0.2.0-alpha.0";
+
+function normalizeAnswer(
+  question: QuestionDefinition | null,
+  value: unknown,
+): unknown {
+  if (question && typeof value === "string") {
+    const byValue = question.options.find((o) => String(o.value) === value);
+    if (byValue) return byValue.value;
+    const byLabel = question.options.find(
+      (o) => o.label.toLowerCase() === value.toLowerCase(),
+    );
+    if (byLabel) return byLabel.value;
+  }
+  return value;
+}
 
 export function buildServer(options: ServerOptions): FastifyInstance {
   const app = Fastify({ logger: options.logger ?? false });
@@ -98,6 +123,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     store.putIdea(result.idea);
     store.putClaims(result.idea.id, result.claims);
     store.putGates(result.idea.id, result.gates);
+    store.putConstraintState(result.idea.id, result.constraint);
     store.appendEvent("idea.developed", result.idea.id, {
       fragment_id: fragment.id,
     });
@@ -114,11 +140,90 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         .code(404)
         .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
     }
+    const constraint =
+      store.getConstraintState(id) ??
+      createConstraintState(idea.vertical ?? igem.id, igem.questions);
     return {
       idea,
       claims: store.listClaims(id),
       gates: store.listGates(id),
       brief: store.getBriefByIdea(id),
+      constraint,
+      blocking: blockingQuestions(constraint, igem.questions).map(
+        (q) => q.variable,
+      ),
+      next_question: nextQuestion(constraint, igem.questions),
+    };
+  });
+
+  app.get("/v1/ideas/:id/constraints", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const idea = store.getIdea(id);
+    if (!idea) {
+      return reply
+        .code(404)
+        .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
+    }
+    const constraint =
+      store.getConstraintState(id) ??
+      createConstraintState(idea.vertical ?? igem.id, igem.questions);
+    return {
+      constraint,
+      blocking: blockingQuestions(constraint, igem.questions).map(
+        (q) => q.variable,
+      ),
+      next_question: nextQuestion(constraint, igem.questions),
+    };
+  });
+
+  app.post("/v1/ideas/:id/constraints/answer", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = req.body as
+      | { variable?: string; value?: unknown; confidence?: number }
+      | null;
+    const idea = store.getIdea(id);
+    if (!idea) {
+      return reply
+        .code(404)
+        .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
+    }
+    if (!body?.variable || body.value === undefined) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_CONSTRAINT",
+          message: "variable and value are required",
+        },
+      });
+    }
+    const confidence = body.confidence ?? 1;
+    if (confidence < 0 || confidence > 1) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_CONFIDENCE",
+          message: "confidence must be between 0 and 1",
+        },
+      });
+    }
+    const state =
+      store.getConstraintState(id) ??
+      createConstraintState(idea.vertical ?? igem.id, igem.questions);
+    const question = findQuestion(igem.questions, body.variable);
+    const value = normalizeAnswer(question, body.value);
+    const updated = answerConstraint(
+      state,
+      igem.questions,
+      body.variable,
+      value,
+      confidence,
+    );
+    store.putConstraintState(id, updated);
+    store.appendEvent("constraint.answered", id, { variable: body.variable });
+    return {
+      constraint: updated,
+      blocking: blockingQuestions(updated, igem.questions).map(
+        (q) => q.variable,
+      ),
+      next_question: nextQuestion(updated, igem.questions),
     };
   });
 
@@ -228,6 +333,20 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     }
     const claims = store.listClaims(id);
     const gates = store.listGates(id);
+
+    const constraint = store.getConstraintState(id);
+    const blocking = constraint
+      ? blockingQuestions(constraint, igem.questions)
+      : [];
+    if (blocking.length > 0) {
+      return reply.code(409).send({
+        error: {
+          code: "BLOCKING_CONSTRAINTS",
+          message: "Answer the blocking constraints first.",
+          details: blocking.map((q) => q.variable),
+        },
+      });
+    }
 
     let next = idea;
     if (next.status === "developed") next = transition(next, "verifying");

@@ -131,6 +131,23 @@ value, a confidence, a source (`user`, `inferred`, `tool`, `default`) and an
 optional evidence reference. The interviewer stops when the vertical's exit
 condition is met, not when a list is exhausted.
 
+The `v0.2` implementation is deliberately transparent:
+
+- each question carries option priors;
+- information gain is the Shannon entropy of those priors, discounted by the
+  confidence already recorded for the variable;
+- a blocking question gets a 3× weight, so a constraint that can stop the project
+  is asked before a merely informative one;
+- `answerConstraint` writes the variable, removes it from `unknowns`, and
+  recomputes `blocking_unknowns`;
+- `isReadyForVerification` is true only when every blocking question has a
+  confident answer.
+
+This is a heuristic, not a calibrated model. `v0.3` replaces the priors with
+observed outcomes; the interface (`nextQuestion`, `blockingQuestions`,
+`isReadyForVerification`) stays the same. The constraint state is stored per idea
+in the `constraint_states` table.
+
 ### Reconstruction
 
 Produces 1–3 hypotheses from a fragment plus the constraint state. For each
@@ -250,7 +267,7 @@ change to a schema requires an ADR and a migration note.
 ## Storage
 
 - **SQLite** (`node:sqlite`) as the single-writer store: users, fragments, ideas,
-  claims, gates, briefs, schedules, outcomes, audit events.
+  constraint states, claims, gates, briefs, schedules, outcomes, audit events.
 - **Object store** for blobs: audio, images, retrieved snapshots, compiled files.
   On a single machine this is a content-addressed directory (hash → file).
 - **Append-only event log** for audit: `event_id`, `at`, `actor`, `type`,

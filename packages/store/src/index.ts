@@ -3,6 +3,7 @@ import { newId } from "@latent/core";
 import type {
   Brief,
   Claim,
+  ConstraintState,
   Fragment,
   Gate,
   Idea,
@@ -36,6 +37,10 @@ CREATE TABLE IF NOT EXISTS gates (
 CREATE TABLE IF NOT EXISTS briefs (
   id TEXT PRIMARY KEY,
   idea_id TEXT NOT NULL,
+  data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS constraint_states (
+  idea_id TEXT PRIMARY KEY,
   data TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS events (
@@ -187,6 +192,24 @@ export class Store {
     return parse<Brief>(row);
   }
 
+  // --- constraints ---------------------------------------------------------
+
+  putConstraintState(ideaId: string, state: ConstraintState): void {
+    this.#db
+      .prepare(
+        `INSERT INTO constraint_states (idea_id, data) VALUES (?, ?)
+         ON CONFLICT(idea_id) DO UPDATE SET data = excluded.data`,
+      )
+      .run(ideaId, JSON.stringify(state));
+  }
+
+  getConstraintState(ideaId: string): ConstraintState | null {
+    const row = this.#db
+      .prepare("SELECT data FROM constraint_states WHERE idea_id = ?")
+      .get(ideaId) as Row | undefined;
+    return parse<ConstraintState>(row);
+  }
+
   // --- events --------------------------------------------------------------
 
   appendEvent(type: string, subject: string, data: unknown = {}): string {
@@ -220,7 +243,14 @@ export class Store {
     return rows.map((r) => ({ ...r, data: JSON.parse(r.data) as unknown }));
   }
 
-  counts(): { fragments: number; ideas: number; claims: number; gates: number; briefs: number } {
+  counts(): {
+    fragments: number;
+    ideas: number;
+    claims: number;
+    gates: number;
+    briefs: number;
+    constraints: number;
+  } {
     const one = (sql: string): number => {
       const row = this.#db.prepare(sql).get() as { n: number } | undefined;
       return row?.n ?? 0;
@@ -231,6 +261,7 @@ export class Store {
       claims: one("SELECT COUNT(*) AS n FROM claims"),
       gates: one("SELECT COUNT(*) AS n FROM gates"),
       briefs: one("SELECT COUNT(*) AS n FROM briefs"),
+      constraints: one("SELECT COUNT(*) AS n FROM constraint_states"),
     };
   }
 }

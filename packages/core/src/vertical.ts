@@ -1,3 +1,4 @@
+import type { QuestionDefinition } from "./constraints.js";
 import type { GateFallback } from "./types.js";
 
 export interface GateDefinition {
@@ -13,6 +14,7 @@ export interface VerticalPack {
   id: string;
   name: string;
   variables: string[];
+  questions: QuestionDefinition[];
   gates: GateDefinition[];
   briefTemplate: string;
 }

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Store } from "../src/index.js";
+import { createConstraintState } from "@latent/core";
 import type { Claim, Fragment, Gate, Idea } from "@latent/core";
 
 const fragment: Fragment = {
@@ -64,12 +65,15 @@ test("store round-trips fragments, ideas, claims and gates", () => {
     store.putIdea(idea);
     store.putClaims(idea.id, [claim]);
     store.putGates(idea.id, [gate]);
+    const constraint = createConstraintState("igem", []);
+    store.putConstraintState(idea.id, constraint);
 
     assert.deepEqual(store.getIdea(idea.id), idea);
     assert.deepEqual(store.listClaims(idea.id), [claim]);
     assert.deepEqual(store.listGates(idea.id), [gate]);
     assert.deepEqual(store.listIdeas("developed"), [idea]);
     assert.equal(store.getGate(gate.id)?.name, "readout");
+    assert.deepEqual(store.getConstraintState(idea.id), constraint);
   } finally {
     store.close();
   }

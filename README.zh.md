@@ -22,7 +22,7 @@
 
 ---
 
-> **状态：** `v0.2.0-alpha.0` 是一个可运行的早期垂直切片。它包含核心状态机、陈述台账、闸门引擎、简报编译器、SQLite 存储、CLI、本地 Fastify API 和 iGEM pack。复原器是确定性模板，**不是模型**；真正的模型适配器是下一步。这里不宣称生产级 agent；Schema 与决策记录仍是运行时必须遵守的契约。
+> **状态：** `v0.2.0-alpha.0` 是一个可运行的早期垂直切片。它包含核心状态机、陈述台账、闸门引擎、简报编译器、信息增益访谈器、SQLite 存储、CLI、本地 Fastify API 和 iGEM pack。复原器是确定性模板，**不是模型**；真正的模型适配器是下一步。这里不宣称生产级 agent；Schema 与决策记录仍是运行时必须遵守的契约。
 
 **显影（Latent）是一个证据驱动的想法开发平台，不是想法生成器。** 大多数工具优化“产出更多文本”；显影优化的是一个人在半成品想法出现之后真正需要的东西：**一个看得见、问得动、测得了、能动手的版本。**
 
@@ -69,6 +69,7 @@
 
 - 一个**捕获优先**的工作区：文字、语音、图片、链接、草图。
 - 一个**复原引擎**：把不完整的想法变成少量显式假设，每个假设都带假设台账和置信度。
+- 一个**访谈器**：按期望信息增益提问；未回答的 blocking 约束会阻止进入验证。
 - 一个**证据台账**：每条陈述要么有来源，要么标为推断，要么标为未知。没有陈述会悄悄变成事实。
 - 一组**闸门**：证伪条件、对照、go/no-go 规则，人可以逐条检查并决定。
 - 一个**编译器**：输出一页纸简报，或一份可执行规格，交给一个人、一个 coding agent 或一个研究团队。
@@ -175,9 +176,12 @@ PY
 export LATENT_DB_PATH=/tmp/latent-demo.sqlite
 pnpm latent capture "用土壤菌群做重金属现场检测，但读出还不清楚"
 pnpm latent develop <fragment-id>
+pnpm latent ask <idea-id>                    # 下一个期望信息增益最高的问题
+pnpm latent answer <idea-id> lab.bsl 1       # 回答一个 blocking 约束
+pnpm latent constraints <idea-id>            # 还有哪些未知或 blocking
 pnpm latent confirm <idea-id> --all          # 人的决定，写入审计
 pnpm latent decide <idea-id> --all pass --reason "设计伙伴试点"
-pnpm latent brief <idea-id>                  # 有闸门未过时拒绝编译
+pnpm latent brief <idea-id>                  # 约束/闸门/假设未过时拒绝编译
 ```
 
 CLI 契约见 [docs/api.md](docs/api.md)。本版本的复原器是确定性模板，目的是让管道在没有模型提供方时也能测试；真正的模型适配器会在同一端口后替换它。

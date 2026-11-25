@@ -37,6 +37,24 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
     const blocked = run(["brief", idea.id]);
     assert.equal(blocked.status, 3, "a brief must be blocked before decisions");
 
+    const ask = run(["ask", idea.id]);
+    assert.equal(ask.status, 0, ask.stderr);
+    const next = JSON.parse(ask.stdout) as {
+      question: { blocking?: boolean } | null;
+    };
+    assert.equal(next.question?.blocking, true);
+
+    const answers: Array<[string, string]> = [
+      ["lab.bsl", "1"],
+      ["lab.readers", "plate_reader"],
+      ["time.summer_weeks", "6"],
+      ["success.metric", "detection_limit"],
+    ];
+    for (const [variable, value] of answers) {
+      const answer = run(["answer", idea.id, variable, value]);
+      assert.equal(answer.status, 0, answer.stderr);
+    }
+
     const confirm = run(["confirm", idea.id, "--all"]);
     assert.equal(confirm.status, 0, confirm.stderr);
 

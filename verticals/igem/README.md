@@ -34,6 +34,14 @@ This file is the pack's own README: what it contains and how to add another.
 - `candidate.a`, `candidate.b`, `candidate.c`
 - `success.definition`
 
+## Questions
+
+Ten questions ship in [`packages/vertical-igem`](../../packages/vertical-igem/src/index.ts).
+Four are **blocking** and must be answered before verification: `lab.bsl`,
+`lab.readers`, `time.summer_weeks`, `success.metric`. The rest are informative.
+`nextQuestion` selects by expected information gain, with a 3× weight for blocking
+questions.
+
 ## Evidence scale
 
 | Grade | Meaning | Budget |

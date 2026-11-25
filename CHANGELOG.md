@@ -10,8 +10,19 @@ Fragments for the next release live in [`changelog.d/`](changelog.d/).
 
 ### Added
 
-- A real model adapter behind the `Reconstructor` port (planned).
-- The iGEM replay benchmark and the expert panel (planned).
+- Information-gain interviewer: `ConstraintState`, a 10-question iGEM bank with a
+  blocking set, `nextQuestion` / `blockingQuestions` / `isReadyForVerification`,
+  and a `constraint_states` table in the store.
+- CLI `ask`, `answer` and `constraints`; API
+  `GET /v1/ideas/{id}/constraints` and
+  `POST /v1/ideas/{id}/constraints/answer`.
+- `brief` now refuses to compile while a blocking constraint is unanswered.
+- Six interviewer tests (32 total).
+
+### Planned
+
+- A real model adapter behind the `Reconstructor` port.
+- The iGEM replay benchmark and the expert panel.
 
 ## [0.2.0-alpha.0] — 2026-11-25
 

@@ -23,8 +23,9 @@
 ---
 
 > **Status:** `v0.2.0-alpha.0` is an early, working vertical slice. It ships the
-> core state machine, the claim ledger, the gate engine, the brief compiler, a
-> SQLite store, a CLI, a local Fastify API and the iGEM pack. Reconstruction is a
+> core state machine, the claim ledger, the gate engine, the brief compiler, an
+> information-gain interviewer, a SQLite store, a CLI, a local Fastify API and the
+> iGEM pack. Reconstruction is a
 > deterministic template, **not a model**; a real model adapter is next. Nothing
 > here claims a production agent, and the schemas and decisions remain the
 > contract the runtime is held to.
@@ -88,6 +89,8 @@ decision, the candidates, and the fallbacks.
 - A **capture-first workspace** for fragments: text, voice, images, links, sketches.
 - A **reconstruction engine** that turns an incomplete thought into a small set of
   explicit hypotheses, each with an assumption ledger and a confidence.
+- An **interviewer** that asks the highest-information-gain constraint question,
+  with a blocking set that must be answered before verification.
 - An **evidence ledger** where every claim is either sourced, marked as inferred,
   or marked unknown. No claim silently becomes a fact.
 - A **portfolio of gates** — falsifiers, controls, and go/no-go rules — that a
@@ -216,9 +219,12 @@ PY
 export LATENT_DB_PATH=/tmp/latent-demo.sqlite
 pnpm latent capture "用土壤菌群做重金属现场检测，但读出还不清楚"
 pnpm latent develop <fragment-id>
+pnpm latent ask <idea-id>                    # the next highest-information question
+pnpm latent answer <idea-id> lab.bsl 1       # answer a blocking constraint
+pnpm latent constraints <idea-id>            # what is still unknown or blocking
 pnpm latent confirm <idea-id> --all          # a human decision, recorded
 pnpm latent decide <idea-id> --all pass --reason "design partner pilot"
-pnpm latent brief <idea-id>                  # refuses to compile if a gate is blocked
+pnpm latent brief <idea-id>                  # refuses if a constraint, gate or assumption blocks
 ```
 
 The CLI contract is specified in [docs/api.md](docs/api.md). The reconstructor is

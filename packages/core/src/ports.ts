@@ -1,3 +1,4 @@
+import type { ConstraintState } from "./constraints.js";
 import type {
   ClaimStatus,
   ConfidenceBasis,
@@ -9,6 +10,7 @@ import type {
 export interface ReconstructInput {
   fragment: Fragment;
   verticalId: string;
+  constraints?: ConstraintState;
   now?: string;
 }
 
