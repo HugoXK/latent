@@ -184,7 +184,21 @@ pnpm latent decide <idea-id> --all pass --reason "设计伙伴试点"
 pnpm latent brief <idea-id>                  # 约束/闸门/假设未过时拒绝编译
 ```
 
-CLI 契约见 [docs/api.md](docs/api.md)。本版本的复原器是确定性模板，目的是让管道在没有模型提供方时也能测试；真正的模型适配器会在同一端口后替换它。
+CLI 契约见 [docs/api.md](docs/api.md)。默认复原器是确定性模板，目的是让管道在没有模型提供方时也能测试。
+
+### 使用模型
+
+`ModelReconstructor` 实现同一端口，兼容 OpenAI 的 chat-completions：
+
+```sh
+export LATENT_RECONSTRUCTOR=model
+export LATENT_MODEL_BASE_URL=https://api.openai.com/v1
+export LATENT_MODEL_API_KEY=...
+export LATENT_MODEL_NAME=...
+pnpm latent develop <fragment-id>
+```
+
+适配器强制严格契约：三个 variant、假设与 claim 非空、claim 只能是 `inferred`/`unknown`、`confidence_basis` 只能是 `"C"`。模型给出 `verified` 会被拒绝并要求修复一次；第二次失败就停止任务，不会静默回退到模板。模型不是来源；只有真实来源支持时，台账才会升级 claim。
 
 建议按这个顺序读规格：
 
@@ -275,7 +289,7 @@ CLI 契约见 [docs/api.md](docs/api.md)。本版本的复原器是确定性模�
 | 版本 | 重点 | 退出条件 |
 |---|---|---|
 | `v0.1` | 规格：Schema、架构、iGEM 垂直场景、评估计划 | Schema 通过校验；文档评审；访谈 3 个设计伙伴 |
-| `v0.2` | **Alpha 已发布**：捕获 + 复原 + 闸门 + 简报、SQLite、CLI、API、iGEM pack | 用户能离线从碎片走到简报，且零无来源陈述；下一步是真实模型适配器 |
+| `v0.2` | **Alpha 已发布**：捕获 + 访谈 + 复原 + 闸门 + 简报、SQLite、CLI、API、iGEM pack、模型适配器 | 用户能从碎片走到简报，且零无来源陈述；剩余退出条件是十个真实碎片 |
 | `v0.3` | 验证：检索适配器、新颖性图谱、闸门引擎、红队 | 在 20 个回放项目上闸门判定与专家一致 |
 | `v0.4` | 孵化：后台 agent、重现、记忆、品味模型 | 每周重现至少产生一条被活跃用户接受的联系 |
 | `v0.5` | 生态：FlyBot 运行时、AgentDescent 演化、Janus 校准、ScienceDiscovery 工具 | 一个垂直场景在共享栈上端到端跑通 |

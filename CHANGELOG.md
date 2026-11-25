@@ -17,12 +17,17 @@ Fragments for the next release live in [`changelog.d/`](changelog.d/).
   `GET /v1/ideas/{id}/constraints` and
   `POST /v1/ideas/{id}/constraints/answer`.
 - `brief` now refuses to compile while a blocking constraint is unanswered.
-- Six interviewer tests (32 total).
+- OpenAI-compatible `ModelReconstructor`: strict JSON, three variants, grade-C
+  only, `inferred`/`unknown` claims, one repair, no silent fallback.
+- `LATENT_RECONSTRUCTOR=model` with `LATENT_MODEL_BASE_URL`,
+  `LATENT_MODEL_API_KEY`, `LATENT_MODEL_NAME` and `LATENT_MODEL_JSON_MODE`; the
+  template remains the default.
+- ADR 0006 (model adapter) and seven adapter tests (39 total).
 
 ### Planned
 
-- A real model adapter behind the `Reconstructor` port.
 - The iGEM replay benchmark and the expert panel.
+- Ten real fragments through the full loop.
 
 ## [0.2.0-alpha.0] — 2026-11-25
 

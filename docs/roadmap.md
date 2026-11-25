@@ -8,9 +8,9 @@ The roadmap is sequenced by **evidence**, not by features. A version ships when
 its exit criteria are met; a version that cannot be evaluated does not ship.
 
 > **Status:** `v0.2.0-alpha.0` ships the working vertical slice (capture →
-> interview → develop → gate → brief) with a deterministic reconstructor and an
-> information-gain interviewer. The remaining `v0.2` exit criteria are a real
-> model adapter and ten real fragments.
+> interview → develop → gate → brief), a deterministic reconstructor, an
+> information-gain interviewer and an OpenAI-compatible model adapter. The
+> remaining `v0.2` exit criterion is ten real fragments through the full loop.
 
 ## Sequencing principles
 

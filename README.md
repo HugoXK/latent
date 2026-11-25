@@ -227,9 +227,28 @@ pnpm latent decide <idea-id> --all pass --reason "design partner pilot"
 pnpm latent brief <idea-id>                  # refuses if a constraint, gate or assumption blocks
 ```
 
-The CLI contract is specified in [docs/api.md](docs/api.md). The reconstructor is
-a deterministic template in this release; it exists so the pipeline is testable
-without a provider. A model adapter replaces it behind the same port.
+The CLI contract is specified in [docs/api.md](docs/api.md). The default
+reconstructor is a deterministic template so the pipeline is testable without a
+provider.
+
+### Using a model
+
+`ModelReconstructor` implements the same port and speaks the OpenAI-compatible
+chat-completions API:
+
+```sh
+export LATENT_RECONSTRUCTOR=model
+export LATENT_MODEL_BASE_URL=https://api.openai.com/v1
+export LATENT_MODEL_API_KEY=...
+export LATENT_MODEL_NAME=...
+pnpm latent develop <fragment-id>
+```
+
+The adapter enforces a strict contract: three variants, non-empty assumptions and
+claims, only `inferred`/`unknown` claims, and `confidence_basis: "C"`. A `verified`
+claim is rejected and repaired once; a second failure stops the job. There is no
+silent fallback to the template. A model is not a source; the ledger upgrades a
+claim only when a real source supports it.
 
 Read the spec in this order:
 
@@ -342,7 +361,7 @@ The runtime layout is specified in [docs/architecture.md](docs/architecture.md).
 | Version | Focus | Exit criteria |
 |---|---|---|
 | `v0.1` | Spec: schemas, architecture, iGEM vertical, evaluation plan | Schemas validate; docs reviewed; three design partners interviewed |
-| `v0.2` | **Alpha shipped**: capture + develop + gates + brief, SQLite, CLI, API, iGEM pack | A user can go from fragment to brief offline with zero unsupported claims; a real model adapter is next |
+| `v0.2` | **Alpha shipped**: capture + interview + develop + gates + brief, SQLite, CLI, API, iGEM pack, model adapter | A user can go from fragment to brief with zero unsupported claims; ten real fragments is the remaining exit criterion |
 | `v0.3` | Verify: retrieval adapters, novelty graph, gate engine, red team | Gate verdict agrees with experts on 20 replayed projects |
 | `v0.4` | Incubate: background agents, resurfacing, memory, taste model | Weekly resurfacing produces at least one accepted connection per active user |
 | `v0.5` | Ecosystem: FlyBot runtime, AgentDescent evolution, Janus calibration, ScienceDiscovery tools | One vertical runs end to end on the shared stack |

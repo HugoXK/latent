@@ -8,6 +8,9 @@ import type {
   SearchHit,
   SearchProvider,
 } from "@latent/core";
+import { ModelReconstructor } from "./model-reconstructor.js";
+
+export * from "./model-reconstructor.js";
 
 /**
  * A deterministic, offline reconstructor for the v0.2 vertical slice.
@@ -135,4 +138,28 @@ export class InMemoryCalibrator implements Calibrator {
   ): Promise<void> {
     this.rows.push({ prediction, outcome });
   }
+}
+
+export function reconstructorFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Reconstructor {
+  const mode = env.LATENT_RECONSTRUCTOR ?? "template";
+  if (mode === "template") return new TemplateReconstructor();
+  if (mode === "model") {
+    const baseUrl = env.LATENT_MODEL_BASE_URL;
+    const apiKey = env.LATENT_MODEL_API_KEY;
+    const model = env.LATENT_MODEL_NAME;
+    if (!baseUrl || !apiKey || !model) {
+      throw new Error(
+        "LATENT_RECONSTRUCTOR=model needs LATENT_MODEL_BASE_URL, LATENT_MODEL_API_KEY and LATENT_MODEL_NAME",
+      );
+    }
+    return new ModelReconstructor({
+      baseUrl,
+      apiKey,
+      model,
+      jsonMode: env.LATENT_MODEL_JSON_MODE !== "false",
+    });
+  }
+  throw new Error(`unknown LATENT_RECONSTRUCTOR: ${mode}`);
 }

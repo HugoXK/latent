@@ -162,6 +162,13 @@ hypothesis it records:
 It runs a **diversity pass**: multiple personas, a cross-domain analogy, and an
 adversarial critic. The output is a candidate set, not a single answer.
 
+A model adapter (`ModelReconstructor`) implements the same port. It enforces a
+strict JSON contract: exactly three variants, non-empty assumptions and claims,
+claims only `inferred`/`unknown`, and `confidence_basis: "C"`. A model is not a
+source; a `verified` claim is rejected and repaired once. There is no silent
+fallback to the template. See
+[decisions/0006-model-adapter.md](decisions/0006-model-adapter.md).
+
 ### Incubator
 
 A scheduled, background process. It connects a fragment or idea to:

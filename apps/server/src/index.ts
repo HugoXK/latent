@@ -23,13 +23,15 @@ import type {
   Idea,
   QuestionDefinition,
 } from "@latent/core";
-import { TemplateReconstructor } from "@latent/adapters";
+import { TemplateReconstructor, reconstructorFromEnv } from "@latent/adapters";
 import { Store } from "@latent/store";
 import { igem } from "@latent/vertical-igem";
+import type { Reconstructor } from "@latent/core";
 
 export interface ServerOptions {
   store: Store;
   logger?: boolean;
+  reconstructor?: Reconstructor;
 }
 
 const VERSION = "0.2.0-alpha.0";
@@ -52,7 +54,7 @@ function normalizeAnswer(
 export function buildServer(options: ServerOptions): FastifyInstance {
   const app = Fastify({ logger: options.logger ?? false });
   const { store } = options;
-  const reconstructor = new TemplateReconstructor();
+  const reconstructor = options.reconstructor ?? new TemplateReconstructor();
 
   app.get("/healthz", async () => ({ status: "ok", version: VERSION }));
   app.get("/readyz", async () => ({ status: "ok", counts: store.counts() }));
@@ -411,7 +413,11 @@ if (isMain) {
     mkdirSync(dirname(resolve(dbPath)), { recursive: true });
   }
   const store = new Store(dbPath);
-  const app = buildServer({ store, logger: true });
+  const app = buildServer({
+    store,
+    logger: true,
+    reconstructor: reconstructorFromEnv(),
+  });
   const port = Number(process.env.LATENT_PORT ?? 4310);
   app
     .listen({ port, host: "127.0.0.1" })

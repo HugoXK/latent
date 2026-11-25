@@ -13,7 +13,11 @@ const dbPath = join(tmpdir(), `latent-cli-${process.pid}-${Date.now()}.sqlite`);
 function run(args: string[]) {
   return spawnSync(process.execPath, ["--import", "tsx", cli, ...args], {
     cwd: root,
-    env: { ...process.env, LATENT_DB_PATH: dbPath },
+    env: {
+      ...process.env,
+      LATENT_DB_PATH: dbPath,
+      LATENT_RECONSTRUCTOR: "template",
+    },
     encoding: "utf8",
   });
 }

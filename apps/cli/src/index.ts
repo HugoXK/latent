@@ -25,7 +25,7 @@ import type {
   Idea,
   QuestionDefinition,
 } from "@latent/core";
-import { TemplateReconstructor } from "@latent/adapters";
+import { reconstructorFromEnv } from "@latent/adapters";
 import { Store } from "@latent/store";
 import { igem } from "@latent/vertical-igem";
 
@@ -149,7 +149,7 @@ async function main(): Promise<number> {
   }
 
   const store = openStore();
-  const reconstructor = new TemplateReconstructor();
+  const reconstructor = reconstructorFromEnv();
 
   try {
     switch (command) {
