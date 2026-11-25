@@ -29,7 +29,14 @@ Fragments for the next release live in [`changelog.d/`](changelog.d/).
 - The compiler records real citation/numeric validator results and marks
   existence/vertical rules as `skipped` instead of stamping them `pass`.
 - Runtime JSON Schema validation (Ajv 2020-12) at the store boundary, with a
-  schema test suite (47 tests total).
+  schema test suite.
+- CI: `ci-ok` aggregate, `pr-lint`, `review-gate`, CodeQL, dependency review and
+  secret scan; branch protection requires `ci-ok`, `pr-lint` and `review-gate`.
+- `HugoXK-bot` invited as a collaborator with write access; the reviewer policy is
+  in `.github/agent/review-policy.json`.
+- The review gate reads PR reviews, PR comments and commit comments; the newest
+  verdict at the head SHA wins, and a new commit voids a PASS.
+- `docs/review.md` and `.github/agent/required-checks.md`.
 
 ### Planned
 

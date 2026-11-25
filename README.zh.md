@@ -335,6 +335,7 @@ Apache-2.0。见 [LICENSE](LICENSE)。
 欢迎贡献，但请遵守 [CONTRIBUTING.md](CONTRIBUTING.md)、[AGENTS.md](AGENTS.md) 和 [docs/code-standards.md](docs/code-standards.md)。
 
 - 一个 issue、一个分支、一个 PR。
+- `main` 受保护：PR 需要 `ci-ok`、`pr-lint`，以及 `HugoXK-bot` 在 tip 上的 `review-gate` PASS。见 [docs/review.md](docs/review.md)。
 - Schema 是事实来源；改 Schema 需要 ADR 和迁移说明。
 - 双语 README 与用户可见文案保持同步。
 - 绝不提交密钥；绝不在公开 issue 里放漏洞细节。

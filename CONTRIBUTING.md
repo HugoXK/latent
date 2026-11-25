@@ -69,13 +69,30 @@ A PR states:
 Checklist:
 
 - [ ] A failing test existed before the fix (bug fixes).
-- [ ] `pnpm check` passes (once the runtime exists).
+- [ ] `pnpm check` passes.
 - [ ] Schemas validate; fixtures cover new required fields.
 - [ ] Docs and both READMEs are updated if user-facing.
 - [ ] A changelog fragment exists in `changelog.d/`.
+- [ ] `ci-ok` and `pr-lint` are green; `HugoXK-bot` posted a `review-gate` PASS at the tip.
 - [ ] No secrets, no private data, no copied assets.
 
 A reviewer who did not run the change says so. A new commit voids a previous PASS.
+
+## Review gate
+
+`main` is protected: direct pushes are refused, including the owner's. A pull
+request merges only when `ci-ok`, `pr-lint` and `review-gate` pass at the head SHA,
+and `HugoXK-bot` posted a PASS at that SHA. A PASS is an `APPROVED` review, a
+`Verdict: PASS` review body, a PR comment with the head SHA, or a commit comment on
+the head. The gate polls every 10 minutes for commit comments and can be triggered
+manually:
+
+```sh
+gh workflow run review-gate.yml -f pr=<number>
+```
+
+See [docs/review.md](docs/review.md). The reviewer is separate from the author; the
+author of the tip may not PASS it.
 
 ## Commit messages
 

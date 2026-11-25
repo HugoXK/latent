@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,6 +17,7 @@ jobs:
   spec:
     name: spec
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -81,8 +83,15 @@ jobs:
               "docs/roadmap.md", "docs/security.md", "docs/api.md",
               "docs/glossary.md", "docs/code-standards.md",
               "docs/vertical-igem.md",
+              "docs/review.md",
               "data/schemas/README.md",
               "verticals/igem/README.md",
+              ".github/agent/review-policy.json",
+              ".github/agent/required-checks.md",
+              ".github/scripts/review_gate.py",
+              ".github/scripts/pr_lint.py",
+              ".github/workflows/review-gate.yml",
+              ".github/workflows/pr-lint.yml",
           ]
           missing = [p for p in required if not os.path.exists(p)]
           if missing:
@@ -94,6 +103,7 @@ jobs:
   node:
     name: node
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -114,3 +124,18 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [spec, node]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every required job passed
+        env:
+          SPEC: ${{ needs.spec.result }}
+          NODE: ${{ needs.node.result }}
+        run: |
+          echo "spec=$SPEC node=$NODE"
+          [ "$SPEC" = success ] && [ "$NODE" = success ]

@@ -423,6 +423,8 @@ Contributions are welcome when they follow [CONTRIBUTING.md](CONTRIBUTING.md),
 [AGENTS.md](AGENTS.md) and [docs/code-standards.md](docs/code-standards.md).
 
 - One issue, one branch, one PR.
+- `main` is protected: a PR needs `ci-ok`, `pr-lint` and a `review-gate` PASS from
+  `HugoXK-bot` at the tip. See [docs/review.md](docs/review.md).
 - Schemas are the source of truth; a schema change needs an ADR and a migration note.
 - Bilingual READMEs and user-facing copy stay in step.
 - Never commit secrets. Never open a public issue with exploit detail.

@@ -1,0 +1,38 @@
+name: pr-lint
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-lint:
+    name: pr-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The base ref, never the head: a pull request that edits the lint script
+      # must not be the thing that lints its own body.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Validate the pull request body
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ ! -f .github/scripts/pr_lint.py ]; then
+            echo "pr-lint: bootstrap (script is not on the base branch yet)"
+            exit 0
+          fi
+          python3 .github/scripts/pr_lint.py

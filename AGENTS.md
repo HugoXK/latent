@@ -59,6 +59,10 @@ Core paths:
    rule are frozen. An evolution candidate that changes them is rejected before
    evaluation. A change requires an ADR and owner approval.
 
+5a. **No direct pushes to `main`.** Branch protection has `enforce_admins: true`.
+   The `review-gate` check is the approval; an admin merge or a bypass is not a
+   PASS.
+
 6. **One issue → one branch → one PR.** If an issue already has a PR, push to that
    branch. Never open a second PR and close the first.
 
@@ -71,11 +75,25 @@ Core paths:
 9. **One writer, one worktree, one port.** No two agents in the same worktree. Use a
    dedicated port for a verification server, never the documented default.
 
+## Review gate
+
+`main` is protected. **No direct pushes.** A pull request merges only when:
+
+- `ci-ok`, `pr-lint` and `review-gate` pass at the head SHA; and
+- `HugoXK-bot` posted a PASS at that SHA.
+
+A PASS is an `APPROVED` review, a `Verdict: PASS` review body, a PR comment that
+contains the head SHA, or a commit comment on the head. A new commit voids it. The
+author of the tip may not PASS it. The reviewer is read from
+[`.github/agent/review-policy.json`](.github/agent/review-policy.json) on the base
+branch; the gate checks out the base ref, so a pull request cannot weaken its own
+gate. See [docs/review.md](docs/review.md).
+
 ## Pipeline
 
 ```
 issue → claim → worktree/branch → red test → fix → gates → PR
-      → review at the tip → risk tier → merge → release
+      → ci-ok + pr-lint → review-gate PASS at the tip → squash merge → release
 ```
 
 1. **Issue.** One issue per session and per worktree. Search for duplicates. A
