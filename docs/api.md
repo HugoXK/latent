@@ -1,6 +1,6 @@
 # API and CLI contract
 
-- Status: draft (`v0.1`)
+- Status: implemented (`v0.2 alpha`)
 - Date: 2026-11-25
 - Owner: HugoXK
 
@@ -38,6 +38,7 @@ CLI does, the API can do. The OpenAPI 3.1 document ships in `v0.2`.
 | Fragment | `/v1/fragments` | Capture, list, get, delete |
 | Idea | `/v1/ideas` | Develop, get, list, transition |
 | Constraint state | `/v1/ideas/{id}/constraints` | Read, answer a question |
+| Assumption | `/v1/ideas/{id}/assumptions/{assumptionId}/decide` | Confirm or refute (human) |
 | Claim | `/v1/ideas/{id}/claims` | List, verify, contradict |
 | Gate | `/v1/ideas/{id}/gates` | Run, decide, waive |
 | Brief | `/v1/ideas/{id}/brief` | Compile, get, export |
@@ -183,14 +184,22 @@ The compiler refuses to write if any of the four validators fails:
 
 ## CLI
 
+Shipped in `v0.2 alpha`:
+
 ```
-latent capture <text> [--voice <file>] [--privacy private|team|public]
-latent develop <fragment-id> [--vertical igem] [--variants 3]
-latent ask <idea-id>
-latent answer <idea-id> <variable> <value>
-latent gate <idea-id> [--vertical igem]
-latent decide <idea-id> <gate-id> <pass|fail|unknown|waive> --reason "..."
+latent capture <text>
+latent develop <fragment-id>
+latent confirm <idea-id> <assumption-id> | --all [--refute]
+latent decide <idea-id> <gate-id>|--all <pass|fail|unknown|waive> [--reason "..."]
 latent brief <idea-id> [--format md|json]
+latent show <id>
+```
+
+Targeted for `v0.3+`:
+
+```
+latent ask <idea-id>                 # highest-information-gain question
+latent answer <idea-id> <variable> <value>
 latent export <idea-id> --out <dir>
 latent memory search <query>
 latent job list [--status running]

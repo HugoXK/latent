@@ -27,8 +27,12 @@ Core paths:
 |---|---|
 | `docs/` | Vision, architecture, prior art, roadmap, security, decisions |
 | `data/schemas/` | Canonical JSON Schema for the five primitives |
-| `verticals/` | Vertical packs (iGEM first) |
-| `apps/`, `packages/` | Runtime (scaffolded in `v0.2`) |
+| `packages/core/` | State machine, ledger, gates, compiler, ports |
+| `packages/store/` | SQLite store (`node:sqlite`) |
+| `packages/adapters/` | Reconstructor and offline fakes |
+| `packages/vertical-igem/` | The iGEM pack as runtime data |
+| `apps/cli/`, `apps/server/` | CLI and local API |
+| `verticals/` | Vertical docs and templates (iGEM first) |
 | `README.md`, `README.zh.md` | The public contract |
 
 ## Hard rules

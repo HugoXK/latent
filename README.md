@@ -15,18 +15,19 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache_2.0-green"></a>
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A522.9-339933?logo=node.js&logoColor=white">
   <img alt="Schemas" src="https://img.shields.io/badge/schemas-JSON%20Schema%202020--12-6e7781">
-  <img alt="Status" src="https://img.shields.io/badge/status-v0.1%20spec-orange">
+  <img alt="Status" src="https://img.shields.io/badge/status-v0.2%20alpha-orange">
 </p>
 
 <p align="center">English | <a href="README.zh.md">中文</a> · <a href="docs/vision.md">Vision</a> · <a href="docs/architecture.md">Architecture</a> · <a href="docs/prior-art.md">Prior art</a></p>
 
 ---
 
-> **Status:** `v0.1.0` is a **specification release**. It contains the product
-> thesis, the architecture, the data schemas, the iGEM vertical, and the
-> evaluation plan. The reference runtime (capture → develop → verify → compile)
-> lands in `v0.2`. Nothing here claims a working agent yet; the schemas and the
-> decisions are the contract the runtime will be held to.
+> **Status:** `v0.2.0-alpha.0` is an early, working vertical slice. It ships the
+> core state machine, the claim ledger, the gate engine, the brief compiler, a
+> SQLite store, a CLI, a local Fastify API and the iGEM pack. Reconstruction is a
+> deterministic template, **not a model**; a real model adapter is next. Nothing
+> here claims a production agent, and the schemas and decisions remain the
+> contract the runtime is held to.
 
 Latent is an **evidence-driven idea development platform**. It is not an idea
 generator. Most tools optimise for producing more text; Latent optimises for the
@@ -194,12 +195,13 @@ modes are in [docs/architecture.md](docs/architecture.md).
 
 ## Quick start
 
-Requirements: **Node 22.9+** and Python 3.10+ (only for schema validation in this
-spec release).
+Requirements: **Node 22.9+**, **pnpm 11+**, and Python 3.10+ (only for schema
+validation). The store uses `node:sqlite`, so Node 22.9+ is required.
 
 ```sh
 git clone https://github.com/HugoXK/latent.git
 cd latent
+pnpm install
 
 # Validate the JSON schemas (stdlib only).
 python3 - <<'PY'
@@ -209,7 +211,19 @@ for path in glob.glob("data/schemas/*.schema.json"):
         json.load(fh)
     print("ok", path)
 PY
+
+# Offline vertical slice: fragment -> develop -> confirm -> decide -> brief.
+export LATENT_DB_PATH=/tmp/latent-demo.sqlite
+pnpm latent capture "用土壤菌群做重金属现场检测，但读出还不清楚"
+pnpm latent develop <fragment-id>
+pnpm latent confirm <idea-id> --all          # a human decision, recorded
+pnpm latent decide <idea-id> --all pass --reason "design partner pilot"
+pnpm latent brief <idea-id>                  # refuses to compile if a gate is blocked
 ```
+
+The CLI contract is specified in [docs/api.md](docs/api.md). The reconstructor is
+a deterministic template in this release; it exists so the pipeline is testable
+without a provider. A model adapter replaces it behind the same port.
 
 Read the spec in this order:
 
@@ -218,19 +232,6 @@ Read the spec in this order:
 3. [docs/prior-art.md](docs/prior-art.md) — what exists, and why this is different.
 4. [docs/vertical-igem.md](docs/vertical-igem.md) — the first end-to-end vertical.
 5. [docs/roadmap.md](docs/roadmap.md) — what ships next and how it is judged.
-
-### Target CLI (`v0.2`, not shipped yet)
-
-```sh
-latent capture "夜里想到：用土壤菌群做重金属现场检测，但读出还不清楚"
-latent develop frg_01h...            # 1–3 hypotheses + assumptions + questions
-latent ask idea_01h...               # highest-information-gain question
-latent gate idea_01h...              # run the vertical's gates
-latent brief idea_01h... --format md # compile a one-page brief
-```
-
-The CLI contract is specified in [docs/api.md](docs/api.md). Until `v0.2` lands,
-the command names above are a design target, not a working binary.
 
 ## Design principles
 
@@ -317,19 +318,25 @@ does Latent recover a viable topic and the right collision report?
 | `docs/security.md` | Threat model and data handling |
 | `docs/decisions/` | Architecture decision records |
 | `data/schemas/` | JSON Schema 2020-12 for the five primitives |
-| `verticals/igem/` | iGEM vertical notes and examples |
+| `packages/core/` | State machine, ledger, gates, compiler, ports |
+| `packages/store/` | SQLite store (`node:sqlite`), events, counts |
+| `packages/adapters/` | Deterministic reconstructor and offline fakes |
+| `packages/vertical-igem/` | The iGEM pack as runtime data |
+| `apps/cli/` | The `latent` CLI |
+| `apps/server/` | Local Fastify API |
+| `verticals/igem/` | iGEM vertical notes and the one-page template |
+| `pnpm-workspace.yaml`, `pnpm-lock.yaml` | The workspace and the locked dependency graph |
 | `AGENTS.md` | Binding rules for AI agents working on this repo |
 | `LESSONS.md` | Dated, open constraints |
 
-The `apps/`, `packages/` and `verticals/` runtime layout is specified in
-[docs/architecture.md](docs/architecture.md) and will be scaffolded in `v0.2`.
+The runtime layout is specified in [docs/architecture.md](docs/architecture.md).
 
 ## Roadmap
 
 | Version | Focus | Exit criteria |
 |---|---|---|
 | `v0.1` | Spec: schemas, architecture, iGEM vertical, evaluation plan | Schemas validate; docs reviewed; three design partners interviewed |
-| `v0.2` | Capture + develop: local store, interviewer, reconstruction, ledger, brief export | A user can go from fragment to brief offline with zero unsupported claims |
+| `v0.2` | **Alpha shipped**: capture + develop + gates + brief, SQLite, CLI, API, iGEM pack | A user can go from fragment to brief offline with zero unsupported claims; a real model adapter is next |
 | `v0.3` | Verify: retrieval adapters, novelty graph, gate engine, red team | Gate verdict agrees with experts on 20 replayed projects |
 | `v0.4` | Incubate: background agents, resurfacing, memory, taste model | Weekly resurfacing produces at least one accepted connection per active user |
 | `v0.5` | Ecosystem: FlyBot runtime, AgentDescent evolution, Janus calibration, ScienceDiscovery tools | One vertical runs end to end on the shared stack |

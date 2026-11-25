@@ -10,8 +10,38 @@ Fragments for the next release live in [`changelog.d/`](changelog.d/).
 
 ### Added
 
-- The reference runtime (capture → develop → verify → compile) is planned for
-  `v0.2`. Nothing in this section is shipped.
+- A real model adapter behind the `Reconstructor` port (planned).
+- The iGEM replay benchmark and the expert panel (planned).
+
+## [0.2.0-alpha.0] — 2026-11-25
+
+### Added
+
+- pnpm workspace with `packages/core`, `packages/store`, `packages/adapters`,
+  `packages/vertical-igem`, `apps/cli` and `apps/server`.
+- Core state machine with explicit transitions, blocking assumptions and
+  versioned ideas.
+- Claim ledger validators: unsupported `verified` claims, grade-C verification,
+  numeric claims without a unit, contradictions without a source.
+- Gate engine: hard gates require a human to pass or waive; a waiver needs a
+  reason; `unknown` and `fail` block promotion.
+- Brief compiler with four validators and an explicit "still unknown" section.
+- SQLite store (`node:sqlite`) for fragments, ideas, claims, gates, briefs and an
+  append-only event log.
+- CLI: `capture`, `develop`, `confirm`, `decide`, `brief`, `show`.
+- Local Fastify API: fragments, ideas, assumption decisions, gate decisions,
+  brief compilation, health and readiness.
+- Deterministic `TemplateReconstructor` so the pipeline is testable offline.
+- iGEM pack as runtime data: 30 variables, 7 gates, brief template.
+- 26 `node:test` tests covering the state machine, ledger, gates, compiler,
+  store, adapters, vertical pack, CLI and API.
+- CI now runs both the spec checks and the Node typecheck/test suite.
+- npm Dependabot is enabled again, with grouped updates.
+
+### Changed
+
+- README status moved from `v0.1 spec` to `v0.2 alpha`, with a runnable quick
+  start.
 
 ## [0.1.0] — 2026-11-25
 
@@ -34,5 +64,6 @@ Fragments for the next release live in [`changelog.d/`](changelog.d/).
 - Bilingual README, contributing guide, security policy, code of conduct, agent
   rules and lessons.
 
-[Unreleased]: https://github.com/HugoXK/latent/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/HugoXK/latent/compare/v0.2.0-alpha.0...HEAD
+[0.2.0-alpha.0]: https://github.com/HugoXK/latent/releases/tag/v0.2.0-alpha.0
 [0.1.0]: https://github.com/HugoXK/latent/releases/tag/v0.1.0

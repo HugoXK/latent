@@ -1,0 +1,11 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# pnpm 11 blocks dependency build scripts by default. esbuild (via tsx) is the
+# only one we allow; nothing else should need a postinstall.
+allowBuilds:
+  esbuild: true
+
+# Do not run an implicit install before every script; CI runs install explicitly.
+verifyDepsBeforeRun: false

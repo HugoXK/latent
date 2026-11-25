@@ -1,0 +1,16 @@
+{
+  "name": "@latent/cli",
+  "version": "0.2.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "bin": {
+    "latent": "./src/index.ts"
+  },
+  "dependencies": {
+    "@latent/adapters": "workspace:*",
+    "@latent/core": "workspace:*",
+    "@latent/store": "workspace:*",
+    "@latent/vertical-igem": "workspace:*"
+  }
+}

@@ -7,6 +7,10 @@
 The roadmap is sequenced by **evidence**, not by features. A version ships when
 its exit criteria are met; a version that cannot be evaluated does not ship.
 
+> **Status:** `v0.2.0-alpha.0` ships the working vertical slice (capture →
+> develop → gate → brief) with a deterministic reconstructor. The remaining
+> `v0.2` exit criteria are a real model adapter and ten real fragments.
+
 ## Sequencing principles
 
 1. **Spec before runtime.** The schemas and the decisions are the contract; code

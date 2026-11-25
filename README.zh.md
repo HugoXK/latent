@@ -15,14 +15,14 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache_2.0-green"></a>
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A522.9-339933?logo=node.js&logoColor=white">
   <img alt="Schemas" src="https://img.shields.io/badge/schemas-JSON%20Schema%202020--12-6e7781">
-  <img alt="Status" src="https://img.shields.io/badge/status-v0.1%20spec-orange">
+  <img alt="Status" src="https://img.shields.io/badge/status-v0.2%20alpha-orange">
 </p>
 
 <p align="center"><a href="README.md">English</a> | 中文 · <a href="docs/vision.md">愿景</a> · <a href="docs/architecture.md">架构</a> · <a href="docs/prior-art.md">已有工作</a></p>
 
 ---
 
-> **状态：** `v0.1.0` 是**规格版本**。它包含产品论点、架构、数据 Schema、iGEM 垂直场景和评估计划。参考实现（捕获 → 复原 → 验证 → 编译）在 `v0.2` 落地。这里不宣称已有可用的 agent；真正约束实现的是这些 Schema 和决策记录。
+> **状态：** `v0.2.0-alpha.0` 是一个可运行的早期垂直切片。它包含核心状态机、陈述台账、闸门引擎、简报编译器、SQLite 存储、CLI、本地 Fastify API 和 iGEM pack。复原器是确定性模板，**不是模型**；真正的模型适配器是下一步。这里不宣称生产级 agent；Schema 与决策记录仍是运行时必须遵守的契约。
 
 **显影（Latent）是一个证据驱动的想法开发平台，不是想法生成器。** 大多数工具优化“产出更多文本”；显影优化的是一个人在半成品想法出现之后真正需要的东西：**一个看得见、问得动、测得了、能动手的版本。**
 
@@ -155,11 +155,12 @@ flowchart TB
 
 ## 快速开始
 
-依赖：**Node 22.9+** 与 Python 3.10+（本轮仅用于 Schema 校验）。
+依赖：**Node 22.9+**、**pnpm 11+**，以及 Python 3.10+（仅用于 Schema 校验）。存储使用 `node:sqlite`，因此必须 Node 22.9+。
 
 ```sh
 git clone https://github.com/HugoXK/latent.git
 cd latent
+pnpm install
 
 # 校验 JSON Schema（仅标准库）
 python3 - <<'PY'
@@ -169,7 +170,17 @@ for path in glob.glob("data/schemas/*.schema.json"):
         json.load(fh)
     print("ok", path)
 PY
+
+# 离线垂直切片：碎片 -> 复原 -> 确认 -> 闸门 -> 简报
+export LATENT_DB_PATH=/tmp/latent-demo.sqlite
+pnpm latent capture "用土壤菌群做重金属现场检测，但读出还不清楚"
+pnpm latent develop <fragment-id>
+pnpm latent confirm <idea-id> --all          # 人的决定，写入审计
+pnpm latent decide <idea-id> --all pass --reason "设计伙伴试点"
+pnpm latent brief <idea-id>                  # 有闸门未过时拒绝编译
 ```
+
+CLI 契约见 [docs/api.md](docs/api.md)。本版本的复原器是确定性模板，目的是让管道在没有模型提供方时也能测试；真正的模型适配器会在同一端口后替换它。
 
 建议按这个顺序读规格：
 
@@ -178,18 +189,6 @@ PY
 3. [docs/prior-art.md](docs/prior-art.md) —— 已有工作，以及为什么不一样。
 4. [docs/vertical-igem.md](docs/vertical-igem.md) —— 第一个端到端垂直场景。
 5. [docs/roadmap.md](docs/roadmap.md) —— 接下来做什么，怎么判定。
-
-### 目标 CLI（`v0.2`，尚未发布）
-
-```sh
-latent capture "夜里想到：用土壤菌群做重金属现场检测，但读出还不清楚"
-latent develop frg_01h...            # 1–3 个假设 + 假设台账 + 追问
-latent ask idea_01h...               # 期望信息增益最高的问题
-latent gate idea_01h...              # 跑该垂直场景的闸门
-latent brief idea_01h... --format md # 编译一页纸简报
-```
-
-CLI 契约见 [docs/api.md](docs/api.md)。在 `v0.2` 之前，上面的命令是设计目标，不是可执行程序。
 
 ## 设计原则
 
@@ -254,18 +253,25 @@ CLI 契约见 [docs/api.md](docs/api.md)。在 `v0.2` 之前，上面的命令�
 | `docs/security.md` | 威胁模型与数据处理 |
 | `docs/decisions/` | 架构决策记录 |
 | `data/schemas/` | 五个原语的 JSON Schema 2020-12 |
-| `verticals/igem/` | iGEM 垂直场景说明与示例 |
+| `packages/core/` | 状态机、台账、闸门、编译器、端口 |
+| `packages/store/` | SQLite 存储（`node:sqlite`）、事件、计数 |
+| `packages/adapters/` | 确定性复原器与离线 fake |
+| `packages/vertical-igem/` | 作为运行时数据的 iGEM pack |
+| `apps/cli/` | `latent` CLI |
+| `apps/server/` | 本地 Fastify API |
+| `verticals/igem/` | iGEM 垂直场景说明与一页纸模板 |
+| `pnpm-workspace.yaml`、`pnpm-lock.yaml` | 工作区与锁定的依赖图 |
 | `AGENTS.md` | 在本仓库工作的 AI agent 必须遵守的规则 |
 | `LESSONS.md` | 带日期的开放约束 |
 
-`apps/`、`packages/` 与 `verticals/` 的运行时布局在 [docs/architecture.md](docs/architecture.md) 中定义，`v0.2` 落地脚手架。
+运行时布局在 [docs/architecture.md](docs/architecture.md) 中定义。
 
 ## 路线图
 
 | 版本 | 重点 | 退出条件 |
 |---|---|---|
 | `v0.1` | 规格：Schema、架构、iGEM 垂直场景、评估计划 | Schema 通过校验；文档评审；访谈 3 个设计伙伴 |
-| `v0.2` | 捕获 + 复原：本地存储、访谈器、复原、台账、简报导出 | 用户能离线从碎片走到简报，且零无来源陈述 |
+| `v0.2` | **Alpha 已发布**：捕获 + 复原 + 闸门 + 简报、SQLite、CLI、API、iGEM pack | 用户能离线从碎片走到简报，且零无来源陈述；下一步是真实模型适配器 |
 | `v0.3` | 验证：检索适配器、新颖性图谱、闸门引擎、红队 | 在 20 个回放项目上闸门判定与专家一致 |
 | `v0.4` | 孵化：后台 agent、重现、记忆、品味模型 | 每周重现至少产生一条被活跃用户接受的联系 |
 | `v0.5` | 生态：FlyBot 运行时、AgentDescent 演化、Janus 校准、ScienceDiscovery 工具 | 一个垂直场景在共享栈上端到端跑通 |
