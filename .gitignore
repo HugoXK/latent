@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Runtime data (never commit private fragments)
+data/runtime/
+.data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+blobs/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+*.log
+logs/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Test and coverage
+coverage/
+.nyc_output/
+test-results/
+
+# Python (schema validation and adapters)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local agent scratch
+.agents/local/

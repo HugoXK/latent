@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent.dev/schemas/fragment.schema.json",
+  "title": "Fragment",
+  "description": "A raw capture: text, voice, image, link or sketch, with provenance.",
+  "type": "object",
+  "required": ["id", "captured_at", "kind", "content", "privacy"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^frg_[a-z0-9]{8,}$" },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "kind": { "enum": ["text", "voice", "image", "link", "sketch"] },
+    "content": { "type": "string", "minLength": 1, "maxLength": 20000 },
+    "language": { "type": ["string", "null"] },
+    "media": {
+      "type": ["string", "null"],
+      "description": "Content-addressed blob reference for audio, image or sketch."
+    },
+    "source": { "type": ["string", "null"] },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "privacy": { "enum": ["private", "team", "public"] },
+    "embedding_ref": { "type": ["string", "null"] },
+    "schema_version": { "const": "1.0.0" }
+  },
+  "additionalProperties": false
+}

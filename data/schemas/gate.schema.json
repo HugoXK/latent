@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent.dev/schemas/gate.schema.json",
+  "title": "Gate",
+  "description": "A falsifiable go/no-go test. A hard gate cannot be decided by a model.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "status",
+    "criteria",
+    "falsifier",
+    "evidence",
+    "fallback",
+    "decided_by"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^gate_[a-z0-9]{8,}$" },
+    "idea_id": { "type": "string" },
+    "name": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["pass", "fail", "unknown", "waived"] },
+    "criteria": { "type": "string", "minLength": 1 },
+    "falsifier": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The observation that would prove the gate wrong."
+    },
+    "controls": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Claim IDs or experiment references.",
+      "items": { "type": "string" }
+    },
+    "fallback": {
+      "enum": [
+        "change_readout",
+        "change_host",
+        "reduce_scope",
+        "compute_only",
+        "none"
+      ]
+    },
+    "hard": {
+      "type": "boolean",
+      "default": true,
+      "description": "If true, decided_by must be 'human' for pass or waive."
+    },
+    "decided_by": { "enum": ["rule", "model", "human"] },
+    "reason": { "type": ["string", "null"] },
+    "decided_at": { "type": ["string", "null"], "format": "date-time" },
+    "schema_version": { "const": "1.0.0" }
+  },
+  "additionalProperties": false
+}

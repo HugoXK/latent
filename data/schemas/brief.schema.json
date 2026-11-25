@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent.dev/schemas/brief.schema.json",
+  "title": "Brief",
+  "description": "A compiled one-page output with evidence, risks and explicit unknowns.",
+  "type": "object",
+  "required": [
+    "id",
+    "idea_id",
+    "idea_version",
+    "one_liner",
+    "problem",
+    "approach",
+    "evidence",
+    "risks",
+    "next_steps",
+    "unknowns",
+    "validators"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^brf_[a-z0-9]{8,}$" },
+    "idea_id": { "type": "string" },
+    "idea_version": { "type": "integer", "minimum": 1 },
+    "format": { "enum": ["markdown", "json", "html"] },
+    "one_liner": { "type": "string", "minLength": 1 },
+    "problem": { "$ref": "#/$defs/section" },
+    "approach": { "$ref": "#/$defs/section" },
+    "evidence": {
+      "type": "array",
+      "description": "Claim IDs that back the brief.",
+      "items": { "type": "string" }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/risk" }
+    },
+    "next_steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "unknowns": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Honest gaps. A brief with no unknowns is suspect.",
+      "items": { "type": "string" }
+    },
+    "compiled_at": { "type": "string", "format": "date-time" },
+    "validators": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/validator" }
+    },
+    "schema_version": { "const": "1.0.0" }
+  },
+  "$defs": {
+    "section": {
+      "type": "object",
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string" },
+        "claim_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "risk": {
+      "type": "object",
+      "required": ["risk", "trigger", "fallback"],
+      "properties": {
+        "risk": { "type": "string", "minLength": 1 },
+        "trigger": { "type": "string", "minLength": 1 },
+        "fallback": {
+          "enum": [
+            "change_readout",
+            "change_host",
+            "reduce_scope",
+            "compute_only",
+            "none"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "validator": {
+      "type": "object",
+      "required": ["name", "status"],
+      "properties": {
+        "name": {
+          "enum": ["citation", "numeric", "existence", "vertical_rules"]
+        },
+        "status": { "enum": ["pass", "fail", "skipped"] },
+        "detail": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

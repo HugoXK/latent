@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent.dev/schemas/constraint-state.schema.json",
+  "title": "ConstraintState",
+  "description": "What the interviewer knows about a project, with confidence and provenance.",
+  "type": "object",
+  "required": ["version", "vertical", "variables", "unknowns"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "vertical": { "type": "string", "minLength": 1 },
+    "variables": {
+      "type": "object",
+      "description": "Keyed by a dotted name, for example 'lab.bsl'.",
+      "additionalProperties": { "$ref": "#/$defs/variable" }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "blocking_unknowns": {
+      "type": "array",
+      "description": "Unknowns that prevent promotion to verifying.",
+      "items": { "type": "string" }
+    },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "schema_version": { "const": "1.0.0" }
+  },
+  "$defs": {
+    "variable": {
+      "type": "object",
+      "required": ["value", "confidence", "source"],
+      "properties": {
+        "value": {},
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "source": { "enum": ["user", "inferred", "tool", "default"] },
+        "evidence_ref": { "type": ["string", "null"] },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

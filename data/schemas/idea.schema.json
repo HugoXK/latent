@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent.dev/schemas/idea.schema.json",
+  "title": "Idea",
+  "description": "A versioned idea with reconstructions, assumptions and open questions.",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "title",
+    "one_liner",
+    "status",
+    "hypotheses",
+    "assumptions",
+    "claims"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^idea_[a-z0-9]{8,}$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "fragment_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "vertical": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "one_liner": { "type": "string", "minLength": 1 },
+    "status": {
+      "enum": [
+        "fragment",
+        "developed",
+        "incubating",
+        "verifying",
+        "viable",
+        "parked",
+        "killed",
+        "briefed",
+        "learned"
+      ]
+    },
+    "hypotheses": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/hypothesis" }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/assumption" }
+    },
+    "claims": {
+      "type": "array",
+      "description": "Claim IDs in the evidence ledger.",
+      "items": { "type": "string" }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/question" }
+    },
+    "gate_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "brief_ref": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "schema_version": { "const": "1.0.0" }
+  },
+  "$defs": {
+    "hypothesis": {
+      "type": "object",
+      "required": ["id", "variant", "statement", "confidence", "confidence_basis"],
+      "properties": {
+        "id": { "type": "string" },
+        "variant": { "enum": ["conservative", "ambitious", "cross_domain"] },
+        "statement": { "type": "string", "minLength": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidence_basis": { "enum": ["A", "B", "C", "expert"] },
+        "assumption_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "claim_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "assumption": {
+      "type": "object",
+      "required": ["id", "statement", "status", "risk"],
+      "properties": {
+        "id": { "type": "string" },
+        "statement": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["unconfirmed", "confirmed", "refuted"] },
+        "risk": { "enum": ["low", "medium", "high"] },
+        "evidence_ref": { "type": ["string", "null"] },
+        "decided_by": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "question": {
+      "type": "object",
+      "required": ["id", "question", "expected_information_gain"],
+      "properties": {
+        "id": { "type": "string" },
+        "question": { "type": "string", "minLength": 1 },
+        "expected_information_gain": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "variable": { "type": ["string", "null"] },
+        "answered": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
