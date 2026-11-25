@@ -75,7 +75,29 @@ test("a valid idea compiles to a brief with explicit unknowns", () => {
   assert.equal(brief.idea_id, "idea_test0001");
   assert.ok(brief.unknowns.length > 0);
   assert.equal(brief.validators.length, 4);
+  const status = Object.fromEntries(
+    brief.validators.map((v) => [v.name, v.status]),
+  );
+  assert.equal(status.citation, "pass");
+  assert.equal(status.numeric, "pass");
+  assert.equal(status.existence, "skipped");
+  assert.equal(status.vertical_rules, "skipped");
   assert.ok(renderBriefMarkdown(brief).includes("## Still unknown"));
+});
+
+test("a supplied validator result overrides skipped", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    validators: {
+      existence: { name: "existence", status: "pass", detail: "registry" },
+    },
+  });
+  assert.equal(
+    brief.validators.find((v) => v.name === "existence")?.status,
+    "pass",
+  );
 });
 
 test("a blocking gate blocks compilation", () => {

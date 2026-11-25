@@ -1,7 +1,15 @@
 import { newId } from "./ids.js";
 import { blockingGates } from "./gates.js";
 import { blocksBrief, validateLedger } from "./ledger.js";
-import type { Brief, BriefRisk, Claim, Gate, Idea } from "./types.js";
+import type {
+  Brief,
+  BriefRisk,
+  BriefValidator,
+  BriefValidatorName,
+  Claim,
+  Gate,
+  Idea,
+} from "./types.js";
 
 export class BriefValidationError extends Error {
   readonly issues: string[];
@@ -19,14 +27,18 @@ export interface CompileInput {
   gates: Gate[];
   unknowns?: string[];
   now?: string;
+  /**
+   * Optional results from vertical-specific checks. When a check is not
+   * supplied it is recorded as `skipped`, never as `pass`.
+   */
+  validators?: Partial<Record<BriefValidatorName, BriefValidator>>;
 }
 
 export function compileBrief(input: CompileInput): Brief {
   const issues: string[] = [];
+  const ledgerIssues = validateLedger(input.claims);
 
-  issues.push(
-    ...validateLedger(input.claims).map((i) => `${i.code}: ${i.message}`),
-  );
+  issues.push(...ledgerIssues.map((i) => `${i.code}: ${i.message}`));
 
   const blockedClaims = input.claims.filter(blocksBrief);
   if (blockedClaims.length > 0) {
@@ -100,6 +112,47 @@ export function compileBrief(input: CompileInput): Brief {
 
   const now = input.now ?? new Date().toISOString();
 
+  const citationCodes = new Set([
+    "UNSUPPORTED_VERIFIED",
+    "C_CANNOT_BE_VERIFIED",
+    "CONTRADICTION_WITHOUT_SOURCE",
+  ]);
+  const numericCodes = new Set([
+    "NUMERIC_WITHOUT_UNIT",
+    "CONFIDENCE_OUT_OF_RANGE",
+  ]);
+  const citationIssues = ledgerIssues.filter((i) => citationCodes.has(i.code));
+  const numericIssues = ledgerIssues.filter((i) => numericCodes.has(i.code));
+
+  const validators: BriefValidator[] = [
+    {
+      name: "citation",
+      status: citationIssues.length === 0 ? "pass" : "fail",
+      detail:
+        citationIssues.length === 0
+          ? null
+          : `${citationIssues.length} citation issue(s)`,
+    },
+    {
+      name: "numeric",
+      status: numericIssues.length === 0 ? "pass" : "fail",
+      detail:
+        numericIssues.length === 0
+          ? null
+          : `${numericIssues.length} numeric issue(s)`,
+    },
+    input.validators?.existence ?? {
+      name: "existence",
+      status: "skipped",
+      detail: "not implemented in v0.2",
+    },
+    input.validators?.vertical_rules ?? {
+      name: "vertical_rules",
+      status: "skipped",
+      detail: "not implemented in v0.2",
+    },
+  ];
+
   return {
     id: newId("brf"),
     idea_id: input.idea.id,
@@ -118,12 +171,7 @@ export function compileBrief(input: CompileInput): Brief {
     next_steps: nextSteps,
     unknowns,
     compiled_at: now,
-    validators: [
-      { name: "citation", status: "pass", detail: null },
-      { name: "numeric", status: "pass", detail: null },
-      { name: "existence", status: "pass", detail: null },
-      { name: "vertical_rules", status: "pass", detail: null },
-    ],
+    validators,
     schema_version: "1.0.0",
   };
 }

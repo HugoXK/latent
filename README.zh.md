@@ -195,6 +195,8 @@ export LATENT_RECONSTRUCTOR=model
 export LATENT_MODEL_BASE_URL=https://api.openai.com/v1
 export LATENT_MODEL_API_KEY=...
 export LATENT_MODEL_NAME=...
+# 私人碎片默认拒绝发送，需要显式开启：
+export LATENT_MODEL_SEND_PRIVATE=true
 pnpm latent develop <fragment-id>
 ```
 

@@ -154,11 +154,14 @@ export function reconstructorFromEnv(
         "LATENT_RECONSTRUCTOR=model needs LATENT_MODEL_BASE_URL, LATENT_MODEL_API_KEY and LATENT_MODEL_NAME",
       );
     }
+    const temperature = Number(env.LATENT_MODEL_TEMPERATURE ?? "0");
     return new ModelReconstructor({
       baseUrl,
       apiKey,
       model,
       jsonMode: env.LATENT_MODEL_JSON_MODE !== "false",
+      temperature: Number.isFinite(temperature) ? temperature : 0,
+      allowPrivate: env.LATENT_MODEL_SEND_PRIVATE === "true",
     });
   }
   throw new Error(`unknown LATENT_RECONSTRUCTOR: ${mode}`);

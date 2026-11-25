@@ -268,8 +268,10 @@ Canonical JSON Schema 2020-12 in [`../data/schemas/`](../data/schemas/):
 | `gate.schema.json` | `Gate` | `criteria`, `falsifier`, `evidence[]`, `status`, `fallback` |
 | `brief.schema.json` | `Brief` | `one_liner`, `problem`, `approach`, `evidence`, `risks`, `unknowns` |
 
-The schemas are the source of truth. A runtime type is generated from them; a
-change to a schema requires an ADR and a migration note.
+The schemas are the source of truth. Every store write is validated against
+`data/schemas/` with Ajv 2020-12 before it is persisted; the TypeScript types are
+a convenience, not the contract. Generated types and a drift check are a `v0.3`
+task. A change to a schema requires an ADR and a migration note.
 
 ## Storage
 

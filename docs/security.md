@@ -65,10 +65,14 @@ required to use the product.
 
 ### Provider consent
 
-- Each model or search provider is configured explicitly.
-- A private fragment is sent only to a provider the user has enabled for that
-  class of data.
-- The UI previews what will leave the machine before the first send.
+- Each model provider is configured explicitly.
+- A private fragment is **refused** by the model adapter unless
+  `LATENT_MODEL_SEND_PRIVATE=true`; the default is false.
+- A team or public fragment may be sent without that switch.
+- A pre-send preview in the UI is planned; today the adapter refuses before the
+  first send rather than showing a preview.
+- The adapter treats the fragment as untrusted data: it is JSON-encoded in the
+  prompt and the system prompt tells the model not to follow instructions in it.
 
 ### Untrusted retrieval
 

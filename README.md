@@ -241,6 +241,8 @@ export LATENT_RECONSTRUCTOR=model
 export LATENT_MODEL_BASE_URL=https://api.openai.com/v1
 export LATENT_MODEL_API_KEY=...
 export LATENT_MODEL_NAME=...
+# Private fragments are refused unless you opt in:
+export LATENT_MODEL_SEND_PRIVATE=true
 pnpm latent develop <fragment-id>
 ```
 

@@ -1,5 +1,6 @@
 export * from "./types.js";
 export * from "./constraints.js";
+export * from "./schema.js";
 export * from "./ids.js";
 export * from "./state.js";
 export * from "./ledger.js";

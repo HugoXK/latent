@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { newId } from "@latent/core";
+import { assertValid, newId } from "@latent/core";
 import type {
   Brief,
   Claim,
@@ -77,6 +77,7 @@ export class Store {
   // --- fragments -----------------------------------------------------------
 
   putFragment(fragment: Fragment): void {
+    assertValid("fragment", fragment);
     this.#db
       .prepare(
         `INSERT INTO fragments (id, captured_at, data) VALUES (?, ?, ?)
@@ -95,6 +96,7 @@ export class Store {
   // --- ideas ---------------------------------------------------------------
 
   putIdea(idea: Idea): void {
+    assertValid("idea", idea);
     this.#db
       .prepare(
         `INSERT INTO ideas (id, status, version, data) VALUES (?, ?, ?, ?)
@@ -125,6 +127,7 @@ export class Store {
   // --- claims --------------------------------------------------------------
 
   putClaims(ideaId: string, claims: Claim[]): void {
+    for (const claim of claims) assertValid("claim", claim);
     const stmt = this.#db.prepare(
       `INSERT INTO claims (id, idea_id, status, data) VALUES (?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET status = excluded.status, data = excluded.data`,
@@ -144,6 +147,7 @@ export class Store {
   // --- gates ---------------------------------------------------------------
 
   putGates(ideaId: string, gates: Gate[]): void {
+    for (const gate of gates) assertValid("gate", gate);
     const stmt = this.#db.prepare(
       `INSERT INTO gates (id, idea_id, status, data) VALUES (?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET status = excluded.status, data = excluded.data`,
@@ -170,6 +174,7 @@ export class Store {
   // --- briefs --------------------------------------------------------------
 
   putBrief(brief: Brief): void {
+    assertValid("brief", brief);
     this.#db
       .prepare(
         `INSERT INTO briefs (id, idea_id, data) VALUES (?, ?, ?)
@@ -195,6 +200,7 @@ export class Store {
   // --- constraints ---------------------------------------------------------
 
   putConstraintState(ideaId: string, state: ConstraintState): void {
+    assertValid("constraint", state);
     this.#db
       .prepare(
         `INSERT INTO constraint_states (idea_id, data) VALUES (?, ?)

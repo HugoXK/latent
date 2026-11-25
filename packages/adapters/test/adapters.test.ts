@@ -32,6 +32,13 @@ test("the template reconstructor always returns alternatives and assumptions", a
   assert.ok(out.open_questions.length >= 1);
 });
 
+test("the template reconstructor is deterministic", async () => {
+  const reconstructor = new TemplateReconstructor();
+  const a = await reconstructor.reconstruct({ fragment, verticalId: "igem" });
+  const b = await reconstructor.reconstruct({ fragment, verticalId: "igem" });
+  assert.deepEqual(a, b);
+});
+
 test("fakes satisfy their ports", async () => {
   const model = new FakeModelProvider("ok");
   assert.deepEqual(await model.complete({ prompt: "hi" }), { text: "ok" });

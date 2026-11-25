@@ -50,6 +50,8 @@ const gate: Gate = {
   status: "unknown",
   criteria: "c",
   falsifier: "f",
+  controls: [],
+  evidence: [],
   fallback: "change_readout",
   hard: true,
   decided_by: "rule",

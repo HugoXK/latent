@@ -22,12 +22,20 @@ Fragments for the next release live in [`changelog.d/`](changelog.d/).
 - `LATENT_RECONSTRUCTOR=model` with `LATENT_MODEL_BASE_URL`,
   `LATENT_MODEL_API_KEY`, `LATENT_MODEL_NAME` and `LATENT_MODEL_JSON_MODE`; the
   template remains the default.
-- ADR 0006 (model adapter) and seven adapter tests (39 total).
+- ADR 0006 (model adapter) and seven adapter tests.
+- Private-fragment consent: the model adapter refuses a private fragment unless
+  `LATENT_MODEL_SEND_PRIVATE=true`; the fragment is JSON-encoded and labelled
+  untrusted, and the default model temperature is `0`.
+- The compiler records real citation/numeric validator results and marks
+  existence/vertical rules as `skipped` instead of stamping them `pass`.
+- Runtime JSON Schema validation (Ajv 2020-12) at the store boundary, with a
+  schema test suite (47 tests total).
 
 ### Planned
 
 - The iGEM replay benchmark and the expert panel.
 - Ten real fragments through the full loop.
+- Generated types and a schema-drift check.
 
 ## [0.2.0-alpha.0] — 2026-11-25
 
