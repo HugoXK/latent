@@ -11,6 +11,11 @@ The newest verdict at the head SHA is the one that counts. A new commit moves th
 head, so an older PASS no longer applies. A REQUEST_CHANGES is a blocking
 verdict even if a PASS was posted earlier.
 
+A **T0 docs-only** pull request may be waived by policy when
+`t0DocsAutoPass` is true and the reviewer has posted no verdict at all. An
+explicit REQUEST_CHANGES still blocks; an explicit PASS still counts. Code, CI,
+schema and vertical changes never qualify.
+
 This script is read-only with respect to the pull request; it executes no pull
 request code. It creates the required `review-gate` check run on the head SHA so
 the gate also works for commit comments, which do not trigger a workflow.
@@ -27,7 +32,7 @@ import urllib.request
 from typing import Any
 
 API = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
-REPO = os.environ["GITHUB_REPOSITORY"]
+REPO = os.environ.get("GITHUB_REPOSITORY", "")
 TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
 REVIEWER_FALLBACK = os.environ.get("REVIEWER_LOGIN", "HugoXK-bot")
 CHECK_NAME = "review-gate"
@@ -35,7 +40,19 @@ VERDICT_RE = re.compile(
     r"(?:^|\n)\s*(?:Verdict\s*:\s*|##\s*Review\s*[—-]\s*)(PASS|REQUEST_CHANGES)\b",
     re.IGNORECASE,
 )
-SHA_RE = re.compile(r"\b([0-9a-f]{7,40})\b", re.IGNORECASE)
+
+DOC_FILES = {
+    "README.md",
+    "README.zh.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    "AGENTS.md",
+    "LESSONS.md",
+}
+DOC_PREFIXES = ("docs/", "changelog.d/")
 
 
 def api(path: str, method: str = "GET", data: dict[str, Any] | None = None) -> Any:
@@ -62,16 +79,21 @@ def api(path: str, method: str = "GET", data: dict[str, Any] | None = None) -> A
         raise RuntimeError(f"GitHub API {exc.code} {path}: {body}") from exc
 
 
-def reviewer_login() -> str:
-    """Read the reviewer from the base-branch policy, falling back to the env."""
+def load_policy() -> dict[str, Any]:
+    """Read the policy from the base branch checkout."""
     try:
         with open(".github/agent/review-policy.json", encoding="utf-8") as handle:
-            policy = json.load(handle)
-        value = policy.get("requiredPass")
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+            value = json.load(handle)
+        return value if isinstance(value, dict) else {}
     except (FileNotFoundError, json.JSONDecodeError):
-        pass
+        return {}
+
+
+def reviewer_login(policy: dict[str, Any] | None = None) -> str:
+    policy = policy if policy is not None else load_policy()
+    value = policy.get("requiredPass")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
     return REVIEWER_FALLBACK
 
 
@@ -83,6 +105,24 @@ def parse_verdict(body: str) -> str | None:
 def references_head(body: str, head: str) -> bool:
     lowered = (body or "").lower()
     return head.lower() in lowered or head[:7].lower() in lowered
+
+
+def is_docs_only(paths: list[str]) -> bool:
+    return bool(paths) and all(
+        path in DOC_FILES or path.startswith(DOC_PREFIXES) for path in paths
+    )
+
+
+def pull_files(number: int, expected: int) -> list[str]:
+    files: list[dict[str, Any]] = []
+    page = 1
+    while len(files) < expected and page <= 30:
+        batch = api(f"/pulls/{number}/files?per_page=100&page={page}")
+        if not batch:
+            break
+        files.extend(batch)
+        page += 1
+    return [str(file.get("filename", "")) for file in files]
 
 
 def event() -> dict[str, Any]:
@@ -113,12 +153,15 @@ def pull_numbers(payload: dict[str, Any]) -> list[int]:
     return [int(pull["number"]) for pull in open_pulls]
 
 
-def newest_verdict(pull: dict[str, Any], reviewer: str) -> tuple[bool, str]:
+def newest_verdict(pull: dict[str, Any], reviewer: str) -> tuple[bool | None, str]:
     number = int(pull["number"])
     head = str(pull["head"]["sha"])
     author = str(pull.get("user", {}).get("login", ""))
     if author == reviewer:
-        return False, f"{reviewer} is the pull request author; identities must be separate"
+        return (
+            False,
+            f"{reviewer} is the pull request author; identities must be separate",
+        )
 
     verdicts: list[tuple[str, str, str]] = []
 
@@ -163,17 +206,27 @@ def newest_verdict(pull: dict[str, Any], reviewer: str) -> tuple[bool, str]:
             )
 
     if not verdicts:
-        return (
-            False,
-            f"no verdict from {reviewer} at {head[:7]}; "
-            "post an APPROVED review, a PASS comment with the head SHA, or a commit comment",
-        )
+        return None, f"no verdict from {reviewer} at {head[:7]}"
 
     verdicts.sort(key=lambda item: item[0])
     stamp, verdict, source = verdicts[-1]
     if verdict == "PASS":
         return True, f"{reviewer} PASS at {head[:7]} ({source}, {stamp})"
     return False, f"{reviewer} REQUEST_CHANGES at {head[:7]} ({source}, {stamp})"
+
+
+def evaluate(
+    pull: dict[str, Any], reviewer: str, auto_pass_t0_docs: bool
+) -> tuple[bool, str]:
+    head = str(pull["head"]["sha"])
+    verdict, detail = newest_verdict(pull, reviewer)
+    if verdict is not None:
+        return verdict, detail
+    if auto_pass_t0_docs:
+        files = pull_files(int(pull["number"]), int(pull.get("changed_files") or 0))
+        if is_docs_only(files):
+            return True, f"T0 docs-only at {head[:7]}: reviewer waived by policy"
+    return False, detail
 
 
 def latest_check(head: str) -> dict[str, Any] | None:
@@ -213,7 +266,9 @@ def publish_check(pull: dict[str, Any], ok: bool, detail: str) -> None:
 
 
 def main() -> None:
-    reviewer = reviewer_login()
+    policy = load_policy()
+    reviewer = reviewer_login(policy)
+    auto_pass_t0_docs = policy.get("t0DocsAutoPass") is True
     payload = event()
     numbers = pull_numbers(payload)
     if not numbers:
@@ -226,7 +281,7 @@ def main() -> None:
             if pull.get("draft") is True:
                 print(f"review-gate: #{number} is a draft; skipped")
                 continue
-            ok, detail = newest_verdict(pull, reviewer)
+            ok, detail = evaluate(pull, reviewer, auto_pass_t0_docs)
             publish_check(pull, ok, detail)
         except RuntimeError as error:
             failures += 1

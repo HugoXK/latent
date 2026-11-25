@@ -37,6 +37,9 @@ Fragments for the next release live in [`changelog.d/`](changelog.d/).
 - The review gate reads PR reviews, PR comments and commit comments; the newest
   verdict at the head SHA wins, and a new commit voids a PASS.
 - `docs/review.md` and `.github/agent/required-checks.md`.
+- `review-gate`: T0 docs-only pull requests auto-pass when the base policy sets
+  `t0DocsAutoPass`; an explicit `REQUEST_CHANGES` still blocks. Gate unit tests
+  run in the new `gate-tests` job inside `ci-ok`.
 
 ### Planned
 

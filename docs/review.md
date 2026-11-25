@@ -32,6 +32,10 @@ The gate reads four channels and takes the **newest verdict at the head SHA**:
 4. **Commit comment** — a comment by `HugoXK-bot` on the head commit whose body
    contains `Verdict: PASS`. This is the current bot behaviour, and it is why the
    gate also runs on a schedule: a commit comment does not trigger a workflow.
+5. **T0 docs-only auto-pass** — when every changed file is documentation and the
+   reviewer posted no verdict, the gate passes if the base policy sets
+   `t0DocsAutoPass: true`. An explicit `REQUEST_CHANGES` still blocks; an explicit
+   `PASS` still counts. Code, CI, schema and vertical changes never qualify.
 
 A `REQUEST_CHANGES` at the same SHA blocks, even if an earlier PASS exists. The
 newest verdict wins. A new commit moves the head, so every PASS is tied to a tip:
@@ -39,6 +43,16 @@ newest verdict wins. A new commit moves the head, so every PASS is tied to a tip
 
 The gate also requires that the PR author is not `HugoXK-bot`. A reviewer cannot
 approve its own tip.
+
+### T0 docs-only
+
+A docs-only change is one whose changed files are all in `docs/`, `changelog.d/`,
+or the root docs set (`README.md`, `README.zh.md`, `CHANGELOG.md`, `LICENSE`,
+`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `AGENTS.md`,
+`LESSONS.md`). With `t0DocsAutoPass` true, the gate creates a PASS when there is
+no explicit verdict. This keeps small documentation fixes from blocking on a bot
+that skips T0 commits. Anything under `packages/`, `apps/`, `data/`, `verticals/`
+or `.github/` is not docs-only.
 
 ## Required checks
 
