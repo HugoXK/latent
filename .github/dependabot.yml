@@ -1,10 +1,6 @@
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: "/"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+  # npm is enabled in v0.2, when the pnpm workspace and package.json land.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
