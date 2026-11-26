@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  ConstraintAnswerError,
   answerConstraint,
   blockingQuestions,
   createConstraintState,
@@ -96,7 +97,110 @@ test("a free-text question has information gain and no options", () => {
 test("nextQuestion returns null when everything is answered", () => {
   let state = createConstraintState("test", questions);
   for (const q of questions) {
-    state = answerConstraint(state, questions, q.variable, "x");
+    state = answerConstraint(state, questions, q.variable, q.options[0]?.value ?? "x");
   }
   assert.equal(nextQuestion(state, questions), null);
+});
+
+test("a text answer is accepted and a non-string is rejected", () => {
+  const text: QuestionDefinition = {
+    id: "q.text",
+    variable: "candidate.a",
+    prompt: "Candidate?",
+    options: [],
+    kind: "text",
+  };
+  let state = createConstraintState("test", [text]);
+  state = answerConstraint(state, [text], "candidate.a", "soil biosensor");
+  assert.equal(state.variables["candidate.a"]?.value, "soil biosensor");
+  assert.throws(
+    () => answerConstraint(state, [text], "candidate.a", 42),
+    ConstraintAnswerError,
+  );
+});
+
+test("a multi answer accepts option values and rejects an unknown one", () => {
+  const multi: QuestionDefinition = {
+    id: "q.equip",
+    variable: "lab.equipment",
+    prompt: "Equipment?",
+    kind: "multi",
+    options: [
+      { value: "plate", label: "Plate" },
+      { value: "hplc", label: "HPLC" },
+    ],
+  };
+  let state = createConstraintState("test", [multi]);
+  state = answerConstraint(state, [multi], "lab.equipment", ["plate", "hplc"]);
+  assert.deepEqual(state.variables["lab.equipment"]?.value, ["plate", "hplc"]);
+  assert.throws(
+    () => answerConstraint(state, [multi], "lab.equipment", ["ms"]),
+    ConstraintAnswerError,
+  );
+  assert.throws(
+    () => answerConstraint(state, [multi], "lab.equipment", []),
+    ConstraintAnswerError,
+  );
+});
+
+test("allowOther accepts a custom string only when enabled", () => {
+  const other: QuestionDefinition = {
+    id: "q.other",
+    variable: "problem.who",
+    prompt: "Who?",
+    allowOther: true,
+    options: [{ value: "patients", label: "Patients" }],
+  };
+  const strict: QuestionDefinition = {
+    ...other,
+    id: "q.strict",
+    variable: "problem.strict",
+    allowOther: false,
+  };
+  let state = createConstraintState("test", [other, strict]);
+  state = answerConstraint(state, [other, strict], "problem.who", "a local clinic");
+  assert.equal(state.variables["problem.who"]?.value, "a local clinic");
+  assert.throws(
+    () => answerConstraint(state, [other, strict], "problem.strict", "a local clinic"),
+    ConstraintAnswerError,
+  );
+});
+
+test("a conditional question is skipped until its dependency is met", () => {
+  const conditional: QuestionDefinition[] = [
+    {
+      id: "q.bsl",
+      variable: "lab.bsl",
+      prompt: "BSL?",
+      blocking: true,
+      options: [
+        { value: 1, label: "1" },
+        { value: 2, label: "2" },
+      ],
+    },
+    {
+      id: "q.flow",
+      variable: "lab.flow_model",
+      prompt: "Flow model?",
+      blocking: true,
+      dependsOn: [{ variable: "lab.bsl", equals: 2 }],
+      options: [{ value: "reporter", label: "Reporter" }],
+    },
+  ];
+  let state = createConstraintState("test", conditional);
+  assert.deepEqual(state.blocking_unknowns, ["lab.bsl"]);
+  assert.equal(
+    blockingQuestions(state, conditional).some(
+      (question) => question.variable === "lab.flow_model",
+    ),
+    false,
+  );
+  state = answerConstraint(state, conditional, "lab.bsl", 2);
+  assert.deepEqual(state.blocking_unknowns, ["lab.flow_model"]);
+  assert.equal(
+    blockingQuestions(state, conditional).some(
+      (question) => question.variable === "lab.flow_model",
+    ),
+    true,
+  );
 });

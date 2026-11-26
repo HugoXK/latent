@@ -129,6 +129,27 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
       assert.equal(answer.status, 0, answer.stderr);
     }
 
+    const multi = run([
+      "answer",
+      idea.id,
+      "lab.equipment",
+      "plate_reader",
+      "hplc",
+    ]);
+    assert.equal(multi.status, 0, multi.stderr);
+    const multiValue = JSON.parse(multi.stdout) as { value: unknown };
+    assert.deepEqual(multiValue.value, ["plate_reader", "hplc"]);
+
+    const textAnswer = run([
+      "answer",
+      idea.id,
+      "candidate.a",
+      "soil biosensor for arsenic",
+    ]);
+    assert.equal(textAnswer.status, 0, textAnswer.stderr);
+    const textValue = JSON.parse(textAnswer.stdout) as { value: unknown };
+    assert.equal(textValue.value, "soil biosensor for arsenic");
+
     const confirm = run(["confirm", idea.id, "--all"]);
     assert.equal(confirm.status, 0, confirm.stderr);
 

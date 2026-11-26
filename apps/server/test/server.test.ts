@@ -59,6 +59,20 @@ test("API: fragment -> idea -> decide -> brief", async () => {
       assert.equal(res.statusCode, 200);
     }
 
+    const multi = await app.inject({
+      method: "POST",
+      url: `/v1/ideas/${body.idea.id}/constraints/answer`,
+      payload: { variable: "lab.equipment", value: ["plate_reader", "hplc"] },
+    });
+    assert.equal(multi.statusCode, 200);
+
+    const text = await app.inject({
+      method: "POST",
+      url: `/v1/ideas/${body.idea.id}/constraints/answer`,
+      payload: { variable: "candidate.a", value: "soil biosensor for arsenic" },
+    });
+    assert.equal(text.statusCode, 200);
+
     for (const assumption of body.idea.assumptions) {
       const res = await app.inject({
         method: "POST",

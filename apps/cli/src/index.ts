@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   BriefValidationError,
+  ConstraintAnswerError,
   ConstraintError,
   GateError,
   TransitionError,
@@ -13,6 +14,7 @@ import {
   decideGate,
   develop,
   findQuestion,
+  questionKind,
   newId,
   nextQuestion,
   DeterministicClaimVerifier,
@@ -116,7 +118,7 @@ function parseGateStatus(value: string | true | undefined): GateStatus {
   throw new CliError("gate status must be pass, fail, unknown or waive", 1);
 }
 
-function parseAnswer(
+function parseOptionValue(
   question: QuestionDefinition | null,
   raw: string,
 ): unknown {
@@ -134,6 +136,34 @@ function parseAnswer(
   const numeric = Number(trimmed);
   if (trimmed !== "" && !Number.isNaN(numeric)) return numeric;
   return trimmed;
+}
+
+function parseAnswerValues(
+  question: QuestionDefinition | null,
+  raws: string[],
+): unknown {
+  const kind = question ? questionKind(question) : "single";
+  if (kind === "text") {
+    const value = raws.join(" ").trim();
+    if (value === "") {
+      throw new CliError("text answer must not be empty", 1);
+    }
+    return value;
+  }
+  if (kind === "multi") {
+    const values = raws
+      .flatMap((raw) => raw.split(","))
+      .map((raw) => raw.trim())
+      .filter((raw) => raw !== "")
+      .map((raw) => parseOptionValue(question, raw));
+    if (values.length === 0) {
+      throw new CliError("multi answer needs at least one value", 1);
+    }
+    return Array.from(new Set(values));
+  }
+  const raw = raws.join(" ").trim();
+  if (raw === "") throw new CliError("answer must not be empty", 1);
+  return parseOptionValue(question, raw);
 }
 
 const HELP = `latent — capture a fragment, develop it, decide the gates, compile a brief
@@ -328,8 +358,8 @@ async function main(): Promise<number> {
       case "answer": {
         const idea = requireIdea(store, positionals[0]);
         const variable = positionals[1];
-        const raw = positionals.slice(2).join(" ").trim();
-        if (!variable || raw === "") {
+        const raws = positionals.slice(2);
+        if (!variable || raws.length === 0) {
           throw new CliError(
             "usage: latent answer <idea-id> <variable> <value>",
             1,
@@ -339,7 +369,7 @@ async function main(): Promise<number> {
           store.getConstraintState(idea.id) ??
           createConstraintState(idea.vertical ?? "igem", igem.questions);
         const question = findQuestion(igem.questions, variable);
-        const value = parseAnswer(question, raw);
+        const value = parseAnswerValues(question, raws);
         const updated = answerConstraint(state, igem.questions, variable, value, 1);
         store.putConstraintState(idea.id, updated);
         store.appendEvent("constraint.answered", idea.id, { variable });
@@ -522,6 +552,10 @@ main()
       console.error("blocking constraints:");
       for (const variable of error.variables) console.error(`  - ${variable}`);
       process.exit(3);
+    }
+    if (error instanceof ConstraintAnswerError) {
+      console.error(error.message);
+      process.exit(1);
     }
     if (error instanceof TransitionError) {
       console.error(`${error.code}: ${error.message}`);
