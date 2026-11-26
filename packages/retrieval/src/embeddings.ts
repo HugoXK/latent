@@ -83,7 +83,9 @@ export class HttpEmbeddingProvider implements EmbeddingProvider {
     if (!options.baseUrl.trim()) throw new Error("baseUrl is required");
     if (!options.apiKey.trim()) throw new Error("apiKey is required");
     if (!options.model.trim()) throw new Error("model is required");
-    this.#baseUrl = options.baseUrl.replace(/\/+$/, "");
+    let baseUrl = options.baseUrl;
+    while (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
+    this.#baseUrl = baseUrl;
     this.#apiKey = options.apiKey;
     this.#model = options.model;
     this.#fetch =
