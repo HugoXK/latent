@@ -1,0 +1,10 @@
+{
+  "id": "gate_fixture0001",
+  "name": "measurable readout",
+  "status": "maybe",
+  "criteria": "A dose response.",
+  "falsifier": "No response.",
+  "evidence": [],
+  "fallback": "change_readout",
+  "decided_by": "rule"
+}

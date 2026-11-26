@@ -1,0 +1,19 @@
+{
+  "id": "brf_fixture0001",
+  "idea_id": "idea_fixture0001",
+  "idea_version": 1,
+  "one_liner": "A fixture one-liner.",
+  "problem": {
+    "text": "The problem."
+  },
+  "approach": {
+    "text": "The approach."
+  },
+  "evidence": [],
+  "risks": [],
+  "next_steps": [
+    "Run a pilot."
+  ],
+  "unknowns": [],
+  "validators": []
+}

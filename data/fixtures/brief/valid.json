@@ -1,0 +1,59 @@
+{
+  "id": "brf_fixture0001",
+  "idea_id": "idea_fixture0001",
+  "idea_version": 1,
+  "format": "markdown",
+  "one_liner": "A fixture one-liner.",
+  "problem": {
+    "text": "The problem.",
+    "claim_ids": [
+      "clm_fixture0001"
+    ]
+  },
+  "approach": {
+    "text": "The approach.",
+    "claim_ids": [
+      "clm_fixture0001"
+    ]
+  },
+  "evidence": [
+    "clm_fixture0001"
+  ],
+  "risks": [
+    {
+      "risk": "Readout may not separate from background.",
+      "trigger": "No dose response.",
+      "fallback": "reduce_scope"
+    }
+  ],
+  "next_steps": [
+    "Run a pilot dose response."
+  ],
+  "unknowns": [
+    "The host is not yet confirmed."
+  ],
+  "compiled_at": "2026-11-25T00:00:00Z",
+  "validators": [
+    {
+      "name": "citation",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "numeric",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "existence",
+      "status": "skipped",
+      "detail": "v0.2"
+    },
+    {
+      "name": "vertical_rules",
+      "status": "skipped",
+      "detail": "v0.2"
+    }
+  ],
+  "schema_version": "1.0.0"
+}
