@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   BriefValidationError,
@@ -17,6 +17,7 @@ import {
   nextQuestion,
   renderBriefMarkdown,
   transition,
+  validateReplayCase,
 } from "@latent/core";
 import type {
   AssumptionStatus,
@@ -24,6 +25,7 @@ import type {
   GateStatus,
   Idea,
   QuestionDefinition,
+  ReplayCase,
 } from "@latent/core";
 import { reconstructorFromEnv } from "@latent/adapters";
 import { Store } from "@latent/store";
@@ -130,6 +132,7 @@ Usage:
   latent decide <idea-id> --all <status>      decide every gate (human)
   latent decide <idea-id> <gate-id> <status>  decide one gate (human)
   latent brief <idea-id> [--format md|json]   compile a brief (fails if blocked)
+  latent eval validate <file>                 validate a replay case
   latent show <id>                            show a fragment, idea or brief
   latent help                                 this text
 
@@ -379,6 +382,39 @@ async function main(): Promise<number> {
         } else {
           console.log(renderBriefMarkdown(brief));
         }
+        return 0;
+      }
+
+      case "eval": {
+        const sub = positionals[0];
+        const file = positionals[1];
+        if (sub !== "validate" || !file) {
+          throw new CliError("usage: latent eval validate <file>", 1);
+        }
+        let raw: string;
+        try {
+          raw = readFileSync(resolve(file), "utf8");
+        } catch {
+          throw new CliError(`replay case not found: ${file}`, 2);
+        }
+        let value: unknown;
+        try {
+          value = JSON.parse(raw) as unknown;
+        } catch {
+          throw new CliError(`replay case is not valid JSON: ${file}`, 1);
+        }
+        const issues = validateReplayCase(value);
+        if (issues.length > 0) {
+          print({ ok: false, issues });
+          return 1;
+        }
+        const replay = value as ReplayCase;
+        print({
+          ok: true,
+          id: replay.metadata.id,
+          illustrative: replay.metadata.illustrative,
+          temporal_cutoff: replay.metadata.temporal_cutoff,
+        });
         return 0;
       }
 

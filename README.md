@@ -330,7 +330,9 @@ four levels:
 
 Evaluation is described in [docs/roadmap.md](docs/roadmap.md). The first benchmark
 is a blind replay of historical iGEM projects: given only pre-season information,
-does Latent recover a viable topic and the right collision report?
+does Latent recover a viable topic and the right collision report? The case format
+and fixtures live in [`data/replay/`](data/replay/); validate a case with
+`pnpm latent eval validate <file>`.
 
 ## Repository layout
 

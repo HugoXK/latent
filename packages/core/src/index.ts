@@ -8,4 +8,5 @@ export * from "./gates.js";
 export * from "./compiler.js";
 export * from "./ports.js";
 export * from "./vertical.js";
+export * from "./replay.js";
 export * from "./develop.js";

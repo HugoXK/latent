@@ -28,6 +28,40 @@ function cleanup(): void {
   }
 }
 
+test("eval validate accepts a valid replay case and reports a leak", () => {
+  try {
+    const valid = run([
+      "eval",
+      "validate",
+      "data/replay/fixtures/valid/igem-illustrative-001.json",
+    ]);
+    assert.equal(valid.status, 0, valid.stderr);
+    const parsed = JSON.parse(valid.stdout) as {
+      ok: boolean;
+      id: string;
+      illustrative: boolean;
+    };
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.id, "replay_igem-illustrative-001");
+    assert.equal(parsed.illustrative, true);
+
+    const invalid = run([
+      "eval",
+      "validate",
+      "data/replay/fixtures/invalid/leak-seed.json",
+    ]);
+    assert.equal(invalid.status, 1, invalid.stderr);
+    const result = JSON.parse(invalid.stdout) as {
+      ok: boolean;
+      issues: Array<{ code: string }>;
+    };
+    assert.equal(result.ok, false);
+    assert.ok(result.issues.some((issue) => issue.code === "SEED_LEAK"));
+  } finally {
+    cleanup();
+  }
+});
+
 test("capture -> develop -> confirm -> decide -> brief", () => {
   try {
     const capture = run(["capture", "soil biosensor for heavy metals"]);

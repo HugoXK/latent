@@ -267,6 +267,7 @@ Canonical JSON Schema 2020-12 in [`../data/schemas/`](../data/schemas/):
 | `claim.schema.json` | `Claim` | `value`, `unit`, `conditions`, `status`, `confidence`, `sources[]` |
 | `gate.schema.json` | `Gate` | `criteria`, `falsifier`, `evidence[]`, `status`, `fallback` |
 | `brief.schema.json` | `Brief` | `one_liner`, `problem`, `approach`, `evidence`, `risks`, `unknowns` |
+| `replay-case.schema.json` | `ReplayCase` | `metadata`, `constraints`, `fragment`, `prior_art`, `expected_candidates`, `collisions`, `gate_labels`, `outcome` |
 
 The schemas are the source of truth. Every store write is validated against
 `data/schemas/` with Ajv 2020-12 before it is persisted; the TypeScript types are
