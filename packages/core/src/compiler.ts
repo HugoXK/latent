@@ -4,6 +4,7 @@ import { blocksBrief, validateLedger } from "./ledger.js";
 import type {
   Brief,
   BriefCollision,
+  BriefExtraSection,
   BriefRisk,
   BriefValidator,
   BriefValidatorName,
@@ -34,6 +35,8 @@ export interface CompileInput {
    */
   validators?: Partial<Record<BriefValidatorName, BriefValidator>>;
   collisions?: BriefCollision[];
+  sections?: BriefExtraSection[];
+  extraRisks?: BriefRisk[];
 }
 
 export function compileBrief(input: CompileInput): Brief {
@@ -88,6 +91,7 @@ export function compileBrief(input: CompileInput): Brief {
       });
     }
   }
+  risks.push(...(input.extraRisks ?? []));
 
   const unknowns = [
     ...(input.unknowns ?? []),
@@ -171,6 +175,7 @@ export function compileBrief(input: CompileInput): Brief {
     evidence,
     risks,
     collisions: input.collisions ?? [],
+    sections: input.sections ?? [],
     next_steps: nextSteps,
     unknowns,
     compiled_at: now,
@@ -205,6 +210,12 @@ export function renderBriefMarkdown(brief: Brief): string {
     "",
     brief.approach.text,
     "",
+    ...(brief.sections ?? []).flatMap((section) => [
+      `## ${section.title}`,
+      "",
+      section.text,
+      "",
+    ]),
     "## Evidence",
     "",
     evidence,

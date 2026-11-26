@@ -156,6 +156,14 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
     const decide = run(["decide", idea.id, "--all", "pass", "--reason", "test"]);
     assert.equal(decide.status, 0, decide.stderr);
 
+    const spec = run(["spec", idea.id]);
+    assert.equal(spec.status, 0, spec.stderr);
+    assert.match(spec.stdout, /## Tests/);
+    const specJson = run(["spec", idea.id, "--format", "json"]);
+    assert.equal(specJson.status, 0, specJson.stderr);
+    const parsedSpec = JSON.parse(specJson.stdout) as { tests: unknown[] };
+    assert.ok(parsedSpec.tests.length >= 1);
+
     const brief = run([
       "brief",
       idea.id,
@@ -170,6 +178,10 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
     };
     assert.ok(parsed.unknowns.length >= 1);
     assert.equal(parsed.validators.length, 4);
+
+    const briefHtml = run(["brief", idea.id, "--format", "html"]);
+    assert.equal(briefHtml.status, 0, briefHtml.stderr);
+    assert.match(briefHtml.stdout, /<!doctype html>/);
   } finally {
     cleanup();
   }

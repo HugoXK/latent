@@ -5,11 +5,13 @@ import {
   BriefValidationError,
   ConstraintAnswerError,
   ConstraintError,
+  SpecValidationError,
   GateError,
   TransitionError,
   answerConstraint,
   blockingQuestions,
   compileBrief,
+  compileSpec,
   createConstraintState,
   decideGate,
   develop,
@@ -19,7 +21,9 @@ import {
   nextQuestion,
   DeterministicClaimVerifier,
   renderBriefMarkdown,
+  exportBriefHtml,
   renderReplayMarkdown,
+  renderSpecMarkdown,
   runReplayCase,
   transition,
   validateReplayCase,
@@ -178,7 +182,8 @@ Usage:
   latent confirm <idea-id> --all [--refute]   confirm/refute every assumption (human)
   latent decide <idea-id> --all <status>      decide every gate (human)
   latent decide <idea-id> <gate-id> <status>  decide one gate (human)
-  latent brief <idea-id> [--format md|json] [--verify]  compile a brief (fails if blocked)
+  latent brief <idea-id> [--format md|json|html] [--verify]  compile a brief (fails if blocked)
+  latent spec <idea-id> [--format md|json]            compile an implementation spec
   latent ledger export <idea-id> [--format jsonl|md]   export the claim ledger
   latent eval validate <file>                 validate a replay case
   latent eval replay <file> [--format md]     run the replay harness
@@ -436,6 +441,8 @@ async function main(): Promise<number> {
 
         if (flags.format === "json") {
           print(brief);
+        } else if (flags.format === "html") {
+          console.log(exportBriefHtml(brief));
         } else {
           console.log(renderBriefMarkdown(brief));
         }
@@ -484,6 +491,19 @@ async function main(): Promise<number> {
           console.log(renderReplayMarkdown(result));
         } else {
           print(result);
+        }
+        return 0;
+      }
+
+      case "spec": {
+        const idea = requireIdea(store, positionals[0]);
+        const claims = store.listClaims(idea.id);
+        const gates = store.listGates(idea.id);
+        const spec = compileSpec({ idea, claims, gates });
+        if (flags.format === "json") {
+          print(spec);
+        } else {
+          console.log(renderSpecMarkdown(spec));
         }
         return 0;
       }
@@ -545,6 +565,11 @@ main()
   .catch((error: unknown) => {
     if (error instanceof BriefValidationError) {
       console.error("brief blocked:");
+      for (const issue of error.issues) console.error(`  - ${issue}`);
+      process.exit(3);
+    }
+    if (error instanceof SpecValidationError) {
+      console.error("spec blocked:");
       for (const issue of error.issues) console.error(`  - ${issue}`);
       process.exit(3);
     }

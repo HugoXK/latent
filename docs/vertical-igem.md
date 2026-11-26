@@ -221,3 +221,5 @@ corpus adapters. It contains no model-specific logic.
   ([cobra_fba.py](../packages/vertical-igem/python/cobra_fba.py)).
 - [Timeline](../packages/vertical-igem/src/timeline.ts) — seeded Monte Carlo over
   tasks, dependencies and the term/summer calendar; `timelineGate` feeds gate 4.
+- [Worked example](examples/igem-brief.md) — a full one-page brief with
+  components, timeline, material balance and explicit unknowns.

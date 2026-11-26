@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-export type IdPrefix = "frg" | "idea" | "clm" | "gate" | "brf" | "evt";
+export type IdPrefix = "frg" | "idea" | "clm" | "gate" | "brf" | "spec" | "evt";
 
 export function newId(prefix: IdPrefix): string {
   const time = Date.now().toString(36);

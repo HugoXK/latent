@@ -38,6 +38,10 @@
       "type": "array",
       "items": { "$ref": "#/$defs/collision" }
     },
+    "sections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/extraSection" }
+    },
     "next_steps": {
       "type": "array",
       "minItems": 1,
@@ -84,6 +88,15 @@
             "none"
           ]
         }
+      },
+      "additionalProperties": false
+    },
+    "extraSection": {
+      "type": "object",
+      "required": ["title", "text"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "text": { "type": "string" }
       },
       "additionalProperties": false
     },

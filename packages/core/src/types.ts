@@ -174,6 +174,11 @@ export interface BriefCollision {
   note: string;
 }
 
+export interface BriefExtraSection {
+  title: string;
+  text: string;
+}
+
 export interface Brief {
   id: string;
   idea_id: string;
@@ -185,6 +190,7 @@ export interface Brief {
   evidence: string[];
   risks: BriefRisk[];
   collisions?: BriefCollision[];
+  sections?: BriefExtraSection[];
   next_steps: string[];
   unknowns: string[];
   compiled_at?: string;

@@ -19,4 +19,6 @@ export * from "./existence.js";
 export * from "./evidence.js";
 export * from "./snapshots.js";
 export * from "./pack.js";
+export * from "./exporters.js";
+export * from "./spec.js";
 export * from "./develop.js";

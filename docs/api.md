@@ -229,7 +229,8 @@ latent answer <idea-id> <variable> <value>  # answer a blocking constraint
 latent constraints <idea-id>                # state, blocking set, next question
 latent confirm <idea-id> <assumption-id> | --all [--refute]
 latent decide <idea-id> <gate-id>|--all <pass|fail|unknown|waive> [--reason "..."]
-latent brief <idea-id> [--format md|json] [--verify]
+latent brief <idea-id> [--format md|json|html] [--verify]
+latent spec <idea-id> [--format md|json]
 latent ledger export <idea-id> [--format jsonl|md]
 latent show <id>
 ```
