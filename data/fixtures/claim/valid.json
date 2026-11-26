@@ -1,0 +1,23 @@
+{
+  "id": "clm_fixture0001",
+  "text": "The limit of detection is 10 ng/mL.",
+  "value": 10,
+  "unit": "ng/mL",
+  "conditions": {
+    "matrix": "serum"
+  },
+  "status": "verified",
+  "confidence": 0.86,
+  "confidence_basis": "A",
+  "sources": [
+    {
+      "kind": "paper",
+      "url": "https://example.org/paper",
+      "span": "the limit of detection was 10 ng/mL",
+      "accessed_at": "2026-11-25T00:00:00Z"
+    }
+  ],
+  "verified_at": "2026-11-25T00:00:00Z",
+  "verifier": "fixture",
+  "schema_version": "1.0.0"
+}

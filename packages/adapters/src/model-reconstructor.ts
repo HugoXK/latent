@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   ClaimStatus,
   ConfidenceBasis,
@@ -21,6 +24,154 @@ export type FetchLike = (
   text(): Promise<string>;
   json(): Promise<unknown>;
 }>;
+
+export interface ModelReplayFixture {
+  model: string | null;
+  temperature: number | null;
+  redacted: boolean;
+  response: unknown;
+}
+
+export class ModelReplayError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "ModelReplayError";
+    this.code = code;
+  }
+}
+
+function stable(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stable).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    return `{${keys
+      .map((key) => `${JSON.stringify(key)}:${stable(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/**
+ * A stable key over the parts of a chat-completions request that change the
+ * answer. The request messages are hashed, never stored.
+ */
+export function modelRequestKey(body: string): string {
+  const parsed = JSON.parse(body) as {
+    model?: unknown;
+    temperature?: unknown;
+    messages?: unknown;
+    response_format?: unknown;
+  };
+  const keyInput = {
+    model: parsed.model ?? null,
+    temperature: parsed.temperature ?? null,
+    messages: parsed.messages ?? null,
+    response_format: parsed.response_format ?? null,
+  };
+  return createHash("sha256").update(stable(keyInput)).digest("hex");
+}
+
+export interface ReplayFetchOptions {
+  dir?: string;
+}
+
+/**
+ * A FetchLike that never touches the network. A missing fixture is a typed
+ * error, not a fallback to a provider.
+ */
+export function createReplayFetch(
+  options: ReplayFetchOptions = {},
+): FetchLike {
+  const dir = options.dir ?? "data/model-replay";
+  return async (_url, init) => {
+    const key = modelRequestKey(init.body);
+    const path = join(dir, `${key}.json`);
+    let raw: string;
+    try {
+      raw = readFileSync(path, "utf8");
+    } catch {
+      throw new ModelReplayError(
+        "REPLAY_FIXTURE_MISSING",
+        `no model replay fixture for ${key} at ${path}`,
+      );
+    }
+    let fixture: Partial<ModelReplayFixture> & { response?: unknown };
+    try {
+      fixture = JSON.parse(raw) as Partial<ModelReplayFixture> & {
+        response?: unknown;
+      };
+    } catch {
+      throw new ModelReplayError(
+        "REPLAY_FIXTURE_INVALID",
+        `model replay fixture is not valid JSON: ${path}`,
+      );
+    }
+    const response = fixture.response ?? fixture;
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(response),
+      json: async () => response,
+    };
+  };
+}
+
+export interface RecordModelFixtureInput {
+  dir: string;
+  requestBody: string;
+  response: unknown;
+  redact?: string[];
+}
+
+function redactValue(value: unknown, secrets: string[]): unknown {
+  if (typeof value === "string") {
+    let out = value;
+    for (const secret of secrets) {
+      out = out.split(secret).join("[redacted]");
+    }
+    return out;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => redactValue(item, secrets));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        redactValue(item, secrets),
+      ]),
+    );
+  }
+  return value;
+}
+
+/**
+ * Record a response fixture without the request messages. Pass private strings
+ * in `redact`; they are replaced in every response string before it is written.
+ */
+export function writeModelReplayFixture(input: RecordModelFixtureInput): string {
+  const key = modelRequestKey(input.requestBody);
+  const request = JSON.parse(input.requestBody) as {
+    model?: string;
+    temperature?: number;
+  };
+  const secrets = (input.redact ?? []).filter((secret) => secret.length > 0);
+  const fixture: ModelReplayFixture = {
+    model: request.model ?? null,
+    temperature: request.temperature ?? null,
+    redacted: secrets.length > 0,
+    response: redactValue(input.response, secrets),
+  };
+  mkdirSync(input.dir, { recursive: true });
+  const path = join(input.dir, `${key}.json`);
+  writeFileSync(path, `${JSON.stringify(fixture, null, 2)}\n`, "utf8");
+  return path;
+}
 
 export interface ModelReconstructorOptions {
   baseUrl: string;

@@ -220,3 +220,5 @@ export const igem: VerticalPack = {
   ],
   briefTemplate: "verticals/igem/brief.md",
 };
+
+export * from "./rules.js";
