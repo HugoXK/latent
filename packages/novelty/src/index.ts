@@ -6,6 +6,7 @@ export * from "./canon.js";
 export * from "./graph.js";
 export * from "./collision.js";
 export * from "./render.js";
+export * from "./blast.js";
 
 /** Map a collision report into the structured brief field. */
 export function toBriefCollisions(
