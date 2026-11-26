@@ -17,5 +17,6 @@ export * from "./claim-versioning.js";
 export * from "./contradiction.js";
 export * from "./existence.js";
 export * from "./evidence.js";
+export * from "./snapshots.js";
 export * from "./pack.js";
 export * from "./develop.js";

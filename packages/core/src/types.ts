@@ -166,6 +166,14 @@ export interface BriefSection {
   claim_ids?: string[];
 }
 
+export interface BriefCollision {
+  kind: "mechanism" | "interface" | "sequence";
+  prior_id: string;
+  prior_label: string;
+  severity: "high" | "medium";
+  note: string;
+}
+
 export interface Brief {
   id: string;
   idea_id: string;
@@ -176,6 +184,7 @@ export interface Brief {
   approach: BriefSection;
   evidence: string[];
   risks: BriefRisk[];
+  collisions?: BriefCollision[];
   next_steps: string[];
   unknowns: string[];
   compiled_at?: string;
