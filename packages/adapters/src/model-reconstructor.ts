@@ -26,7 +26,6 @@ export type FetchLike = (
 }>;
 
 export interface ModelReplayFixture {
-  key: string;
   model: string | null;
   temperature: number | null;
   redacted: boolean;
@@ -163,7 +162,6 @@ export function writeModelReplayFixture(input: RecordModelFixtureInput): string 
   };
   const secrets = (input.redact ?? []).filter((secret) => secret.length > 0);
   const fixture: ModelReplayFixture = {
-    key,
     model: request.model ?? null,
     temperature: request.temperature ?? null,
     redacted: secrets.length > 0,

@@ -1,9 +1,10 @@
 # Model replay fixtures
 
 `LATENT_MODEL_REPLAY=1` runs the model adapter without a provider. The request key
-is a SHA-256 over `model`, `temperature`, `messages` and `response_format`. The
-messages are hashed, never stored. A missing fixture is a `ModelReplayError`
-(`REPLAY_FIXTURE_MISSING`), never a network fallback.
+is a SHA-256 over `model`, `temperature`, `messages` and `response_format`; it is
+the **file name**, not a field in the JSON, so a fixture never repeats a
+high-entropy hash. The messages are hashed, never stored. A missing fixture is a
+`ModelReplayError` (`REPLAY_FIXTURE_MISSING`), never a network fallback.
 
 ```sh
 LATENT_RECONSTRUCTOR=model \
@@ -20,7 +21,6 @@ A private fragment is allowed in replay because nothing leaves the machine.
 
 ```json
 {
-  "key": "<sha256>",
   "model": "replay-model",
   "temperature": 0,
   "redacted": false,
