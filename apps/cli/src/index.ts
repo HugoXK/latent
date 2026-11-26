@@ -15,16 +15,19 @@ import {
   findQuestion,
   newId,
   nextQuestion,
+  DeterministicClaimVerifier,
   renderBriefMarkdown,
   renderReplayMarkdown,
   runReplayCase,
   transition,
   validateReplayCase,
+  verifyEvidence,
 } from "@latent/core";
 import type {
   AssumptionStatus,
   Fragment,
   GateStatus,
+  Claim,
   Idea,
   QuestionDefinition,
   ReplayCase,
@@ -33,7 +36,7 @@ import { reconstructorFromEnv } from "@latent/adapters";
 import { Store } from "@latent/store";
 import { igem } from "@latent/vertical-igem";
 
-const BOOLEAN_FLAGS = new Set(["all", "refute", "help"]);
+const BOOLEAN_FLAGS = new Set(["all", "refute", "help", "verify"]);
 
 interface Parsed {
   positionals: string[];
@@ -87,6 +90,18 @@ function print(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
+function renderLedgerMarkdown(claims: Claim[]): string {
+  const rows = claims.map(
+    (claim) =>
+      `| ${claim.id} | ${claim.status} | ${claim.confidence.toFixed(2)} | ${claim.text.replace(/\|/g, "\\|")} |`,
+  );
+  return [
+    "| Claim | Status | Confidence | Text |",
+    "|---|---|---|---|",
+    ...rows,
+  ].join("\n");
+}
+
 function requireIdea(store: Store, id: string | undefined): Idea {
   if (!id) throw new CliError("missing idea id", 1);
   const idea = store.getIdea(id);
@@ -133,7 +148,8 @@ Usage:
   latent confirm <idea-id> --all [--refute]   confirm/refute every assumption (human)
   latent decide <idea-id> --all <status>      decide every gate (human)
   latent decide <idea-id> <gate-id> <status>  decide one gate (human)
-  latent brief <idea-id> [--format md|json]   compile a brief (fails if blocked)
+  latent brief <idea-id> [--format md|json] [--verify]  compile a brief (fails if blocked)
+  latent ledger export <idea-id> [--format jsonl|md]   export the claim ledger
   latent eval validate <file>                 validate a replay case
   latent eval replay <file> [--format md]     run the replay harness
   latent show <id>                            show a fragment, idea or brief
@@ -358,8 +374,16 @@ async function main(): Promise<number> {
       case "brief": {
         const ideaId = positionals[0];
         const idea = requireIdea(store, ideaId);
-        const claims = store.listClaims(idea.id);
+        let claims = store.listClaims(idea.id);
         const gates = store.listGates(idea.id);
+
+        if (flags.verify === true) {
+          const report = await verifyEvidence(claims, {
+            verifier: new DeterministicClaimVerifier(),
+          });
+          claims = report.claims;
+          store.putClaims(idea.id, claims);
+        }
 
         const constraint = store.getConstraintState(idea.id);
         if (constraint) {
@@ -430,6 +454,25 @@ async function main(): Promise<number> {
           console.log(renderReplayMarkdown(result));
         } else {
           print(result);
+        }
+        return 0;
+      }
+
+      case "ledger": {
+        const sub = positionals[0];
+        const ideaId = positionals[1];
+        if (sub !== "export" || !ideaId) {
+          throw new CliError(
+            "usage: latent ledger export <idea-id> [--format jsonl|md]",
+            1,
+          );
+        }
+        const idea = requireIdea(store, ideaId);
+        const claims = store.listClaims(idea.id);
+        if (flags.format === "md") {
+          console.log(renderLedgerMarkdown(claims));
+        } else {
+          for (const claim of claims) console.log(JSON.stringify(claim));
         }
         return 0;
       }

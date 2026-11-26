@@ -92,6 +92,22 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
     assert.equal(develop.status, 0, develop.stderr);
     const idea = JSON.parse(develop.stdout) as { id: string };
 
+    const ledger = run(["ledger", "export", idea.id]);
+    assert.equal(ledger.status, 0, ledger.stderr);
+    const firstClaim = JSON.parse(
+      ledger.stdout.trim().split("\n")[0] ?? "{}",
+    ) as { id?: string };
+    assert.ok(firstClaim.id?.startsWith("clm_"));
+    const ledgerMarkdown = run([
+      "ledger",
+      "export",
+      idea.id,
+      "--format",
+      "md",
+    ]);
+    assert.equal(ledgerMarkdown.status, 0, ledgerMarkdown.stderr);
+    assert.match(ledgerMarkdown.stdout, /\| Claim \|/);
+
     const blocked = run(["brief", idea.id]);
     assert.equal(blocked.status, 3, "a brief must be blocked before decisions");
 
@@ -119,7 +135,13 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
     const decide = run(["decide", idea.id, "--all", "pass", "--reason", "test"]);
     assert.equal(decide.status, 0, decide.stderr);
 
-    const brief = run(["brief", idea.id, "--format", "json"]);
+    const brief = run([
+      "brief",
+      idea.id,
+      "--format",
+      "json",
+      "--verify",
+    ]);
     assert.equal(brief.status, 0, brief.stderr);
     const parsed = JSON.parse(brief.stdout) as {
       unknowns: string[];

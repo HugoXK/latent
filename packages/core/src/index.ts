@@ -13,4 +13,8 @@ export * from "./replay-runner.js";
 export * from "./verifier.js";
 export * from "./biosafety.js";
 export * from "./units.js";
+export * from "./claim-versioning.js";
+export * from "./contradiction.js";
+export * from "./existence.js";
+export * from "./evidence.js";
 export * from "./develop.js";
