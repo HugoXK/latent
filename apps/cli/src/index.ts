@@ -13,6 +13,7 @@ import {
   TransitionError,
   answerConstraint,
   blockingQuestions,
+  compileBrief,
   compileSpec,
   createConstraintState,
   createOutcome,
@@ -41,6 +42,7 @@ import {
   undoConstraint,
   validateReplayCase,
   verifyEvidence,
+  verticalRulesValidator,
 } from "@latent/core";
 import type {
   AssumptionStatus,
@@ -61,7 +63,8 @@ import {
   reconstructorFromEnv,
 } from "@latent/adapters";
 import { JobError, Store } from "@latent/store";
-import { compileIgemBrief, igem } from "@latent/vertical-igem";
+import { compileIgemBrief } from "@latent/vertical-igem";
+import { verticalById } from "@latent/verticals";
 
 const BOOLEAN_FLAGS = new Set([
   "all",
@@ -273,7 +276,7 @@ const HELP = `latent — capture a fragment, develop it, decide the gates, compi
 
 Usage:
   latent capture <text>                       capture a text fragment
-  latent develop <fragment-id>                reconstruct into hypotheses + gates
+  latent develop <fragment-id> [--vertical id] reconstruct into hypotheses + gates
   latent ask <idea-id>                        the next highest-information question
   latent answer <idea-id> <var> <value>       answer one constraint (human)
   latent constraints <idea-id>                show the constraint state
@@ -297,7 +300,7 @@ Usage:
         --success|--failure [--confidence N] [--notes "..."] [--by human|expert]
   latent outcomes [idea-id]                   list recorded outcomes
   latent calibration [--owner <id>]           Brier, log loss and missing outcomes
-  latent priors [--min-samples N]             empirical option priors from outcomes
+  latent priors [--vertical id] [--min-samples N]  empirical option priors from outcomes
   latent incubate <idea|fragment-id>          propose connections within a budget
   latent suggestions [--status proposed]      list incubation suggestions
   latent suggestion <id> <accept|reject|revoke>
@@ -356,7 +359,15 @@ async function main(): Promise<number> {
         if (!fragmentId) throw new CliError("usage: latent develop <fragment-id>", 1);
         const fragment = store.getFragment(fragmentId);
         if (!fragment) throw new CliError(`fragment not found: ${fragmentId}`, 2);
-        const result = await develop({ fragment, vertical: igem, reconstructor });
+        const verticalId =
+          typeof flags.vertical === "string" ? flags.vertical : "igem";
+        let pack;
+        try {
+          pack = verticalById(verticalId);
+        } catch {
+          throw new CliError(`unknown vertical: ${verticalId}`, 1);
+        }
+        const result = await develop({ fragment, vertical: pack, reconstructor });
         store.putIdea(result.idea);
         store.putClaims(result.idea.id, result.claims);
         store.putGates(result.idea.id, result.gates);
@@ -371,9 +382,10 @@ async function main(): Promise<number> {
           fragment_id: fragment.id,
           gates: result.gates.length,
         });
-        const first = nextQuestion(result.constraint, igem.questions);
+        const first = nextQuestion(result.constraint, pack.questions);
         out({
           id: result.idea.id,
+          vertical: pack.id,
           status: result.idea.status,
           hypotheses: result.idea.hypotheses.map((h) => ({
             id: h.id,
@@ -474,17 +486,18 @@ async function main(): Promise<number> {
 
       case "ask": {
         const idea = requireIdea(store, positionals[0]);
+        const pack = verticalById(idea.vertical ?? "igem");
         const state =
           store.getConstraintState(idea.id) ??
-          createConstraintState(idea.vertical ?? "igem", igem.questions);
-        const blocking = blockingQuestions(state, igem.questions).map(
+          createConstraintState(pack.id, pack.questions);
+        const blocking = blockingQuestions(state, pack.questions).map(
           (q) => q.variable,
         );
         out({
           idea_id: idea.id,
           ready: blocking.length === 0,
           blocking,
-          question: nextQuestion(state, igem.questions),
+          question: nextQuestion(state, pack.questions),
         });
         return 0;
       }
@@ -499,12 +512,13 @@ async function main(): Promise<number> {
             1,
           );
         }
+        const pack = verticalById(idea.vertical ?? "igem");
         const state =
           store.getConstraintState(idea.id) ??
-          createConstraintState(idea.vertical ?? "igem", igem.questions);
-        const question = findQuestion(igem.questions, variable);
+          createConstraintState(pack.id, pack.questions);
+        const question = findQuestion(pack.questions, variable);
         const value = parseAnswerValues(question, raws);
-        const updated = answerConstraint(state, igem.questions, variable, value, 1);
+        const updated = answerConstraint(state, pack.questions, variable, value, 1);
         store.putConstraintState(idea.id, updated);
         store.appendEvent("constraint.answered", idea.id, {
           variable,
@@ -518,10 +532,10 @@ async function main(): Promise<number> {
           idea_id: idea.id,
           variable,
           value,
-          blocking: blockingQuestions(updated, igem.questions).map(
+          blocking: blockingQuestions(updated, pack.questions).map(
             (q) => q.variable,
           ),
-          next_question: nextQuestion(updated, igem.questions),
+          next_question: nextQuestion(updated, pack.questions),
         });
         return 0;
       }
@@ -530,9 +544,10 @@ async function main(): Promise<number> {
         const sub = positionals[0];
         const action = sub === "undo" || sub === "diff" ? sub : null;
         const idea = requireIdea(store, action ? positionals[1] : sub);
+        const pack = verticalById(idea.vertical ?? "igem");
         const state =
           store.getConstraintState(idea.id) ??
-          createConstraintState(idea.vertical ?? "igem", igem.questions);
+          createConstraintState(pack.id, pack.questions);
         const answers = store
           .listEvents(idea.id)
           .filter((event) => event.type === "constraint.answered");
@@ -547,7 +562,7 @@ async function main(): Promise<number> {
               1,
             );
           }
-          const restored = undoConstraint(state, payload.before, igem.questions);
+          const restored = undoConstraint(state, payload.before, pack.questions);
           store.putConstraintState(idea.id, restored);
           store.appendEvent("constraint.undone", idea.id, {
             event_id: last.id,
@@ -559,7 +574,7 @@ async function main(): Promise<number> {
             undone_event: last.id,
             state: restored,
             blocking: restored.blocking_unknowns,
-            next_question: nextQuestion(restored, igem.questions),
+            next_question: nextQuestion(restored, pack.questions),
           });
           return 0;
         }
@@ -587,10 +602,10 @@ async function main(): Promise<number> {
         out({
           idea_id: idea.id,
           state,
-          blocking: blockingQuestions(state, igem.questions).map(
+          blocking: blockingQuestions(state, pack.questions).map(
             (q) => q.variable,
           ),
-          next_question: nextQuestion(state, igem.questions),
+          next_question: nextQuestion(state, pack.questions),
         });
         return 0;
       }
@@ -598,6 +613,7 @@ async function main(): Promise<number> {
       case "brief": {
         const ideaId = positionals[0];
         const idea = requireIdea(store, ideaId);
+        const pack = verticalById(idea.vertical ?? "igem");
         let claims = store.listClaims(idea.id);
         const gates = store.listGates(idea.id);
 
@@ -611,7 +627,7 @@ async function main(): Promise<number> {
 
         const constraint = store.getConstraintState(idea.id);
         if (constraint) {
-          const blocking = blockingQuestions(constraint, igem.questions);
+          const blocking = blockingQuestions(constraint, pack.questions);
           if (blocking.length > 0) {
             throw new ConstraintError(blocking.map((q) => q.variable));
           }
@@ -627,13 +643,25 @@ async function main(): Promise<number> {
           existenceProviderFromEnv(),
         );
         claims = existence.claims;
-        const brief = compileIgemBrief({
-          idea: next,
-          claims,
-          gates,
-          validators: { existence: existence.validator },
-          strictValidators: true,
-        });
+        const brief =
+          pack.id === "igem"
+            ? compileIgemBrief({
+                idea: next,
+                claims,
+                gates,
+                validators: { existence: existence.validator },
+                strictValidators: true,
+              })
+            : compileBrief({
+                idea: next,
+                claims,
+                gates,
+                validators: {
+                  existence: existence.validator,
+                  vertical_rules: verticalRulesValidator(pack),
+                },
+                strictValidators: true,
+              });
         const saved: Idea = { ...next, brief_ref: brief.id };
         store.putBrief(brief);
         store.putIdea(saved);
@@ -687,9 +715,18 @@ async function main(): Promise<number> {
           });
           return 0;
         }
+        let pack;
+        try {
+          pack = verticalById(replay.metadata.vertical);
+        } catch {
+          throw new CliError(
+            `unknown vertical in replay case: ${replay.metadata.vertical}`,
+            1,
+          );
+        }
         const result = await runReplayCase({
           case: replay,
-          vertical: igem,
+          vertical: pack,
           reconstructor,
         });
         if (flags.format === "md") {
@@ -910,6 +947,14 @@ async function main(): Promise<number> {
 
       case "priors": {
         const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        const verticalId =
+          typeof flags.vertical === "string" ? flags.vertical : "igem";
+        let pack;
+        try {
+          pack = verticalById(verticalId);
+        } catch {
+          throw new CliError(`unknown vertical: ${verticalId}`, 1);
+        }
         const rawMin =
           typeof flags["min-samples"] === "string"
             ? Number(flags["min-samples"])
@@ -922,13 +967,13 @@ async function main(): Promise<number> {
         const observations = observationsFromOutcomes(
           outcomes,
           states,
-          igem.questions,
+          pack.questions,
         );
         out({
           owner_id: ownerId,
           outcome_sample_count: outcomes.length,
           min_samples: minSamples ?? DEFAULT_MIN_SAMPLES,
-          questions: questionPriors(igem.questions, observations, { minSamples }),
+          questions: questionPriors(pack.questions, observations, { minSamples }),
         });
         return 0;
       }

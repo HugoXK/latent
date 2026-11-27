@@ -1,0 +1,219 @@
+{
+  "metadata": {
+    "id": "replay_research-illustrative-001",
+    "title": "Citation checking on biomedical questions: a replication and evaluation",
+    "vertical": "research",
+    "season": 2024,
+    "village": "Methods",
+    "illustrative": true,
+    "temporal_cutoff": "2023-12-31",
+    "created_at": "2026-11-25T00:00:00Z",
+    "owner": "HugoXK",
+    "license": "CC-BY-4.0"
+  },
+  "constraints": {
+    "version": 1,
+    "vertical": "research",
+    "variables": {
+      "field": {
+        "value": "ml",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "question": {
+        "value": "Does retrieval-augmented citation checking reduce unsupported citations on biomedical questions?",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "prior.work": {
+        "value": "Smith 2023; Lee 2024; Patel 2022",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "novelty.claim": {
+        "value": "A held-out clinical corpus with span-level citation verification.",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "data.access": {
+        "value": "public",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "compute.level": {
+        "value": "single_gpu",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "timeline.weeks": {
+        "value": 16,
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "success.metric": {
+        "value": "benchmark",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "ethics.review": {
+        "value": "not_required",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      }
+    },
+    "unknowns": [
+      "budget.total",
+      "advisor"
+    ],
+    "blocking_unknowns": [],
+    "updated_at": "2026-11-20T00:00:00Z",
+    "schema_version": "1.0.0"
+  },
+  "fragment": {
+    "id": "frg_replay0002",
+    "captured_at": "2026-11-20T00:00:00Z",
+    "kind": "text",
+    "content": "A replication and evaluation study of retrieval-augmented citation checking on biomedical questions; the verifier is the hard part.",
+    "privacy": "private",
+    "schema_version": "1.0.0"
+  },
+  "prior_art": [
+    {
+      "id": "pa_rag-citations",
+      "title": "Retrieval-augmented generation for citation-bearing answers",
+      "kind": "paper",
+      "year": 2023,
+      "url": "https://example.org/rag-citations",
+      "published_at": "2023-04-01",
+      "mechanism": "retrieval-augmented generation",
+      "interface": "answer plus retrieved spans",
+      "source_grade": "A"
+    },
+    {
+      "id": "pa_span-verifier",
+      "title": "Span-level citation verification for scientific claims",
+      "kind": "paper",
+      "year": 2022,
+      "url": "https://example.org/span-verifier",
+      "published_at": "2022-09-01",
+      "mechanism": "span entailment",
+      "interface": "claim-source pair classifier",
+      "source_grade": "A"
+    },
+    {
+      "id": "pa_clinical-qa",
+      "title": "A public clinical question-answering benchmark",
+      "kind": "paper",
+      "year": 2023,
+      "url": "https://example.org/clinical-qa",
+      "published_at": "2023-11-01",
+      "mechanism": "benchmark",
+      "interface": "held-out questions with references",
+      "source_grade": "B"
+    }
+  ],
+  "expected_candidates": [
+    {
+      "id": "cand_conservative",
+      "statement": "Replicate an entailment verifier on a held-out clinical corpus and report unsupported citations.",
+      "variant": "conservative",
+      "mechanism": "span entailment",
+      "interface": "claim-source pair classifier",
+      "host": "single GPU",
+      "readout": "unsupported citation rate",
+      "is_seed": false
+    },
+    {
+      "id": "cand_ambitious",
+      "statement": "Add retrieval to the verifier and evaluate end-to-end citation support.",
+      "variant": "ambitious",
+      "mechanism": "retrieval-augmented verification",
+      "interface": "retriever plus entailment",
+      "host": "single GPU",
+      "readout": "supported-citation precision",
+      "is_seed": true
+    },
+    {
+      "id": "cand_cross-domain",
+      "statement": "Borrow a legal citation-checking evaluation and adapt its span labels to biomedicine.",
+      "variant": "cross_domain",
+      "mechanism": "citation checking",
+      "interface": "legal span labels adapted",
+      "host": "single GPU",
+      "readout": "agreement with expert spans",
+      "is_seed": false
+    }
+  ],
+  "collisions": [
+    {
+      "id": "col_mechanism",
+      "kind": "mechanism",
+      "prior_art_id": "pa_span-verifier",
+      "note": "Span entailment is established; the delta must be the clinical corpus and the retrieval interface."
+    },
+    {
+      "id": "col_interface",
+      "kind": "interface",
+      "prior_art_id": "pa_rag-citations",
+      "note": "Retrieval plus spans exists, but not with a held-out clinical evaluation and unsupported-citation metric."
+    }
+  ],
+  "gate_labels": [
+    {
+      "gate": "falsifiable",
+      "expected": "pass",
+      "rationale": "The unsupported-citation rate has a baseline and a stopping rule.",
+      "source": "constraint success.metric"
+    },
+    {
+      "gate": "prior_art",
+      "expected": "pass",
+      "rationale": "The delta is the clinical corpus and span-level evaluation.",
+      "source": null
+    },
+    {
+      "gate": "data",
+      "expected": "pass",
+      "rationale": "The corpus is public.",
+      "source": "constraint data.access"
+    },
+    {
+      "gate": "compute",
+      "expected": "pass",
+      "rationale": "One GPU fits the plan.",
+      "source": "constraint compute.level"
+    },
+    {
+      "gate": "ethics",
+      "expected": "pass",
+      "rationale": "No human-subject data is collected.",
+      "source": "constraint ethics.review"
+    },
+    {
+      "gate": "evaluation",
+      "expected": "pass",
+      "rationale": "A benchmark metric and a baseline are named.",
+      "source": "constraint success.metric"
+    }
+  ],
+  "outcome": {
+    "hidden": true,
+    "seed_title": "A held-out evaluation of retrieval-augmented citation checking on biomedical questions",
+    "seed_doi": null,
+    "decision": "tested",
+    "evidence": [
+      "Illustrative: a held-out corpus was assumed",
+      "Illustrative: an expert span sample was assumed"
+    ],
+    "notes": "Illustrative case for the research vertical; it is not a historical claim."
+  }
+}

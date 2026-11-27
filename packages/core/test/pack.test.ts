@@ -4,6 +4,7 @@ import {
   PackValidationError,
   assertValidPack,
   validateVerticalPack,
+  verticalRulesValidator,
 } from "../src/index.js";
 import type { VerticalPack } from "../src/index.js";
 
@@ -85,4 +86,23 @@ test("assertValidPack throws PackValidationError", () => {
     () => assertValidPack({ ...base, gates: [] }),
     (error: unknown) => error instanceof PackValidationError,
   );
+});
+
+test("rules freshness is a real vertical validator", () => {
+  const now = new Date("2026-11-27T00:00:00Z");
+  const fresh = verticalRulesValidator(
+    { ...base, rules: { version: "2026.1", checked_at: "2026-01-01" } },
+    now,
+  );
+  assert.equal(fresh.status, "pass");
+
+  const stale = verticalRulesValidator(
+    { ...base, rules: { version: "2024.1", checked_at: "2024-01-01" } },
+    now,
+  );
+  assert.equal(stale.status, "fail");
+
+  const none = verticalRulesValidator(base, now);
+  assert.equal(none.status, "pass");
+  assert.match(none.detail ?? "", /no versioned rules/);
 });

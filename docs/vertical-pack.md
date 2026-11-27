@@ -47,6 +47,19 @@ broken pack fails CI.
 5. Add a brief template and one illustrative replay case.
 6. Run `assertValidPack` and the replay harness.
 
+## The second pack
+
+`@latent/vertical-research` exports `research`; `@latent/verticals` is the registry
+(`verticalById`, `listVerticals`). The CLI selects it with `--vertical research`
+(`develop`, `priors`); the API accepts `{ "vertical": "research" }` and
+`GET /v1/priors?vertical=research`. The replay case is
+`data/replay/fixtures/valid/research-illustrative-001.json`.
+
+`compileIgemBrief` is an app-level extra for iGEM (components, timeline, material
+balance). Every other pack uses the generic compiler plus
+`verticalRulesValidator`, so the core has no pack branch. The pack owns its
+variables, questions, falsifiers, evidence scale and optional dated rules.
+
 ## What a pack does not own
 
 A pack does not own the ledger, the verifier, the gate engine or the compiler. It

@@ -9,7 +9,9 @@
       "@latent/vertical-igem": ["packages/vertical-igem/src/index.ts"],
       "@latent/retrieval": ["packages/retrieval/src/index.ts"],
       "@latent/novelty": ["packages/novelty/src/index.ts"],
-      "@latent/client": ["packages/client/src/index.ts"]
+      "@latent/client": ["packages/client/src/index.ts"],
+      "@latent/vertical-research": ["packages/vertical-research/src/index.ts"],
+      "@latent/verticals": ["packages/verticals/src/index.ts"]
     }
   },
   "include": [

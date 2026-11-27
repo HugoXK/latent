@@ -15,6 +15,7 @@ import {
   TransitionError,
   answerConstraint,
   blockingQuestions,
+  compileBrief,
   createConstraintState,
   createOutcome,
   DEFAULT_MIN_SAMPLES,
@@ -31,6 +32,7 @@ import {
   questionPriors,
   transition,
   undoConstraint,
+  verticalRulesValidator,
 } from "@latent/core";
 import type {
   AssumptionStatus,
@@ -45,7 +47,8 @@ import {
   reconstructorFromEnv,
 } from "@latent/adapters";
 import { Store } from "@latent/store";
-import { compileIgemBrief, igem } from "@latent/vertical-igem";
+import { compileIgemBrief } from "@latent/vertical-igem";
+import { verticalById } from "@latent/verticals";
 import type { Reconstructor } from "@latent/core";
 
 export const SCOPES = [
@@ -386,13 +389,19 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         },
       });
     }
-    const vertical = body.vertical ?? igem.id;
-    if (vertical !== igem.id) {
+    const verticalId = body.vertical ?? "igem";
+    let pack;
+    try {
+      pack = verticalById(verticalId);
+    } catch {
       return reply.code(400).send({
-        error: { code: "UNKNOWN_VERTICAL", message: `unknown vertical: ${vertical}` },
+        error: {
+          code: "UNKNOWN_VERTICAL",
+          message: `unknown vertical: ${verticalId}`,
+        },
       });
     }
-    const result = await develop({ fragment, vertical: igem, reconstructor });
+    const result = await develop({ fragment, vertical: pack, reconstructor });
     store.putIdea(result.idea);
     store.putClaims(result.idea.id, result.claims);
     store.putGates(result.idea.id, result.gates);
@@ -419,19 +428,20 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         .code(404)
         .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
     }
+    const pack = verticalById(idea.vertical ?? "igem");
     const constraint =
       store.getConstraintState(id) ??
-      createConstraintState(idea.vertical ?? igem.id, igem.questions);
+      createConstraintState(pack.id, pack.questions);
     return {
       idea,
       claims: store.listClaims(id),
       gates: store.listGates(id),
       brief: store.getBriefByIdea(id),
       constraint,
-      blocking: blockingQuestions(constraint, igem.questions).map(
+      blocking: blockingQuestions(constraint, pack.questions).map(
         (q) => q.variable,
       ),
-      next_question: nextQuestion(constraint, igem.questions),
+      next_question: nextQuestion(constraint, pack.questions),
     };
   });
 
@@ -443,15 +453,16 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         .code(404)
         .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
     }
+    const pack = verticalById(idea.vertical ?? "igem");
     const constraint =
       store.getConstraintState(id) ??
-      createConstraintState(idea.vertical ?? igem.id, igem.questions);
+      createConstraintState(pack.id, pack.questions);
     return {
       constraint,
-      blocking: blockingQuestions(constraint, igem.questions).map(
+      blocking: blockingQuestions(constraint, pack.questions).map(
         (q) => q.variable,
       ),
-      next_question: nextQuestion(constraint, igem.questions),
+      next_question: nextQuestion(constraint, pack.questions),
     };
   });
 
@@ -483,14 +494,15 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         },
       });
     }
+    const pack = verticalById(idea.vertical ?? "igem");
     const state =
       store.getConstraintState(id) ??
-      createConstraintState(idea.vertical ?? igem.id, igem.questions);
-    const question = findQuestion(igem.questions, body.variable);
+      createConstraintState(pack.id, pack.questions);
+    const question = findQuestion(pack.questions, body.variable);
     const value = normalizeAnswer(question, body.value);
     const updated = answerConstraint(
       state,
-      igem.questions,
+      pack.questions,
       body.variable,
       value,
       confidence,
@@ -506,10 +518,10 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     });
     return {
       constraint: updated,
-      blocking: blockingQuestions(updated, igem.questions).map(
+      blocking: blockingQuestions(updated, pack.questions).map(
         (q) => q.variable,
       ),
-      next_question: nextQuestion(updated, igem.questions),
+      next_question: nextQuestion(updated, pack.questions),
     };
   });
 
@@ -521,9 +533,10 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         .code(404)
         .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
     }
+    const pack = verticalById(idea.vertical ?? "igem");
     const state =
       store.getConstraintState(id) ??
-      createConstraintState(idea.vertical ?? igem.id, igem.questions);
+      createConstraintState(pack.id, pack.questions);
     const answers = store
       .listEvents(id)
       .filter((event) => event.type === "constraint.answered");
@@ -545,7 +558,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         },
       });
     }
-    const restored = undoConstraint(state, payload.before, igem.questions);
+    const restored = undoConstraint(state, payload.before, pack.questions);
     store.putConstraintState(id, restored);
     store.appendEvent("constraint.undone", id, {
       event_id: last.id,
@@ -554,10 +567,10 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     });
     return {
       constraint: restored,
-      blocking: blockingQuestions(restored, igem.questions).map(
+      blocking: blockingQuestions(restored, pack.questions).map(
         (question) => question.variable,
       ),
-      next_question: nextQuestion(restored, igem.questions),
+      next_question: nextQuestion(restored, pack.questions),
     };
   });
 
@@ -665,12 +678,13 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         .code(404)
         .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
     }
+    const pack = verticalById(idea.vertical ?? "igem");
     const claims = store.listClaims(id);
     const gates = store.listGates(id);
 
     const constraint = store.getConstraintState(id);
     const blocking = constraint
-      ? blockingQuestions(constraint, igem.questions)
+      ? blockingQuestions(constraint, pack.questions)
       : [];
     if (blocking.length > 0) {
       return reply.code(409).send({
@@ -691,13 +705,25 @@ export function buildServer(options: ServerOptions): FastifyInstance {
       claims,
       existenceProviderFromEnv(),
     );
-    const brief = compileIgemBrief({
-      idea: next,
-      claims: existence.claims,
-      gates,
-      validators: { existence: existence.validator },
-      strictValidators: true,
-    });
+    const brief =
+      pack.id === "igem"
+        ? compileIgemBrief({
+            idea: next,
+            claims: existence.claims,
+            gates,
+            validators: { existence: existence.validator },
+            strictValidators: true,
+          })
+        : compileBrief({
+            idea: next,
+            claims: existence.claims,
+            gates,
+            validators: {
+              existence: existence.validator,
+              vertical_rules: verticalRulesValidator(pack),
+            },
+            strictValidators: true,
+          });
     const saved: Idea = { ...next, brief_ref: brief.id };
     store.putBrief(brief);
     store.putIdea(saved);
@@ -803,7 +829,19 @@ export function buildServer(options: ServerOptions): FastifyInstance {
 
   app.get("/v1/calibration", { preHandler: scope("memory:read") }, async () => store.calibrationReport());
 
-  app.get("/v1/priors", { preHandler: scope("memory:read") }, async () => {
+  app.get("/v1/priors", { preHandler: scope("memory:read") }, async (req, reply) => {
+    const query = req.query as { vertical?: string };
+    let pack;
+    try {
+      pack = verticalById(query.vertical ?? "igem");
+    } catch {
+      return reply.code(400).send({
+        error: {
+          code: "UNKNOWN_VERTICAL",
+          message: `unknown vertical: ${query.vertical ?? ""}`,
+        },
+      });
+    }
     const outcomes = store.listOutcomes({ ownerId: "local" });
     const states = new Map(
       store.listConstraintStates().map((entry) => [entry.ideaId, entry.state]),
@@ -811,12 +849,13 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     const observations = observationsFromOutcomes(
       outcomes,
       states,
-      igem.questions,
+      pack.questions,
     );
     return {
+      vertical: pack.id,
       outcome_sample_count: outcomes.length,
       min_samples: DEFAULT_MIN_SAMPLES,
-      questions: questionPriors(igem.questions, observations),
+      questions: questionPriors(pack.questions, observations),
     };
   });
 

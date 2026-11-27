@@ -59,7 +59,10 @@ its exit criteria are met; a version that cannot be evaluated does not ship.
 
 - iGEM (first), then research proposal, startup idea, grant.
 - A vertical pack = variables + evidence scale + gates + compiler template +
-  corpus adapters.
+  corpus adapters. The registry lives in `packages/verticals`; `igem` and
+  `research` ship today. The core has no pack branch: the CLI/server select a pack
+  by id, use the generic compiler, and keep the iGEM extra composer at the app
+  boundary.
 
 ### Ecosystem
 

@@ -290,7 +290,8 @@ export class LatentClient {
     return this.#request<CalibrationReport>("GET", "/v1/calibration");
   }
 
-  priors(): Promise<PriorReport> {
-    return this.#request<PriorReport>("GET", "/v1/priors");
+  priors(vertical?: string): Promise<PriorReport> {
+    const query = vertical ? `?vertical=${encodeURIComponent(vertical)}` : "";
+    return this.#request<PriorReport>("GET", `/v1/priors${query}`);
   }
 }
