@@ -291,6 +291,7 @@ pnpm latent develop <fragment-id>
 | `docs/api.md` | REST 与 CLI 契约 |
 | `docs/security.md` | 威胁模型与数据处理 |
 | `docs/release.md` | 两阶段发布：PR、tag、SBOM、provenance |
+| `docs/replay-plan.md` | 五个示例案例与 20-case 评估计划 |
 | `docs/runtime.md` | 兼容 FlyBot 的运行时契约与回调 |
 | `docs/decisions/` | 架构决策记录 |
 | `data/schemas/` | 五个原语的 JSON Schema 2020-12 |
