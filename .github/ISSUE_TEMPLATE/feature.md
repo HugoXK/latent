@@ -19,3 +19,5 @@ assignees: ""
 ## Non-goals
 
 <!-- What this explicitly does not do. -->
+
+<!-- Before starting, claim this issue per docs/agent-protocol.md. If a required check or reviewer is unavailable, stop and comment the blocker; do not bypass. -->

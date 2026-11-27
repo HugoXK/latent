@@ -126,6 +126,27 @@ context exists before the publisher lands on the default branch. Once the publis
 is live on `main`, the in-workflow aggregate is redundant; the publisher updates
 the existing check run instead of creating a duplicate.
 
+## When the reviewer is unavailable
+
+The reviewer is a hard dependency. If `review-gate` cannot pass because the reviewer
+is unavailable, or a required check is red for infrastructure reasons:
+
+1. Comment on the pull request with the exact blocker:
+
+   ```text
+   Blocked: review-gate cannot pass.
+   - Missing: HugoXK-bot PASS at <head SHA>
+   - Required checks: ci-ok, pr-lint, review-gate (current: <names/status>)
+   - Run: <workflow run URL>
+   - Action: awaiting the reviewer; no admin merge, force-push or protection change.
+   ```
+
+2. Leave the pull request open. Do not close and reopen it to reset checks.
+3. Do not admin-merge, force-push, remove branch protection or invent a PASS.
+   A bypass is not a PASS.
+
+The owner can resolve the blocker; the agent stops and reports it.
+
 ## Fork pull requests
 
 The default `GITHUB_TOKEN` is read-only for a pull request from a fork, so the
