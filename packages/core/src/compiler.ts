@@ -34,6 +34,11 @@ export interface CompileInput {
    * supplied it is recorded as `skipped`, never as `pass`.
    */
   validators?: Partial<Record<BriefValidatorName, BriefValidator>>;
+  /**
+   * When true, a required validator that is still `skipped` blocks the brief.
+   * Callers that have not wired a check should leave this false and say so.
+   */
+  strictValidators?: boolean;
   collisions?: BriefCollision[];
   sections?: BriefExtraSection[];
   extraRisks?: BriefRisk[];
@@ -61,6 +66,60 @@ export function compileBrief(input: CompileInput): Brief {
   if (blockingAssumptions.length > 0) {
     issues.push(
       `BLOCKING_ASSUMPTIONS: ${blockingAssumptions.map((a) => a.id).join(", ")}`,
+    );
+  }
+
+  const citationCodes = new Set([
+    "UNSUPPORTED_VERIFIED",
+    "C_CANNOT_BE_VERIFIED",
+    "CONTRADICTION_WITHOUT_SOURCE",
+  ]);
+  const numericCodes = new Set([
+    "NUMERIC_WITHOUT_UNIT",
+    "CONFIDENCE_OUT_OF_RANGE",
+  ]);
+  const citationIssues = ledgerIssues.filter((i) => citationCodes.has(i.code));
+  const numericIssues = ledgerIssues.filter((i) => numericCodes.has(i.code));
+
+  const validators: BriefValidator[] = [
+    {
+      name: "citation",
+      status: citationIssues.length === 0 ? "pass" : "fail",
+      detail:
+        citationIssues.length === 0
+          ? null
+          : `${citationIssues.length} citation issue(s)`,
+    },
+    {
+      name: "numeric",
+      status: numericIssues.length === 0 ? "pass" : "fail",
+      detail:
+        numericIssues.length === 0
+          ? null
+          : `${numericIssues.length} numeric issue(s)`,
+    },
+    input.validators?.existence ?? {
+      name: "existence",
+      status: "skipped",
+      detail: "not implemented in v0.2",
+    },
+    input.validators?.vertical_rules ?? {
+      name: "vertical_rules",
+      status: "skipped",
+      detail: "not implemented in v0.2",
+    },
+  ];
+
+  const blockedValidators = validators.filter(
+    (validator) =>
+      validator.status === "fail" ||
+      (input.strictValidators === true && validator.status === "skipped"),
+  );
+  if (blockedValidators.length > 0) {
+    issues.push(
+      `VALIDATORS_BLOCKED: ${blockedValidators
+        .map((validator) => `${validator.name}:${validator.status}`)
+        .join(", ")}`,
     );
   }
 
@@ -117,47 +176,6 @@ export function compileBrief(input: CompileInput): Brief {
   }
 
   const now = input.now ?? new Date().toISOString();
-
-  const citationCodes = new Set([
-    "UNSUPPORTED_VERIFIED",
-    "C_CANNOT_BE_VERIFIED",
-    "CONTRADICTION_WITHOUT_SOURCE",
-  ]);
-  const numericCodes = new Set([
-    "NUMERIC_WITHOUT_UNIT",
-    "CONFIDENCE_OUT_OF_RANGE",
-  ]);
-  const citationIssues = ledgerIssues.filter((i) => citationCodes.has(i.code));
-  const numericIssues = ledgerIssues.filter((i) => numericCodes.has(i.code));
-
-  const validators: BriefValidator[] = [
-    {
-      name: "citation",
-      status: citationIssues.length === 0 ? "pass" : "fail",
-      detail:
-        citationIssues.length === 0
-          ? null
-          : `${citationIssues.length} citation issue(s)`,
-    },
-    {
-      name: "numeric",
-      status: numericIssues.length === 0 ? "pass" : "fail",
-      detail:
-        numericIssues.length === 0
-          ? null
-          : `${numericIssues.length} numeric issue(s)`,
-    },
-    input.validators?.existence ?? {
-      name: "existence",
-      status: "skipped",
-      detail: "not implemented in v0.2",
-    },
-    input.validators?.vertical_rules ?? {
-      name: "vertical_rules",
-      status: "skipped",
-      detail: "not implemented in v0.2",
-    },
-  ];
 
   return {
     id: newId("brf"),

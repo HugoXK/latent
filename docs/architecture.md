@@ -247,9 +247,14 @@ Emits a one-page brief or a spec. It runs four validators before writing:
 
 - citation support (no unsupported claims);
 - numeric consistency (units, conditions);
-- object existence;
+- object existence (a source-bearing claim with no provider fails closed; a
+  missing object demotes a verified claim);
 - vertical rules (for example, 2026 iGEM medal rules, loaded from a versioned
-  config with a checked date).
+  config with a checked date; a stale config fails).
+
+A failed validator blocks the brief. With `strictValidators`, a required check
+that is still `skipped` also blocks; `skipped` is reserved for a check that is
+genuinely not applicable or not configured.
 
 The output always ends with an explicit **"what we still don't know"** section.
 

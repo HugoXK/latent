@@ -4,6 +4,8 @@ import type {
   BriefCollision,
   BriefExtraSection,
   BriefRisk,
+  BriefValidator,
+  BriefValidatorName,
   Claim,
   Gate,
   Idea,
@@ -12,6 +14,7 @@ import { componentTable, renderComponentTableMarkdown } from "./components.js";
 import type { ComponentInput } from "./components.js";
 import { materialBalance } from "./material.js";
 import type { MaterialBalanceInput } from "./material.js";
+import { IGEM_2026, rulesFreshness } from "./rules.js";
 import { simulateTimeline, timelineGate } from "./timeline.js";
 import type { TimelineInput } from "./timeline.js";
 
@@ -23,6 +26,8 @@ export interface IgemBriefInput {
   timeline?: TimelineInput;
   material?: MaterialBalanceInput;
   collisions?: BriefCollision[];
+  validators?: Partial<Record<BriefValidatorName, BriefValidator>>;
+  strictValidators?: boolean;
   now?: string;
 }
 
@@ -87,6 +92,15 @@ export function compileIgemBrief(input: IgemBriefInput): Brief {
     }
   }
 
+  const nowDate = input.now ? new Date(input.now) : new Date();
+  const freshness = rulesFreshness(IGEM_2026, nowDate);
+  const verticalRules: BriefValidator =
+    input.validators?.vertical_rules ?? {
+      name: "vertical_rules",
+      status: freshness.fresh ? "pass" : "fail",
+      detail: `iGEM ${IGEM_2026.version} checked ${freshness.age_days} days ago`,
+    };
+
   return compileBrief({
     idea: input.idea,
     claims: input.claims,
@@ -94,6 +108,8 @@ export function compileIgemBrief(input: IgemBriefInput): Brief {
     collisions: input.collisions,
     sections,
     extraRisks,
+    validators: { ...input.validators, vertical_rules: verticalRules },
+    strictValidators: input.strictValidators,
     now: input.now,
   });
 }
