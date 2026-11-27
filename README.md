@@ -361,6 +361,8 @@ and fixtures live in [`data/replay/`](data/replay/); validate a case with
 | `packages/vertical-igem/` | The iGEM pack as runtime data |
 | `apps/cli/` | The `latent` CLI |
 | `apps/server/` | Local Fastify API |
+| `openapi/` | The committed OpenAPI 3.1 contract |
+| `packages/client/` | Typed client for the local API |
 | `verticals/igem/` | iGEM vertical notes and the one-page template |
 | `pnpm-workspace.yaml`, `pnpm-lock.yaml` | The workspace and the locked dependency graph |
 | `AGENTS.md` | Binding rules for AI agents working on this repo |
