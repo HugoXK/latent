@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent.dev/schemas/suggestion.schema.json",
+  "title": "Suggestion",
+  "description": "A reviewable proposal from an incubation job. A suggestion is never a silent edit; a human accepts, rejects or revokes it.",
+  "type": "object",
+  "required": [
+    "id",
+    "owner_id",
+    "job_id",
+    "kind",
+    "from",
+    "to",
+    "reason",
+    "score",
+    "budget_cost",
+    "status",
+    "created_at"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^sug_[a-z0-9]{8,}$" },
+    "owner_id": { "type": "string", "minLength": 1 },
+    "job_id": { "type": "string", "minLength": 1 },
+    "kind": { "enum": ["connection", "resurface", "contradiction", "duplicate"] },
+    "from": { "$ref": "#/$defs/node" },
+    "to": { "$ref": "#/$defs/node" },
+    "reason": { "type": "string", "minLength": 1 },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "budget_cost": { "type": "number", "minimum": 0 },
+    "status": { "enum": ["proposed", "accepted", "rejected", "revoked"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "decided_at": { "type": ["string", "null"], "format": "date-time" },
+    "decided_by": { "type": ["string", "null"] },
+    "schema_version": { "const": "1.0.0" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "enum": ["fragment", "idea", "claim", "gate", "outcome"] },
+        "id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

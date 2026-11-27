@@ -189,6 +189,9 @@ pnpm latent memory export                    # 开放 JSON 图谱；删除在仍
 pnpm latent outcome <idea-id> tested --success --confidence 0.62  # 人的真实结果记录
 pnpm latent calibration                      # Brier、log loss 与缺失结果
 pnpm latent priors                           # 从结果反推的选项先验
+pnpm latent incubate <fragment-id> --budget 5  # 在预算内提出连接
+pnpm latent suggestions --status proposed      # 审阅建议
+pnpm latent digest                            # 只读的每周视图
 ```
 
 CLI 契约见 [docs/api.md](docs/api.md)。每条命令都接受 `--json`：成功输出稳定的 `{ ok, command, data }`，失败在 stderr 输出 `{ ok, command, error }`。默认复原器是确定性模板，目的是让管道在没有模型提供方时也能测试。

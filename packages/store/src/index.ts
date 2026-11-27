@@ -1,7 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 import {
   assertValid,
+  buildDigest as buildDigestView,
   calibrationReport as buildCalibrationReport,
+  decideSuggestion as applySuggestionDecision,
   explainConnection,
   newId,
 } from "@latent/core";
@@ -10,15 +12,21 @@ import type {
   CalibrationReport,
   Claim,
   ConstraintState,
+  Digest,
   Fragment,
   Gate,
   Idea,
   IdeaStatus,
+  Job,
+  JobKind,
+  JobStatus,
   MemoryEdge,
   MemoryNodeRef,
   MemoryNodeType,
   MemoryRelation,
   Outcome,
+  Suggestion,
+  SuggestionStatus,
 } from "@latent/core";
 
 /**
@@ -107,10 +115,38 @@ CREATE INDEX IF NOT EXISTS idx_outcomes_owner ON outcomes(owner_id);
 CREATE INDEX IF NOT EXISTS idx_outcomes_idea ON outcomes(idea_id);
 `;
 
+const INCUBATION_SCHEMA = `
+CREATE TABLE IF NOT EXISTS jobs (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL,
+  budget REAL NOT NULL,
+  spent REAL NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_owner_status ON jobs(owner_id, status);
+CREATE TABLE IF NOT EXISTS suggestions (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  job_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL,
+  score REAL NOT NULL,
+  created_at TEXT NOT NULL,
+  data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_suggestions_owner_status ON suggestions(owner_id, status);
+CREATE INDEX IF NOT EXISTS idx_suggestions_job ON suggestions(job_id);
+`;
+
 const MIGRATIONS: readonly string[] = [
   BASE_SCHEMA,
   MEMORY_SCHEMA,
   OUTCOME_SCHEMA,
+  INCUBATION_SCHEMA,
 ];
 
 type Row = { data: string };
@@ -150,6 +186,30 @@ export interface ListOutcomeOptions {
   ownerId?: string;
   ideaId?: string;
 }
+
+export interface ListJobOptions {
+  ownerId?: string;
+  status?: JobStatus;
+}
+
+export interface ListSuggestionOptions {
+  ownerId?: string;
+  status?: SuggestionStatus;
+  jobId?: string;
+}
+
+export class JobError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "JobError";
+    this.code = code;
+  }
+}
+
+export const MAX_OPEN_JOBS = 4;
+export const MAX_JOB_BUDGET = 100;
 
 export class Store {
   readonly #db: DatabaseSync;
@@ -210,6 +270,13 @@ export class Store {
       .prepare("SELECT data FROM fragments WHERE id = ? AND deleted_at IS NULL")
       .get(id) as Row | undefined;
     return parse<Fragment>(row);
+  }
+
+  listFragments(): Fragment[] {
+    const rows = this.#db
+      .prepare("SELECT data FROM fragments WHERE deleted_at IS NULL ORDER BY id")
+      .all() as Row[];
+    return rows.map((row) => JSON.parse(row.data) as Fragment);
   }
 
   // --- ideas ---------------------------------------------------------------
@@ -620,6 +687,197 @@ export class Store {
     return buildCalibrationReport(outcomes, {
       now: options.now,
       decidedIdeaIds,
+    });
+  }
+
+  // --- incubation jobs and suggestions -------------------------------------
+
+  createJob(input: {
+    ownerId?: string;
+    kind?: JobKind;
+    budget: number;
+    now?: string;
+  }): Job {
+    const ownerId = input.ownerId ?? "local";
+    if (
+      !Number.isFinite(input.budget) ||
+      input.budget < 0 ||
+      input.budget > MAX_JOB_BUDGET
+    ) {
+      throw new JobError(
+        "INVALID_BUDGET",
+        `budget must be between 0 and ${MAX_JOB_BUDGET}.`,
+      );
+    }
+    const open = this.#db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM jobs WHERE owner_id = ? AND status IN ('queued','running')",
+      )
+      .get(ownerId) as { n: number } | undefined;
+    if ((open?.n ?? 0) >= MAX_OPEN_JOBS) {
+      throw new JobError(
+        "JOB_CAP_REACHED",
+        `at most ${MAX_OPEN_JOBS} open incubation jobs per owner.`,
+      );
+    }
+    const now = input.now ?? new Date().toISOString();
+    const job: Job = {
+      id: newId("job"),
+      owner_id: ownerId,
+      kind: input.kind ?? "incubate",
+      status: "queued",
+      budget: input.budget,
+      spent: 0,
+      created_at: now,
+      updated_at: now,
+      error: null,
+    };
+    this.putJob(job);
+    return job;
+  }
+
+  putJob(job: Job): void {
+    this.#db
+      .prepare(
+        `INSERT INTO jobs
+           (id, owner_id, kind, status, budget, spent, created_at, updated_at, data)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           owner_id = excluded.owner_id,
+           kind = excluded.kind,
+           status = excluded.status,
+           budget = excluded.budget,
+           spent = excluded.spent,
+           created_at = excluded.created_at,
+           updated_at = excluded.updated_at,
+           data = excluded.data`,
+      )
+      .run(
+        job.id,
+        job.owner_id,
+        job.kind,
+        job.status,
+        job.budget,
+        job.spent,
+        job.created_at,
+        job.updated_at,
+        JSON.stringify(job),
+      );
+  }
+
+  getJob(id: string): Job | null {
+    const row = this.#db
+      .prepare("SELECT data FROM jobs WHERE id = ?")
+      .get(id) as Row | undefined;
+    return parse<Job>(row);
+  }
+
+  listJobs(options: ListJobOptions = {}): Job[] {
+    const clauses: string[] = [];
+    const params: string[] = [];
+    if (options.ownerId !== undefined) {
+      clauses.push("owner_id = ?");
+      params.push(options.ownerId);
+    }
+    if (options.status !== undefined) {
+      clauses.push("status = ?");
+      params.push(options.status);
+    }
+    const where = clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";
+    const rows = this.#db
+      .prepare(`SELECT data FROM jobs${where} ORDER BY created_at, id`)
+      .all(...params) as Row[];
+    return rows.map((row) => JSON.parse(row.data) as Job);
+  }
+
+  putSuggestion(suggestion: Suggestion): void {
+    assertValid("suggestion", suggestion);
+    this.#db
+      .prepare(
+        `INSERT INTO suggestions
+           (id, owner_id, job_id, kind, status, score, created_at, data)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           owner_id = excluded.owner_id,
+           job_id = excluded.job_id,
+           kind = excluded.kind,
+           status = excluded.status,
+           score = excluded.score,
+           created_at = excluded.created_at,
+           data = excluded.data`,
+      )
+      .run(
+        suggestion.id,
+        suggestion.owner_id,
+        suggestion.job_id,
+        suggestion.kind,
+        suggestion.status,
+        suggestion.score,
+        suggestion.created_at,
+        JSON.stringify(suggestion),
+      );
+  }
+
+  getSuggestion(id: string): Suggestion | null {
+    const row = this.#db
+      .prepare("SELECT data FROM suggestions WHERE id = ?")
+      .get(id) as Row | undefined;
+    return parse<Suggestion>(row);
+  }
+
+  listSuggestions(options: ListSuggestionOptions = {}): Suggestion[] {
+    const clauses: string[] = [];
+    const params: string[] = [];
+    if (options.ownerId !== undefined) {
+      clauses.push("owner_id = ?");
+      params.push(options.ownerId);
+    }
+    if (options.status !== undefined) {
+      clauses.push("status = ?");
+      params.push(options.status);
+    }
+    if (options.jobId !== undefined) {
+      clauses.push("job_id = ?");
+      params.push(options.jobId);
+    }
+    const where = clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";
+    const rows = this.#db
+      .prepare(`SELECT data FROM suggestions${where} ORDER BY created_at, id`)
+      .all(...params) as Row[];
+    return rows.map((row) => JSON.parse(row.data) as Suggestion);
+  }
+
+  decideSuggestion(
+    id: string,
+    status: Exclude<SuggestionStatus, "proposed">,
+    options: { now?: string } = {},
+  ): Suggestion {
+    const current = this.getSuggestion(id);
+    if (!current) {
+      throw new JobError("SUGGESTION_NOT_FOUND", `suggestion not found: ${id}`);
+    }
+    const updated = applySuggestionDecision(current, status, options.now);
+    this.putSuggestion(updated);
+    this.appendEvent(
+      "suggestion.decided",
+      updated.id,
+      {
+        suggestion_id: updated.id,
+        job_id: updated.job_id,
+        status: updated.status,
+        decided_by: "human",
+      },
+      updated.decided_at ?? undefined,
+    );
+    return updated;
+  }
+
+  suggestionDigest(
+    options: { ownerId?: string; since?: string | null; now?: string } = {},
+  ): Digest {
+    return buildDigestView(this.listSuggestions({ ownerId: options.ownerId }), {
+      since: options.since,
+      now: options.now,
     });
   }
 

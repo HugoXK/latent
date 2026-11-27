@@ -232,6 +232,9 @@ pnpm latent memory export                    # open JSON graph; delete blocks on
 pnpm latent outcome <idea-id> tested --success --confidence 0.62  # realised result (human)
 pnpm latent calibration                      # Brier, log loss and missing outcomes
 pnpm latent priors                           # empirical option priors from outcomes
+pnpm latent incubate <fragment-id> --budget 5  # propose connections within a budget
+pnpm latent suggestions --status proposed      # review suggestions
+pnpm latent digest                            # read-only weekly view
 ```
 
 The CLI contract is specified in [docs/api.md](docs/api.md). Every command accepts

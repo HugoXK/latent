@@ -9,7 +9,9 @@ export type IdPrefix =
   | "spec"
   | "evt"
   | "edg"
-  | "outcome";
+  | "outcome"
+  | "sug"
+  | "job";
 
 export function newId(prefix: IdPrefix): string {
   const time = Date.now().toString(36);
