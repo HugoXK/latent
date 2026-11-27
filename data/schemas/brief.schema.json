@@ -34,6 +34,14 @@
       "type": "array",
       "items": { "$ref": "#/$defs/risk" }
     },
+    "collisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/collision" }
+    },
+    "sections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/extraSection" }
+    },
     "next_steps": {
       "type": "array",
       "minItems": 1,
@@ -80,6 +88,27 @@
             "none"
           ]
         }
+      },
+      "additionalProperties": false
+    },
+    "extraSection": {
+      "type": "object",
+      "required": ["title", "text"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "collision": {
+      "type": "object",
+      "required": ["kind", "prior_id", "prior_label", "severity", "note"],
+      "properties": {
+        "kind": { "enum": ["mechanism", "interface", "sequence"] },
+        "prior_id": { "type": "string", "minLength": 1 },
+        "prior_label": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["high", "medium"] },
+        "note": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     },

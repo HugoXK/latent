@@ -3,27 +3,40 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   BriefValidationError,
+  ConstraintAnswerError,
   ConstraintError,
+  SpecValidationError,
   GateError,
   TransitionError,
   answerConstraint,
   blockingQuestions,
   compileBrief,
+  compileSpec,
   createConstraintState,
   decideGate,
   develop,
+  developEdges,
   findQuestion,
+  questionKind,
   newId,
   nextQuestion,
+  DeterministicClaimVerifier,
   renderBriefMarkdown,
+  exportBriefHtml,
+  renderReplayMarkdown,
+  renderSpecMarkdown,
+  runReplayCase,
   transition,
   validateReplayCase,
+  verifyEvidence,
 } from "@latent/core";
 import type {
   AssumptionStatus,
   Fragment,
   GateStatus,
+  Claim,
   Idea,
+  MemoryNodeType,
   QuestionDefinition,
   ReplayCase,
 } from "@latent/core";
@@ -31,7 +44,7 @@ import { reconstructorFromEnv } from "@latent/adapters";
 import { Store } from "@latent/store";
 import { igem } from "@latent/vertical-igem";
 
-const BOOLEAN_FLAGS = new Set(["all", "refute", "help"]);
+const BOOLEAN_FLAGS = new Set(["all", "refute", "help", "mark", "verify"]);
 
 interface Parsed {
   positionals: string[];
@@ -85,6 +98,18 @@ function print(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
+function renderLedgerMarkdown(claims: Claim[]): string {
+  const rows = claims.map(
+    (claim) =>
+      `| ${claim.id} | ${claim.status} | ${claim.confidence.toFixed(2)} | ${claim.text.replace(/\|/g, "\\|")} |`,
+  );
+  return [
+    "| Claim | Status | Confidence | Text |",
+    "|---|---|---|---|",
+    ...rows,
+  ].join("\n");
+}
+
 function requireIdea(store: Store, id: string | undefined): Idea {
   if (!id) throw new CliError("missing idea id", 1);
   const idea = store.getIdea(id);
@@ -99,7 +124,16 @@ function parseGateStatus(value: string | true | undefined): GateStatus {
   throw new CliError("gate status must be pass, fail, unknown or waive", 1);
 }
 
-function parseAnswer(
+function nodeTypeFromId(id: string): MemoryNodeType {
+  if (id.startsWith("frg_")) return "fragment";
+  if (id.startsWith("idea_")) return "idea";
+  if (id.startsWith("clm_")) return "claim";
+  if (id.startsWith("gate_")) return "gate";
+  if (id.startsWith("outcome_")) return "outcome";
+  throw new CliError(`cannot infer a node type from id: ${id}`, 1);
+}
+
+function parseOptionValue(
   question: QuestionDefinition | null,
   raw: string,
 ): unknown {
@@ -119,6 +153,34 @@ function parseAnswer(
   return trimmed;
 }
 
+function parseAnswerValues(
+  question: QuestionDefinition | null,
+  raws: string[],
+): unknown {
+  const kind = question ? questionKind(question) : "single";
+  if (kind === "text") {
+    const value = raws.join(" ").trim();
+    if (value === "") {
+      throw new CliError("text answer must not be empty", 1);
+    }
+    return value;
+  }
+  if (kind === "multi") {
+    const values = raws
+      .flatMap((raw) => raw.split(","))
+      .map((raw) => raw.trim())
+      .filter((raw) => raw !== "")
+      .map((raw) => parseOptionValue(question, raw));
+    if (values.length === 0) {
+      throw new CliError("multi answer needs at least one value", 1);
+    }
+    return Array.from(new Set(values));
+  }
+  const raw = raws.join(" ").trim();
+  if (raw === "") throw new CliError("answer must not be empty", 1);
+  return parseOptionValue(question, raw);
+}
+
 const HELP = `latent — capture a fragment, develop it, decide the gates, compile a brief
 
 Usage:
@@ -131,8 +193,15 @@ Usage:
   latent confirm <idea-id> --all [--refute]   confirm/refute every assumption (human)
   latent decide <idea-id> --all <status>      decide every gate (human)
   latent decide <idea-id> <gate-id> <status>  decide one gate (human)
-  latent brief <idea-id> [--format md|json]   compile a brief (fails if blocked)
+  latent brief <idea-id> [--format md|json|html] [--verify]  compile a brief (fails if blocked)
+  latent spec <idea-id> [--format md|json]            compile an implementation spec
+  latent ledger export <idea-id> [--format jsonl|md]   export the claim ledger
   latent eval validate <file>                 validate a replay case
+  latent eval replay <file> [--format md]     run the replay harness
+  latent memory search <query>                search fragments and ideas
+  latent memory connect <from-id> <to-id>     explain why two nodes are connected
+  latent memory export [--owner <id>]         export the owner's memory graph
+  latent memory delete <fragment-id> [--mark] delete a fragment (blocks if referenced)
   latent show <id>                            show a fragment, idea or brief
   latent help                                 this text
 
@@ -184,6 +253,12 @@ async function main(): Promise<number> {
         store.putClaims(result.idea.id, result.claims);
         store.putGates(result.idea.id, result.gates);
         store.putConstraintState(result.idea.id, result.constraint);
+        for (const edge of developEdges({
+          idea: result.idea,
+          fragmentId: fragment.id,
+        })) {
+          store.putEdge(edge);
+        }
         store.appendEvent("idea.developed", result.idea.id, {
           fragment_id: fragment.id,
           gates: result.gates.length,
@@ -309,8 +384,8 @@ async function main(): Promise<number> {
       case "answer": {
         const idea = requireIdea(store, positionals[0]);
         const variable = positionals[1];
-        const raw = positionals.slice(2).join(" ").trim();
-        if (!variable || raw === "") {
+        const raws = positionals.slice(2);
+        if (!variable || raws.length === 0) {
           throw new CliError(
             "usage: latent answer <idea-id> <variable> <value>",
             1,
@@ -320,7 +395,7 @@ async function main(): Promise<number> {
           store.getConstraintState(idea.id) ??
           createConstraintState(idea.vertical ?? "igem", igem.questions);
         const question = findQuestion(igem.questions, variable);
-        const value = parseAnswer(question, raw);
+        const value = parseAnswerValues(question, raws);
         const updated = answerConstraint(state, igem.questions, variable, value, 1);
         store.putConstraintState(idea.id, updated);
         store.appendEvent("constraint.answered", idea.id, { variable });
@@ -355,8 +430,16 @@ async function main(): Promise<number> {
       case "brief": {
         const ideaId = positionals[0];
         const idea = requireIdea(store, ideaId);
-        const claims = store.listClaims(idea.id);
+        let claims = store.listClaims(idea.id);
         const gates = store.listGates(idea.id);
+
+        if (flags.verify === true) {
+          const report = await verifyEvidence(claims, {
+            verifier: new DeterministicClaimVerifier(),
+          });
+          claims = report.claims;
+          store.putClaims(idea.id, claims);
+        }
 
         const constraint = store.getConstraintState(idea.id);
         if (constraint) {
@@ -379,6 +462,8 @@ async function main(): Promise<number> {
 
         if (flags.format === "json") {
           print(brief);
+        } else if (flags.format === "html") {
+          console.log(exportBriefHtml(brief));
         } else {
           console.log(renderBriefMarkdown(brief));
         }
@@ -388,8 +473,8 @@ async function main(): Promise<number> {
       case "eval": {
         const sub = positionals[0];
         const file = positionals[1];
-        if (sub !== "validate" || !file) {
-          throw new CliError("usage: latent eval validate <file>", 1);
+        if ((sub !== "validate" && sub !== "replay") || !file) {
+          throw new CliError("usage: latent eval <validate|replay> <file>", 1);
         }
         let raw: string;
         try {
@@ -409,12 +494,57 @@ async function main(): Promise<number> {
           return 1;
         }
         const replay = value as ReplayCase;
-        print({
-          ok: true,
-          id: replay.metadata.id,
-          illustrative: replay.metadata.illustrative,
-          temporal_cutoff: replay.metadata.temporal_cutoff,
+        if (sub === "validate") {
+          print({
+            ok: true,
+            id: replay.metadata.id,
+            illustrative: replay.metadata.illustrative,
+            temporal_cutoff: replay.metadata.temporal_cutoff,
+          });
+          return 0;
+        }
+        const result = await runReplayCase({
+          case: replay,
+          vertical: igem,
+          reconstructor,
         });
+        if (flags.format === "md") {
+          console.log(renderReplayMarkdown(result));
+        } else {
+          print(result);
+        }
+        return 0;
+      }
+
+      case "spec": {
+        const idea = requireIdea(store, positionals[0]);
+        const claims = store.listClaims(idea.id);
+        const gates = store.listGates(idea.id);
+        const spec = compileSpec({ idea, claims, gates });
+        if (flags.format === "json") {
+          print(spec);
+        } else {
+          console.log(renderSpecMarkdown(spec));
+        }
+        return 0;
+      }
+
+      case "ledger": {
+        const sub = positionals[0];
+        const ideaId = positionals[1];
+        if (sub !== "export" || !ideaId) {
+          throw new CliError(
+            "usage: latent ledger export <idea-id> [--format jsonl|md]",
+            1,
+          );
+        }
+        const idea = requireIdea(store, ideaId);
+        const claims = store.listClaims(idea.id);
+        if (flags.format === "md") {
+          console.log(renderLedgerMarkdown(claims));
+        } else {
+          for (const claim of claims) console.log(JSON.stringify(claim));
+        }
         return 0;
       }
 
@@ -443,6 +573,54 @@ async function main(): Promise<number> {
         return 0;
       }
 
+      case "memory": {
+        const sub = positionals[0];
+        const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        if (sub === "search") {
+          const query = positionals.slice(1).join(" ").trim();
+          if (!query) throw new CliError("usage: latent memory search <query>", 1);
+          print({ owner_id: ownerId, hits: store.searchMemory(query, { ownerId }) });
+          return 0;
+        }
+        if (sub === "connect") {
+          const fromId = positionals[1];
+          const toId = positionals[2];
+          if (!fromId || !toId) {
+            throw new CliError(
+              "usage: latent memory connect <from-id> <to-id> [--depth N]",
+              1,
+            );
+          }
+          const rawDepth = typeof flags.depth === "string" ? Number(flags.depth) : 3;
+          const depth = Number.isFinite(rawDepth) ? rawDepth : 3;
+          print(
+            store.connectionExplanation(
+              { type: nodeTypeFromId(fromId), id: fromId },
+              { type: nodeTypeFromId(toId), id: toId },
+              { ownerId, maxDepth: depth },
+            ),
+          );
+          return 0;
+        }
+        if (sub === "export") {
+          print(store.exportMemory({ ownerId }));
+          return 0;
+        }
+        if (sub === "delete") {
+          const fragmentId = positionals[1];
+          if (!fragmentId) {
+            throw new CliError("usage: latent memory delete <fragment-id> [--mark]", 1);
+          }
+          const result = store.deleteFragment(fragmentId, {
+            ownerId,
+            policy: flags.mark === true ? "mark" : "block",
+          });
+          print(result);
+          return result.deleted ? 0 : 1;
+        }
+        throw new CliError("usage: latent memory <search|connect|export|delete>", 1);
+      }
+
       default:
         throw new CliError(`unknown command: ${command}\n\n${HELP}`, 1);
     }
@@ -459,10 +637,19 @@ main()
       for (const issue of error.issues) console.error(`  - ${issue}`);
       process.exit(3);
     }
+    if (error instanceof SpecValidationError) {
+      console.error("spec blocked:");
+      for (const issue of error.issues) console.error(`  - ${issue}`);
+      process.exit(3);
+    }
     if (error instanceof ConstraintError) {
       console.error("blocking constraints:");
       for (const variable of error.variables) console.error(`  - ${variable}`);
       process.exit(3);
+    }
+    if (error instanceof ConstraintAnswerError) {
+      console.error(error.message);
+      process.exit(1);
     }
     if (error instanceof TransitionError) {
       console.error(`${error.code}: ${error.message}`);

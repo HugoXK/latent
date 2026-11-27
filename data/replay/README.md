@@ -70,11 +70,18 @@ fixture.
 
 ## Scoring
 
-The harness is planned in #16. It will score:
+`latent eval replay <case>` runs
+[`packages/core/src/replay-runner.ts`](../../packages/core/src/replay-runner.ts).
+It scores:
 
-- candidate recovery: does the system's candidate set contain the seed?
-- collision quality: are the mechanism and interface collisions found?
-- gate agreement: do the predicted gates match the expert labels?
-- claim integrity: are unsupported claims absent from the compiled brief?
+- candidate recovery: token overlap between the seed statement and the generated
+  hypotheses;
+- variant coverage: conservative / ambitious / cross-domain;
+- gate agreement: when a gate predictor is supplied;
+- collision precision and recall: when a collision detector is supplied;
+- unsupported claims: the brief compiler's blocking set.
 
-The case format is stable so the harness can be built without changing fixtures.
+The harness never passes `expected_candidates`, `collisions`, `gate_labels` or
+`outcome` to the reconstructor; they are scoring-only fields. The CLI uses the
+template reconstructor by default; `LATENT_MODEL_REPLAY=1` makes the model adapter
+read recorded fixtures instead of a provider.

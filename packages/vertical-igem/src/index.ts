@@ -10,6 +10,8 @@ export const igem: VerticalPack = {
     "team.dry",
     "lab.bsl",
     "lab.readers",
+    "lab.equipment",
+    "lab.flow_model",
     "lab.flow",
     "lab.hplc",
     "lab.strains",
@@ -33,6 +35,7 @@ export const igem: VerticalPack = {
     "candidate.a",
     "candidate.b",
     "candidate.c",
+    "success.metric",
     "success.definition",
   ],
   questions: [
@@ -58,6 +61,30 @@ export const igem: VerticalPack = {
         { value: "hplc", label: "HPLC", prior: 0.15 },
         { value: "flow", label: "Flow cytometry", prior: 0.15 },
         { value: "none", label: "None of these", prior: 0.25 },
+      ],
+    },
+    {
+      id: "q.lab.equipment",
+      variable: "lab.equipment",
+      prompt: "Which equipment can the team reserve for the season?",
+      kind: "multi",
+      options: [
+        { value: "plate_reader", label: "Plate reader", prior: 0.4 },
+        { value: "hplc", label: "HPLC", prior: 0.15 },
+        { value: "flow", label: "Flow cytometer", prior: 0.15 },
+        { value: "incubator", label: "Shaking incubator", prior: 0.2 },
+        { value: "centrifuge", label: "Centrifuge", prior: 0.1 },
+      ],
+    },
+    {
+      id: "q.lab.flow_model",
+      variable: "lab.flow_model",
+      prompt: "Which flow-cytometry model can the team use?",
+      dependsOn: [{ variable: "lab.readers", equals: "flow" }],
+      options: [
+        { value: "attractant", label: "Attractant / repellent assay", prior: 0.4 },
+        { value: "reporter", label: "Reporter fluorescence", prior: 0.4 },
+        { value: "both", label: "Both", prior: 0.2 },
       ],
     },
     {
@@ -109,6 +136,7 @@ export const igem: VerticalPack = {
       id: "q.problem.who",
       variable: "problem.who",
       prompt: "Who has the problem today?",
+      allowOther: true,
       options: [
         { value: "patients", label: "Patients / clinicians", prior: 0.25 },
         { value: "industry", label: "Industry", prior: 0.2 },
@@ -147,6 +175,13 @@ export const igem: VerticalPack = {
         { value: true, label: "Yes", prior: 0.45 },
         { value: false, label: "No / not sure", prior: 0.55 },
       ],
+    },
+    {
+      id: "q.candidate.a",
+      variable: "candidate.a",
+      prompt: "Describe the candidate project in one or two sentences.",
+      kind: "text",
+      options: [],
     },
   ],
   gates: [
@@ -220,3 +255,9 @@ export const igem: VerticalPack = {
   ],
   briefTemplate: "verticals/igem/brief.md",
 };
+
+export * from "./rules.js";
+export * from "./components.js";
+export * from "./material.js";
+export * from "./timeline.js";
+export * from "./brief.js";

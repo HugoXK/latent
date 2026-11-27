@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
   BriefValidationError,
+  ConstraintAnswerError,
   GateError,
   TransitionError,
   answerConstraint,
@@ -12,9 +13,11 @@ import {
   createConstraintState,
   decideGate,
   develop,
+  developEdges,
   findQuestion,
   newId,
   nextQuestion,
+  questionKind,
   transition,
 } from "@latent/core";
 import type {
@@ -36,11 +39,11 @@ export interface ServerOptions {
 
 const VERSION = "0.2.0-alpha.0";
 
-function normalizeAnswer(
-  question: QuestionDefinition | null,
+function normalizeSingle(
+  question: QuestionDefinition,
   value: unknown,
 ): unknown {
-  if (question && typeof value === "string") {
+  if (typeof value === "string") {
     const byValue = question.options.find((o) => String(o.value) === value);
     if (byValue) return byValue.value;
     const byLabel = question.options.find(
@@ -49,6 +52,24 @@ function normalizeAnswer(
     if (byLabel) return byLabel.value;
   }
   return value;
+}
+
+function normalizeAnswer(
+  question: QuestionDefinition | null,
+  value: unknown,
+): unknown {
+  if (!question) return value;
+  const kind = questionKind(question);
+  if (kind === "text") return value;
+  if (kind === "multi") {
+    const raw = Array.isArray(value)
+      ? value
+      : typeof value === "string"
+        ? value.split(",")
+        : [value];
+    return raw.map((item) => normalizeSingle(question, item));
+  }
+  return normalizeSingle(question, value);
 }
 
 export function buildServer(options: ServerOptions): FastifyInstance {
@@ -126,6 +147,12 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     store.putClaims(result.idea.id, result.claims);
     store.putGates(result.idea.id, result.gates);
     store.putConstraintState(result.idea.id, result.constraint);
+    for (const edge of developEdges({
+      idea: result.idea,
+      fragmentId: fragment.id,
+    })) {
+      store.putEdge(edge);
+    }
     store.appendEvent("idea.developed", result.idea.id, {
       fragment_id: fragment.id,
     });
@@ -381,6 +408,15 @@ export function buildServer(options: ServerOptions): FastifyInstance {
           code: "BRIEF_VALIDATION_FAILED",
           message: error.message,
           details: error.issues,
+        },
+      });
+    }
+    if (error instanceof ConstraintAnswerError) {
+      return reply.code(400).send({
+        error: {
+          code: error.code,
+          message: error.message,
+          details: { variable: error.variable },
         },
       });
     }
