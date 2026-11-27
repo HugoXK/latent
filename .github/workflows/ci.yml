@@ -102,6 +102,7 @@ jobs:
               ".github/workflows/release.yml",
               "docs/release.md",
               "docs/agent-protocol.md",
+              "docs/replay-plan.md",
               "docs/runtime.md",
           ]
           missing = [p for p in required if not os.path.exists(p)]

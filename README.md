@@ -367,6 +367,7 @@ and fixtures live in [`data/replay/`](data/replay/); validate a case with
 | `docs/api.md` | REST and CLI contract |
 | `docs/security.md` | Threat model and data handling |
 | `docs/release.md` | Two-phase release: PR, tag, SBOM, provenance |
+| `docs/replay-plan.md` | Five illustrative cases and the 20-case evaluation plan |
 | `docs/runtime.md` | FlyBot-compatible runtime contract and callbacks |
 | `docs/decisions/` | Architecture decision records |
 | `data/schemas/` | JSON Schema 2020-12 for the five primitives |

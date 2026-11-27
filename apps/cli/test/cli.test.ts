@@ -1,7 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -829,6 +829,8 @@ test("the iGEM brief accepts component, timeline and material inputs", () => {
     rmSync(materialPath, { force: true });
     cleanup();
   }
+});
+
 test("a dangerous iGEM direction is refused before reconstruction", () => {
   cleanup();
   try {
@@ -854,5 +856,30 @@ test("a dangerous iGEM direction is refused before reconstruction", () => {
   }
 });
 
+test("every valid replay fixture validates and replays", () => {
+  cleanup();
+  try {
+    const files = readdirSync(
+      join(root, "data/replay/fixtures/valid"),
+    )
+      .filter((file) => file.endsWith(".json"))
+      .sort();
+    assert.ok(files.length >= 5);
+    for (const file of files) {
+      const path = `data/replay/fixtures/valid/${file}`;
+      const validated = run(["eval", "validate", path, "--json"]);
+      assert.equal(validated.status, 0, `${file}: ${validated.stderr}`);
+      const replay = run(["eval", "replay", path, "--json"]);
+      assert.equal(replay.status, 0, `${file}: ${replay.stderr}`);
+      assert.equal(
+        (jsonData(replay) as { passed: boolean }).passed,
+        true,
+        file,
+      );
+    }
+  } finally {
+    cleanup();
+  }
 });
+
 });
