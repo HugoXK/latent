@@ -346,10 +346,11 @@ latent constraints <idea-id>                # state, blocking set, next question
 latent constraints undo|diff <idea-id>      # undo the last answer / show its diff
 latent confirm <idea-id> <assumption-id> | --all [--refute]
 latent decide <idea-id> <gate-id>|--all <pass|fail|unknown|waive> [--reason "..."]
-latent brief <idea-id> [--format md|json|html] [--verify]
+latent brief <idea-id> [--format md|json|html] [--collisions <file>] [--verify]
 latent spec <idea-id> [--format md|json]
 latent ledger export <idea-id> [--format jsonl|md]
 latent ledger audit <idea-id>               # every claim, source, span and validator
+latent novelty <idea-id> --input <json>      # collision report from prior art
 latent memory search <query> | connect <from-id> <to-id> | export | delete <fragment-id> [--mark]
 latent outcome <idea-id> <decision> --success|--failure [--confidence N]
 latent outcomes [idea-id]
@@ -385,6 +386,15 @@ Exit codes:
 | `3` | Blocked: a hard gate is `fail`/`unknown`, or a brief/spec/constraint check refuses |
 | `4` | Auth error |
 | `5` | Provider or runtime error |
+
+## Novelty evidence
+
+`latent novelty <idea-id> --input <json>` accepts a `prior_art[]` list and a
+`candidate` (`mechanism`, `interface`, `host`, `readout`, optional `substrate`) and
+returns the collision report plus `BriefCollision[]` linked to the idea's claim ids
+and the prior-art URLs. Feed that array to `latent brief --collisions <file>`; the
+brief records `collision_check.status` and renders it in Markdown and HTML. A
+brief without the flag records `not_checked`, which is not a clean result.
 
 ## Ledger audit
 

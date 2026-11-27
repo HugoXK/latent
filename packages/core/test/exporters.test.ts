@@ -79,3 +79,26 @@ test("the diff reports added and removed evidence, unknowns and collisions", () 
   assert.deepEqual(diff.removed_collisions, ["interface:pa_1"]);
   assert.match(renderBriefDiffMarkdown(diff), /# Brief diff/);
 });
+
+test("HTML renders the collision status, claims and source", () => {
+  const html = exportBriefHtml(
+    brief({
+      collision_check: { status: "checked", note: "1 collision found." },
+      collisions: [
+        {
+          kind: "mechanism",
+          prior_id: "pa_1",
+          prior_label: "Prior",
+          severity: "high",
+          note: "collides",
+          claim_ids: ["clm_1"],
+          source_url: "https://example.org/pa_1",
+        },
+      ],
+    }),
+  );
+  assert.match(html, /Novelty and collisions/);
+  assert.match(html, /checked/);
+  assert.match(html, /https:\/\/example\.org\/pa_1/);
+  assert.match(html, /clm_1/);
+});

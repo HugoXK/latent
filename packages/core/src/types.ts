@@ -180,6 +180,13 @@ export interface BriefCollision {
   prior_label: string;
   severity: "high" | "medium";
   note: string;
+  claim_ids?: string[];
+  source_url?: string | null;
+}
+
+export interface BriefCollisionCheck {
+  status: "checked" | "not_checked";
+  note: string;
 }
 
 export interface BriefExtraSection {
@@ -198,6 +205,7 @@ export interface Brief {
   evidence: string[];
   risks: BriefRisk[];
   collisions?: BriefCollision[];
+  collision_check?: BriefCollisionCheck;
   sections?: BriefExtraSection[];
   next_steps: string[];
   unknowns: string[];

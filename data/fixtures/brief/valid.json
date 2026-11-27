@@ -55,5 +55,22 @@
       "detail": "v0.2"
     }
   ],
-  "schema_version": "1.0.0"
+  "schema_version": "1.0.0",
+  "collisions": [
+    {
+      "kind": "mechanism",
+      "prior_id": "pa_fixture0001",
+      "prior_label": "A prior whole-cell biosensor",
+      "severity": "high",
+      "note": "The mechanism and interface collide.",
+      "claim_ids": [
+        "clm_fixture0001"
+      ],
+      "source_url": "https://example.org/prior"
+    }
+  ],
+  "collision_check": {
+    "status": "checked",
+    "note": "1 collision found in the indexed prior art."
+  }
 }

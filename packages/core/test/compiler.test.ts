@@ -197,3 +197,50 @@ test("strictValidators blocks a skipped required check", () => {
       error.issues.some((issue) => issue.includes("existence:skipped")),
   );
 });
+
+test("a missing collision check is explicit, not clean", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+  });
+  assert.equal(brief.collision_check?.status, "not_checked");
+  const markdown = renderBriefMarkdown(brief);
+  assert.match(markdown, /Novelty and collisions/);
+  assert.match(markdown, /not_checked/);
+  assert.match(markdown, /not a clean result/);
+});
+
+test("collisions carry claims and a source into the brief", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    collisions: [
+      {
+        kind: "mechanism",
+        prior_id: "pa_1",
+        prior_label: "A prior biosensor",
+        severity: "high",
+        note: "mechanism and interface collide",
+        claim_ids: ["clm_1"],
+        source_url: "https://example.org/pa_1",
+      },
+    ],
+  });
+  assert.equal(brief.collision_check?.status, "checked");
+  const markdown = renderBriefMarkdown(brief);
+  assert.match(markdown, /clm_1/);
+  assert.match(markdown, /https:\/\/example\.org\/pa_1/);
+});
+
+test("an empty checked list still says checked", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    collisions: [],
+  });
+  assert.equal(brief.collision_check?.status, "checked");
+  assert.match(brief.collision_check?.note ?? "", /No mechanism or interface/);
+});

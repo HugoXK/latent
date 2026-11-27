@@ -18,67 +18,143 @@
     "validators"
   ],
   "properties": {
-    "id": { "type": "string", "pattern": "^brf_[a-z0-9]{8,}$" },
-    "idea_id": { "type": "string" },
-    "idea_version": { "type": "integer", "minimum": 1 },
-    "format": { "enum": ["markdown", "json", "html"] },
-    "one_liner": { "type": "string", "minLength": 1 },
-    "problem": { "$ref": "#/$defs/section" },
-    "approach": { "$ref": "#/$defs/section" },
+    "id": {
+      "type": "string",
+      "pattern": "^brf_[a-z0-9]{8,}$"
+    },
+    "idea_id": {
+      "type": "string"
+    },
+    "idea_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "format": {
+      "enum": [
+        "markdown",
+        "json",
+        "html"
+      ]
+    },
+    "one_liner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "problem": {
+      "$ref": "#/$defs/section"
+    },
+    "approach": {
+      "$ref": "#/$defs/section"
+    },
     "evidence": {
       "type": "array",
       "description": "Claim IDs that back the brief.",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "risks": {
       "type": "array",
-      "items": { "$ref": "#/$defs/risk" }
+      "items": {
+        "$ref": "#/$defs/risk"
+      }
     },
     "collisions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/collision" }
+      "items": {
+        "$ref": "#/$defs/collision"
+      }
     },
     "sections": {
       "type": "array",
-      "items": { "$ref": "#/$defs/extraSection" }
+      "items": {
+        "$ref": "#/$defs/extraSection"
+      }
     },
     "next_steps": {
       "type": "array",
       "minItems": 1,
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "unknowns": {
       "type": "array",
       "minItems": 1,
       "description": "Honest gaps. A brief with no unknowns is suspect.",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
-    "compiled_at": { "type": "string", "format": "date-time" },
+    "compiled_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "validators": {
       "type": "array",
-      "items": { "$ref": "#/$defs/validator" }
+      "items": {
+        "$ref": "#/$defs/validator"
+      }
     },
-    "schema_version": { "const": "1.0.0" }
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "collision_check": {
+      "type": "object",
+      "required": [
+        "status",
+        "note"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "checked",
+            "not_checked"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
   },
   "$defs": {
     "section": {
       "type": "object",
-      "required": ["text"],
+      "required": [
+        "text"
+      ],
       "properties": {
-        "text": { "type": "string" },
+        "text": {
+          "type": "string"
+        },
         "claim_ids": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
     },
     "risk": {
       "type": "object",
-      "required": ["risk", "trigger", "fallback"],
+      "required": [
+        "risk",
+        "trigger",
+        "fallback"
+      ],
       "properties": {
-        "risk": { "type": "string", "minLength": 1 },
-        "trigger": { "type": "string", "minLength": 1 },
+        "risk": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trigger": {
+          "type": "string",
+          "minLength": 1
+        },
         "fallback": {
           "enum": [
             "change_readout",
@@ -93,34 +169,99 @@
     },
     "extraSection": {
       "type": "object",
-      "required": ["title", "text"],
+      "required": [
+        "title",
+        "text"
+      ],
       "properties": {
-        "title": { "type": "string", "minLength": 1 },
-        "text": { "type": "string" }
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
     "collision": {
       "type": "object",
-      "required": ["kind", "prior_id", "prior_label", "severity", "note"],
+      "required": [
+        "kind",
+        "prior_id",
+        "prior_label",
+        "severity",
+        "note"
+      ],
       "properties": {
-        "kind": { "enum": ["mechanism", "interface", "sequence"] },
-        "prior_id": { "type": "string", "minLength": 1 },
-        "prior_label": { "type": "string", "minLength": 1 },
-        "severity": { "enum": ["high", "medium"] },
-        "note": { "type": "string", "minLength": 1 }
+        "kind": {
+          "enum": [
+            "mechanism",
+            "interface",
+            "sequence"
+          ]
+        },
+        "prior_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prior_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "enum": [
+            "high",
+            "medium"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        },
+        "claim_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       },
       "additionalProperties": false
     },
     "validator": {
       "type": "object",
-      "required": ["name", "status"],
+      "required": [
+        "name",
+        "status"
+      ],
       "properties": {
         "name": {
-          "enum": ["citation", "numeric", "existence", "vertical_rules"]
+          "enum": [
+            "citation",
+            "numeric",
+            "existence",
+            "vertical_rules"
+          ]
         },
-        "status": { "enum": ["pass", "fail", "skipped"] },
-        "detail": { "type": ["string", "null"] }
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "skipped"
+          ]
+        },
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       },
       "additionalProperties": false
     }

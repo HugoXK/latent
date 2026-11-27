@@ -291,10 +291,14 @@ function renderBrief(brief) {
         `<li><strong>${escapeHtml(risk.risk)}</strong> — trigger: ${escapeHtml(risk.trigger)} · fallback: ${escapeHtml(risk.fallback)}</li>`,
     )
     .join("");
+  const collisionCheck = brief.collision_check || {
+    status: "not_checked",
+    note: "The novelty check did not run; this is not a clean result.",
+  };
   const collisions = (brief.collisions || [])
     .map(
       (collision) =>
-        `<li>${escapeHtml(collision.kind)}: ${escapeHtml(collision.prior_label)} (${escapeHtml(collision.severity)}) — ${escapeHtml(collision.note)}</li>`,
+        `<li>${escapeHtml(collision.kind)}: ${escapeHtml(collision.prior_label)} (${escapeHtml(collision.severity)}) — ${escapeHtml(collision.note)}${collision.source_url ? ` — <a href="${escapeHtml(collision.source_url)}" rel="noreferrer">source</a>` : ""}${collision.claim_ids && collision.claim_ids.length ? ` — claims: ${escapeHtml(collision.claim_ids.join(", "))}` : ""}</li>`,
     )
     .join("");
   const sections = (brief.sections || [])
@@ -316,8 +320,10 @@ function renderBrief(brief) {
     <p><strong>Approach.</strong></p>
     <p class="pre">${escapeHtml(brief.approach?.text || "")}</p>
     <h3>Evidence</h3>${list(brief.evidence)}
+    <h3>Novelty and collisions</h3>
+    <p>Status: <strong class="status-${collisionCheck.status === "checked" ? "pass" : "unknown"}">${escapeHtml(collisionCheck.status)}</strong> — ${escapeHtml(collisionCheck.note)}</p>
+    ${collisions ? `<ul>${collisions}</ul>` : ""}
     <h3>Risks</h3>${risks ? `<ul>${risks}</ul>` : "<p class='hint'>none</p>"}
-    ${collisions ? `<h3>Collisions</h3><ul>${collisions}</ul>` : ""}
     ${sections}
     <h3>Next steps</h3>${list(brief.next_steps)}
     <h3>Still unknown</h3>${list(brief.unknowns)}
@@ -352,6 +358,16 @@ function briefToMarkdown(brief) {
   }
   for (const section of brief.sections || []) {
     lines.push("", `## ${section.title}`, "", section.text);
+  }
+  const collisionCheck = brief.collision_check || {
+    status: "not_checked",
+    note: "The novelty check did not run; this is not a clean result.",
+  };
+  lines.push("", "## Novelty and collisions", "", `Status: **${collisionCheck.status}** — ${collisionCheck.note}`);
+  for (const collision of brief.collisions || []) {
+    lines.push(
+      `- ${collision.kind}: ${collision.prior_label} (${collision.severity}) — ${collision.note}${collision.source_url ? ` — ${collision.source_url}` : ""}`,
+    );
   }
   lines.push("", "## Next steps", "");
   for (const item of brief.next_steps || []) lines.push(`- ${item}`);

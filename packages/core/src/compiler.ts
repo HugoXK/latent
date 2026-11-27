@@ -4,6 +4,7 @@ import { blocksBrief, validateLedger } from "./ledger.js";
 import type {
   Brief,
   BriefCollision,
+  BriefCollisionCheck,
   BriefExtraSection,
   BriefRisk,
   BriefValidator,
@@ -40,6 +41,7 @@ export interface CompileInput {
    */
   strictValidators?: boolean;
   collisions?: BriefCollision[];
+  collisionCheck?: BriefCollisionCheck;
   sections?: BriefExtraSection[];
   extraRisks?: BriefRisk[];
 }
@@ -176,6 +178,20 @@ export function compileBrief(input: CompileInput): Brief {
   }
 
   const now = input.now ?? new Date().toISOString();
+  const collisionCheck: BriefCollisionCheck =
+    input.collisionCheck ??
+    (input.collisions !== undefined
+      ? {
+          status: "checked",
+          note:
+            input.collisions.length > 0
+              ? `${input.collisions.length} collision(s) found in the indexed prior art.`
+              : "No mechanism or interface collision was found in the indexed prior art; confirm corpus coverage.",
+        }
+      : {
+          status: "not_checked",
+          note: "The novelty check did not run; this is not a clean result.",
+        });
 
   return {
     id: newId("brf"),
@@ -193,6 +209,7 @@ export function compileBrief(input: CompileInput): Brief {
     evidence,
     risks,
     collisions: input.collisions ?? [],
+    collision_check: collisionCheck,
     sections: input.sections ?? [],
     next_steps: nextSteps,
     unknowns,
@@ -203,6 +220,10 @@ export function compileBrief(input: CompileInput): Brief {
 }
 
 export function renderBriefMarkdown(brief: Brief): string {
+  const collisionCheck = brief.collision_check ?? {
+    status: "not_checked" as const,
+    note: "The novelty check did not run; this is not a clean result.",
+  };
   const risks =
     brief.risks.length > 0
       ? brief.risks
@@ -244,16 +265,18 @@ export function renderBriefMarkdown(brief: Brief): string {
     "|---|---|---|",
     risks,
     "",
+    "## Novelty and collisions",
+    "",
+    `Status: **${collisionCheck.status}** — ${collisionCheck.note}`,
+    "",
     ...(brief.collisions && brief.collisions.length > 0
       ? [
-          "## Novelty and collisions",
-          "",
-          "| Kind | Prior | Severity | Note |",
-          "|---|---|---|---|",
-          ...brief.collisions.map(
-            (collision) =>
-              `| ${collision.kind} | ${collision.prior_label} | ${collision.severity} | ${collision.note} |`,
-          ),
+          "| Kind | Prior | Severity | Note | Claims | Source |",
+          "|---|---|---|---|---|---|",
+          ...brief.collisions.map((collision) => {
+            const cell = (value: string) => value.replace(/\|/g, "\\|");
+            return `| ${collision.kind} | ${cell(collision.prior_label)} | ${collision.severity} | ${cell(collision.note)} | ${(collision.claim_ids ?? []).join(", ") || "—"} | ${cell(collision.source_url ?? "—")} |`;
+          }),
           "",
         ]
       : []),

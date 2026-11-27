@@ -256,7 +256,10 @@ A failed validator blocks the brief. With `strictValidators`, a required check
 that is still `skipped` also blocks; `skipped` is reserved for a check that is
 genuinely not applicable or not configured.
 
-The output always ends with an explicit **"what we still don't know"** section.
+The output always ends with an explicit **"what we still don't know"** section and
+a novelty section that records `collision_check` (`checked`/`not_checked`) plus the
+claims and source behind each collision (ADR 0017). A missing check is rendered as
+not checked, never as clean.
 
 ### Memory
 

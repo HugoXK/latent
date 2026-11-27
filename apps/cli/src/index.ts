@@ -44,8 +44,19 @@ import {
   verifyEvidence,
   verticalRulesValidator,
 } from "@latent/core";
+import {
+  collisionReport,
+  graphFromPriorArt,
+  priorArtSourceUrls,
+  toBriefCollisions,
+} from "@latent/novelty";
+import type {
+  CandidateMechanism,
+  PriorArtEntry,
+} from "@latent/novelty";
 import type {
   AssumptionStatus,
+  BriefCollision,
   ConstraintState,
   Fragment,
   GateStatus,
@@ -127,6 +138,14 @@ function openStore(): Store {
 
 function print(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
+}
+
+function readJson(path: string): unknown {
+  try {
+    return JSON.parse(readFileSync(resolve(path), "utf8")) as unknown;
+  } catch {
+    throw new CliError(`cannot read JSON: ${path}`, 1);
+  }
 }
 
 let JSON_OUTPUT = false;
@@ -292,6 +311,7 @@ Usage:
   latent ledger audit <idea-id>               every claim, source, span and validator
   latent eval validate <file>                 validate a replay case
   latent eval replay <file> [--format md]     run the replay harness
+  latent novelty <idea-id> --input <json>      collision report against prior art
   latent memory search <query>                search fragments and ideas
   latent memory connect <from-id> <to-id>     explain why two nodes are connected
   latent memory export [--owner <id>]         export the owner's memory graph
@@ -638,6 +658,21 @@ async function main(): Promise<number> {
         if (next.status === "verifying") next = transition(next, "viable");
         if (next.status === "viable") next = transition(next, "briefed");
 
+        let collisions: BriefCollision[] | undefined;
+        if (typeof flags.collisions === "string") {
+          const raw = readJson(flags.collisions);
+          const value = Array.isArray(raw)
+            ? raw
+            : (raw as { collisions?: unknown }).collisions;
+          if (!Array.isArray(value)) {
+            throw new CliError(
+              "collisions file must be an array or { collisions: [] }",
+              1,
+            );
+          }
+          collisions = value as BriefCollision[];
+        }
+
         const existence = await runExistenceValidator(
           claims,
           existenceProviderFromEnv(),
@@ -649,6 +684,7 @@ async function main(): Promise<number> {
                 idea: next,
                 claims,
                 gates,
+                collisions,
                 validators: { existence: existence.validator },
                 strictValidators: true,
               })
@@ -656,6 +692,7 @@ async function main(): Promise<number> {
                 idea: next,
                 claims,
                 gates,
+                collisions,
                 validators: {
                   existence: existence.validator,
                   vertical_rules: verticalRulesValidator(pack),
@@ -975,6 +1012,35 @@ async function main(): Promise<number> {
           min_samples: minSamples ?? DEFAULT_MIN_SAMPLES,
           questions: questionPriors(pack.questions, observations, { minSamples }),
         });
+        return 0;
+      }
+
+      case "novelty": {
+        const idea = requireIdea(store, positionals[0]);
+        const inputPath = typeof flags.input === "string" ? flags.input : null;
+        if (!inputPath) {
+          throw new CliError(
+            "usage: latent novelty <idea-id> --input <json>",
+            1,
+          );
+        }
+        const raw = readJson(inputPath) as {
+          prior_art?: PriorArtEntry[];
+          candidate?: CandidateMechanism;
+        };
+        if (!Array.isArray(raw.prior_art) || raw.prior_art.length === 0) {
+          throw new CliError("input needs a non-empty prior_art array", 1);
+        }
+        if (!raw.candidate) {
+          throw new CliError("input needs a candidate object", 1);
+        }
+        const graph = graphFromPriorArt(raw.prior_art);
+        const report = collisionReport(raw.candidate, graph);
+        const collisions = toBriefCollisions(report, {
+          sourceUrls: priorArtSourceUrls(raw.prior_art),
+          claimIds: idea.claims,
+        });
+        out({ idea_id: idea.id, report, collisions });
         return 0;
       }
 

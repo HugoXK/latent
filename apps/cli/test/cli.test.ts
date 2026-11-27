@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -296,6 +296,82 @@ test("every command has a parseable --json envelope and stable exit codes", () =
     const ledgerMd = run(["ledger", "export", ideaId, "--format", "md"]);
     assert.equal(ledgerMd.status, 0, ledgerMd.stderr);
     assert.match(ledgerMd.stdout, /Sources \(span\)/);
+
+    const noveltyPath = join(tmpdir(), `latent-novelty-${process.pid}.json`);
+    const collisionsPath = join(
+      tmpdir(),
+      `latent-collisions-${process.pid}.json`,
+    );
+    try {
+      writeFileSync(
+        noveltyPath,
+        JSON.stringify({
+          prior_art: [
+            {
+              id: "pa_1",
+              label: "A prior biosensor",
+              mechanism: "arsenic-responsive repressor",
+              interface: "whole-cell fluorescence",
+              host: "E. coli",
+              readout: "fluorescence",
+              url: "https://example.org/pa_1",
+            },
+          ],
+          candidate: {
+            mechanism: "arsenic-responsive repressor",
+            interface: "whole-cell fluorescence",
+            host: "E. coli",
+            readout: "fluorescence",
+          },
+        }),
+      );
+      const novelty = run([
+        "novelty",
+        ideaId,
+        "--input",
+        noveltyPath,
+        "--json",
+      ]);
+      assert.equal(novelty.status, 0, novelty.stderr);
+      const collisions = (
+        jsonData(novelty) as {
+          collisions: Array<{ source_url: string; claim_ids: string[] }>;
+        }
+      ).collisions;
+      assert.ok(collisions.length >= 1);
+      assert.equal(collisions[0]?.source_url, "https://example.org/pa_1");
+      assert.ok((collisions[0]?.claim_ids.length ?? 0) >= 1);
+
+      writeFileSync(collisionsPath, JSON.stringify({ collisions }));
+      const withCollisions = run([
+        "brief",
+        ideaId,
+        "--collisions",
+        collisionsPath,
+        "--json",
+      ]);
+      assert.equal(withCollisions.status, 0, withCollisions.stderr);
+      assert.equal(
+        (jsonData(withCollisions) as { collision_check: { status: string } })
+          .collision_check.status,
+        "checked",
+      );
+
+      const markdown = run([
+        "brief",
+        ideaId,
+        "--collisions",
+        collisionsPath,
+        "--format",
+        "md",
+      ]);
+      assert.equal(markdown.status, 0, markdown.stderr);
+      assert.match(markdown.stdout, /Novelty and collisions/);
+      assert.match(markdown.stdout, /https:\/\/example\.org\/pa_1/);
+    } finally {
+      rmSync(noveltyPath, { force: true });
+      rmSync(collisionsPath, { force: true });
+    }
 
     const outcome = run([
       "outcome",

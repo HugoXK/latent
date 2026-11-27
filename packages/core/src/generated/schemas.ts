@@ -18,6 +18,10 @@ export interface Brief {
   compiled_at?: string;
   validators: BriefValidator[];
   schema_version?: "1.0.0";
+  collision_check?: {
+  status: "checked" | "not_checked";
+  note: string;
+};
 }
 export interface BriefCollision {
   kind: "mechanism" | "interface" | "sequence";
@@ -25,6 +29,8 @@ export interface BriefCollision {
   prior_label: string;
   severity: "high" | "medium";
   note: string;
+  claim_ids?: string[];
+  source_url?: string | null;
 }
 export interface BriefExtraSection {
   title: string;

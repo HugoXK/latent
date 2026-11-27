@@ -61,6 +61,8 @@ The CI workflow runs the same check and fails on invalid JSON.
 - A `Gate` with `hard: true` is decided by a human; the gate engine rejects a
   model decision.
 - A `Brief` must list at least one unknown. A brief with no unknowns is suspect.
+- A `Brief` records `collision_check`; `not_checked` is not a clean novelty result.
+  A collision can link to claims and a prior-art source.
 
 ## Versioning
 
