@@ -56,6 +56,12 @@ validation in this spec release.
   and how it would be evaluated.
 - Never put exploit detail or a private fragment in a public issue.
 
+## Claiming an issue
+
+Read [docs/agent-protocol.md](docs/agent-protocol.md). Comment the branch, plan,
+files and commands, then apply `agent-working`. One issue → one branch → one PR; if
+a PR already exists, push to it. Never open a duplicate PR.
+
 ## Pull requests
 
 A PR states:
@@ -77,6 +83,12 @@ Checklist:
 - [ ] No secrets, no private data, no copied assets.
 
 A reviewer who did not run the change says so. A new commit voids a previous PASS.
+
+If `review-gate` cannot pass because the reviewer is unavailable, or a required
+check is red for infrastructure reasons, comment the exact missing check and run URL
+and leave the pull request open. Do not admin-merge, force-push or relax branch
+protection. A bypass is not a PASS; see
+[docs/review.md](docs/review.md#when-the-reviewer-is-unavailable).
 
 ## Review gate
 

@@ -109,6 +109,20 @@ issue → claim → worktree/branch → red test → fix → gates → PR
 8. **Risk tier.** T0–T3 from the diff, never from a label. T2/T3 need a PASS and,
    for T3, owner approval.
 
+## Claim protocol
+
+Before starting, claim the issue with a comment naming the branch, plan, files and
+what will be run; then apply `agent-working`. The pickable queue is
+`agent-ready` minus `blocked` and `agent-working`. One issue → one branch → one
+worktree → one PR; if a PR exists, push to it, never open a duplicate. See
+[docs/agent-protocol.md](docs/agent-protocol.md).
+
+**Stop rule.** If `review-gate` cannot pass because the reviewer is unavailable, or
+a required check is red for infrastructure reasons, stop: comment the exact missing
+check and run URL on the pull request, leave it open, and do not admin-merge,
+force-push or relax branch protection. A bypass is not a PASS. See
+[docs/review.md#when-the-reviewer-is-unavailable](docs/review.md#when-the-reviewer-is-unavailable).
+
 ## Risk tiers
 
 | Tier | Examples | Merge rule |

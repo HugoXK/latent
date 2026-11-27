@@ -21,3 +21,5 @@ assignees: ""
 ## Is it already public?
 
 <!-- Do not put exploit detail in a public issue. Use SECURITY.md. -->
+
+<!-- Before starting, claim this issue per docs/agent-protocol.md. If a required check or reviewer is unavailable, stop and comment the blocker; do not bypass. -->

@@ -31,3 +31,5 @@ Not run:
 - [ ] Docs and both READMEs updated if user-facing.
 - [ ] Changelog fragment in `changelog.d/`.
 - [ ] No secrets, private fragments or copied assets.
+- [ ] If a required check or the reviewer is unavailable, I left a comment naming
+      it and did not bypass protection.
