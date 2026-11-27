@@ -1,8 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { Store } from "../src/index.js";
-import { createConstraintState } from "@latent/core";
-import type { Claim, Fragment, Gate, Idea } from "@latent/core";
+import { createConstraintState, SchemaValidationError } from "@latent/core";
+import type {
+  Brief,
+  Claim,
+  ConstraintState,
+  Fragment,
+  Gate,
+  Idea,
+} from "@latent/core";
+
+function fixture(path: string): unknown {
+  return JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL(`../../../data/fixtures/${path}`, import.meta.url)),
+      "utf8",
+    ),
+  ) as unknown;
+}
 
 const fragment: Fragment = {
   id: "frg_test0001",
@@ -76,6 +94,48 @@ test("store round-trips fragments, ideas, claims and gates", () => {
     assert.deepEqual(store.listIdeas("developed"), [idea]);
     assert.equal(store.getGate(gate.id)?.name, "readout");
     assert.deepEqual(store.getConstraintState(idea.id), constraint);
+  } finally {
+    store.close();
+  }
+});
+
+test("the store rejects an invalid write for every primitive", () => {
+  const store = new Store(":memory:");
+  try {
+    assert.throws(
+      () => store.putFragment(fixture("fragment/invalid.json") as Fragment),
+      SchemaValidationError,
+    );
+    assert.throws(
+      () => store.putIdea(fixture("idea/invalid.json") as Idea),
+      SchemaValidationError,
+    );
+    assert.throws(
+      () =>
+        store.putClaims("idea_fixture0001", [
+          fixture("claim/invalid.json") as Claim,
+        ]),
+      SchemaValidationError,
+    );
+    assert.throws(
+      () =>
+        store.putGates("idea_fixture0001", [
+          fixture("gate/invalid.json") as Gate,
+        ]),
+      SchemaValidationError,
+    );
+    assert.throws(
+      () => store.putBrief(fixture("brief/invalid.json") as Brief),
+      SchemaValidationError,
+    );
+    assert.throws(
+      () =>
+        store.putConstraintState(
+          "idea_fixture0001",
+          fixture("constraint-state/invalid.json") as ConstraintState,
+        ),
+      SchemaValidationError,
+    );
   } finally {
     store.close();
   }
