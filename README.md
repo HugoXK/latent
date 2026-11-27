@@ -356,6 +356,7 @@ and fixtures live in [`data/replay/`](data/replay/); validate a case with
 | `docs/vertical-igem.md` | The first vertical, end to end |
 | `docs/api.md` | REST and CLI contract |
 | `docs/security.md` | Threat model and data handling |
+| `docs/release.md` | Two-phase release: PR, tag, SBOM, provenance |
 | `docs/decisions/` | Architecture decision records |
 | `data/schemas/` | JSON Schema 2020-12 for the five primitives |
 | `packages/core/` | State machine, ledger, gates, compiler, ports |

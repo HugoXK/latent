@@ -281,6 +281,7 @@ pnpm latent develop <fragment-id>
 | `docs/vertical-igem.md` | 第一个垂直场景，端到端 |
 | `docs/api.md` | REST 与 CLI 契约 |
 | `docs/security.md` | 威胁模型与数据处理 |
+| `docs/release.md` | 两阶段发布：PR、tag、SBOM、provenance |
 | `docs/decisions/` | 架构决策记录 |
 | `data/schemas/` | 五个原语的 JSON Schema 2020-12 |
 | `packages/core/` | 状态机、台账、闸门、编译器、端口 |
