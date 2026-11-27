@@ -16,6 +16,7 @@ import {
   compileSpec,
   createConstraintState,
   createOutcome,
+  DEFAULT_MIN_SAMPLES,
   decideGate,
   develop,
   developEdges,
@@ -24,6 +25,7 @@ import {
   questionKind,
   newId,
   nextQuestion,
+  observationsFromOutcomes,
   DeterministicClaimVerifier,
   renderBriefMarkdown,
   exportBriefHtml,
@@ -31,6 +33,7 @@ import {
   renderSpecMarkdown,
   runReplayCase,
   outcomeEdge,
+  questionPriors,
   transition,
   undoConstraint,
   validateReplayCase,
@@ -277,6 +280,7 @@ Usage:
         --success|--failure [--confidence N] [--notes "..."] [--by human|expert]
   latent outcomes [idea-id]                   list recorded outcomes
   latent calibration [--owner <id>]           Brier, log loss and missing outcomes
+  latent priors [--min-samples N]             empirical option priors from outcomes
   latent show <id>                            show a fragment, idea or brief
   latent help                                 this text
 
@@ -860,6 +864,31 @@ async function main(): Promise<number> {
       case "calibration": {
         const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
         out(store.calibrationReport({ ownerId }));
+        return 0;
+      }
+
+      case "priors": {
+        const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        const rawMin =
+          typeof flags["min-samples"] === "string"
+            ? Number(flags["min-samples"])
+            : Number.NaN;
+        const minSamples = Number.isFinite(rawMin) ? rawMin : undefined;
+        const outcomes = store.listOutcomes({ ownerId });
+        const states = new Map(
+          store.listConstraintStates().map((entry) => [entry.ideaId, entry.state]),
+        );
+        const observations = observationsFromOutcomes(
+          outcomes,
+          states,
+          igem.questions,
+        );
+        out({
+          owner_id: ownerId,
+          outcome_sample_count: outcomes.length,
+          min_samples: minSamples ?? DEFAULT_MIN_SAMPLES,
+          questions: questionPriors(igem.questions, observations, { minSamples }),
+        });
         return 0;
       }
 

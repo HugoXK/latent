@@ -146,8 +146,11 @@ The `v0.2` implementation is deliberately transparent:
 - `isReadyForVerification` is true only when every blocking question has a
   confident answer.
 
-This is a heuristic, not a calibrated model. `v0.3` replaces the priors with
-observed outcomes; the interface (`nextQuestion`, `blockingQuestions`,
+The declared priors are a heuristic. `v0.3` adds an outcome-backed source
+([0013](decisions/0013-outcome-backed-priors.md)): only ideas with a realised
+outcome contribute; below `min_samples` (default 5) the prior is uniform, and above
+it a smoothed empirical distribution replaces the declared prior. The sample count
+and source are exposed. The interface (`nextQuestion`, `blockingQuestions`,
 `isReadyForVerification`) stays the same. The constraint state is stored per idea
 in the `constraint_states` table.
 

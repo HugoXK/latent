@@ -335,6 +335,18 @@ export class Store {
     return parse<ConstraintState>(row);
   }
 
+  listConstraintStates(): Array<{ ideaId: string; state: ConstraintState }> {
+    const rows = this.#db
+      .prepare(
+        "SELECT idea_id, data FROM constraint_states ORDER BY idea_id",
+      )
+      .all() as Array<{ idea_id: string; data: string }>;
+    return rows.map((row) => ({
+      ideaId: row.idea_id,
+      state: JSON.parse(row.data) as ConstraintState,
+    }));
+  }
+
   // --- memory graph --------------------------------------------------------
 
   putEdge(edge: MemoryEdge): void {

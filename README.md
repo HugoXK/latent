@@ -231,6 +231,7 @@ pnpm latent memory connect <fragment-id> <idea-id>  # explain the path
 pnpm latent memory export                    # open JSON graph; delete blocks on references
 pnpm latent outcome <idea-id> tested --success --confidence 0.62  # realised result (human)
 pnpm latent calibration                      # Brier, log loss and missing outcomes
+pnpm latent priors                           # empirical option priors from outcomes
 ```
 
 The CLI contract is specified in [docs/api.md](docs/api.md). Every command accepts

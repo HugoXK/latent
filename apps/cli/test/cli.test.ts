@@ -308,6 +308,19 @@ test("every command has a parseable --json envelope and stable exit codes", () =
       1,
     );
 
+    const priors = run(["priors", "--json"]);
+    assert.equal(priors.status, 0, priors.stderr);
+    const priorData = jsonData(priors) as {
+      outcome_sample_count: number;
+      questions: Array<{ source: string; sample_count: number }>;
+    };
+    assert.equal(priorData.outcome_sample_count, 1);
+    assert.ok(priorData.questions.length > 0);
+    assert.ok(
+      priorData.questions.every((question) => question.source === "uniform"),
+      "one outcome is not enough to move a prior",
+    );
+
     const blockedFragment = String(
       jsonData(run(["capture", "unanswered idea", "--json"])).id,
     );

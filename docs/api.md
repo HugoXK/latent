@@ -56,6 +56,7 @@ Implemented in `v0.3` (ADR [0011](decisions/0011-local-api-auth.md)):
 | Memory | `/v1/memory` | Search, connection explanations, owner-scoped export; fragment delete blocks on references |
 | Outcome | `/v1/ideas/{id}/outcome` | Record or list an immutable realised outcome |
 | Calibration | `/v1/calibration` | Brier, log loss, reliability bins and missing outcomes |
+| Priors | `/v1/priors` | Outcome-backed option priors with sample counts |
 | Jobs | `/v1/jobs` | Incubation and research jobs |
 | Health | `/healthz`, `/readyz` | Liveness, readiness |
 
@@ -287,6 +288,34 @@ GET /v1/calibration
 A missing outcome is visible, not assumed to be a failure. The report sorts by
 outcome id and takes an injected clock, so the same rows produce the same report.
 
+### Priors
+
+```http
+GET /v1/priors
+```
+
+```json
+{
+  "outcome_sample_count": 12,
+  "min_samples": 5,
+  "questions": [
+    {
+      "id": "q.lab.bsl",
+      "variable": "lab.bsl",
+      "sample_count": 6,
+      "source": "empirical",
+      "options": [
+        { "value": 1, "label": "BSL-1 only", "prior": 0.375, "samples": 2 }
+      ]
+    }
+  ]
+}
+```
+
+Only ideas with a realised outcome contribute. Below `min_samples` the prior is
+uniform; a text question is always uniform. The source and sample count are part of
+the response so a prior is never mistaken for a population estimate.
+
 ## CLI
 
 Shipped in `v0.2 alpha`:
@@ -307,6 +336,7 @@ latent memory search <query> | connect <from-id> <to-id> | export | delete <frag
 latent outcome <idea-id> <decision> --success|--failure [--confidence N]
 latent outcomes [idea-id]
 latent calibration [--owner <id>]
+latent priors [--min-samples N]
 latent show <id>
 ```
 

@@ -18,14 +18,17 @@ import {
   compileBrief,
   createConstraintState,
   createOutcome,
+  DEFAULT_MIN_SAMPLES,
   decideGate,
   develop,
   developEdges,
   findQuestion,
   newId,
   nextQuestion,
+  observationsFromOutcomes,
   outcomeEdge,
   questionKind,
+  questionPriors,
   transition,
   undoConstraint,
 } from "@latent/core";
@@ -749,6 +752,23 @@ export function buildServer(options: ServerOptions): FastifyInstance {
   });
 
   app.get("/v1/calibration", { preHandler: scope("memory:read") }, async () => store.calibrationReport());
+
+  app.get("/v1/priors", { preHandler: scope("memory:read") }, async () => {
+    const outcomes = store.listOutcomes({ ownerId: "local" });
+    const states = new Map(
+      store.listConstraintStates().map((entry) => [entry.ideaId, entry.state]),
+    );
+    const observations = observationsFromOutcomes(
+      outcomes,
+      states,
+      igem.questions,
+    );
+    return {
+      outcome_sample_count: outcomes.length,
+      min_samples: DEFAULT_MIN_SAMPLES,
+      questions: questionPriors(igem.questions, observations),
+    };
+  });
 
   app.setErrorHandler((error, _req, reply) => {
     const fastifyError = error as { code?: string; statusCode?: number };
