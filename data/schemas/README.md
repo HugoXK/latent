@@ -34,7 +34,7 @@ The core consumes the generated `MemoryEdge`, `MemoryEdgeNode`, `Outcome` and
 `ConstraintState` and `ReplayCase` remain hand-written exceptions: they carry domain
 invariants and are used in function signatures. A type-level test in
 `packages/core/test/generated-types.test.ts` keeps them assignable to the generated
-schemas. See [ADR 0010](../docs/decisions/0010-generated-schema-types.md).
+schemas. See [ADR 0010](../../docs/decisions/0010-generated-schema-types.md).
 
 ## Validate
 
