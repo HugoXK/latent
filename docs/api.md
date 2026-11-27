@@ -109,6 +109,10 @@ POST /v1/ideas
 }
 ```
 
+`vertical` is a registered pack id: `igem` (default) or `research`. The core has no
+pack branch; the app selects the pack and uses the generic compiler, with the iGEM
+extra composer at the app boundary.
+
 ```json
 {
   "id": "idea_01h...",
@@ -326,7 +330,8 @@ GET /v1/priors
 
 Only ideas with a realised outcome contribute. Below `min_samples` the prior is
 uniform; a text question is always uniform. The source and sample count are part of
-the response so a prior is never mistaken for a population estimate.
+the response so a prior is never mistaken for a population estimate. Pass
+`?vertical=research` to score the research pack's questions (default `igem`).
 
 ## CLI
 
@@ -334,7 +339,7 @@ Shipped in `v0.2 alpha`:
 
 ```
 latent capture <text>
-latent develop <fragment-id>
+latent develop <fragment-id> [--vertical id]  # igem (default) or research
 latent ask <idea-id>                        # highest-information-gain question
 latent answer <idea-id> <variable> <value>  # answer a blocking constraint
 latent constraints <idea-id>                # state, blocking set, next question
@@ -349,7 +354,7 @@ latent memory search <query> | connect <from-id> <to-id> | export | delete <frag
 latent outcome <idea-id> <decision> --success|--failure [--confidence N]
 latent outcomes [idea-id]
 latent calibration [--owner <id>]
-latent priors [--min-samples N]
+latent priors [--vertical id] [--min-samples N]
 latent incubate <idea|fragment-id> [--budget N] [--min-score N] [--since ISO]
 latent suggestions [--status proposed|accepted|rejected|revoked] [--job <id>]
 latent suggestion <id> <accept|reject|revoke>

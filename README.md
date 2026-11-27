@@ -370,6 +370,8 @@ and fixtures live in [`data/replay/`](data/replay/); validate a case with
 | `packages/store/` | SQLite store (`node:sqlite`), events, counts |
 | `packages/adapters/` | Deterministic reconstructor and offline fakes |
 | `packages/vertical-igem/` | The iGEM pack as runtime data |
+| `packages/vertical-research/` | The research-proposal pack |
+| `packages/verticals/` | The pack registry (`igem`, `research`) |
 | `apps/cli/` | The `latent` CLI |
 | `apps/server/` | Local Fastify API |
 | `openapi/` | The committed OpenAPI 3.1 contract |

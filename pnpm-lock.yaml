@@ -96,6 +96,24 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/vertical-research:
+    dependencies:
+      '@latent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/verticals:
+    dependencies:
+      '@latent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@latent/vertical-igem':
+        specifier: workspace:*
+        version: link:../vertical-igem
+      '@latent/vertical-research':
+        specifier: workspace:*
+        version: link:../vertical-research
+
 packages:
 
   '@esbuild/aix-ppc64@0.28.2':

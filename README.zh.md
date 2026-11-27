@@ -294,6 +294,8 @@ pnpm latent develop <fragment-id>
 | `packages/store/` | SQLite 存储（`node:sqlite`）、事件、计数 |
 | `packages/adapters/` | 确定性复原器与离线 fake |
 | `packages/vertical-igem/` | 作为运行时数据的 iGEM pack |
+| `packages/vertical-research/` | 研究提案垂直 pack |
+| `packages/verticals/` | pack 注册表（`igem`、`research`） |
 | `apps/cli/` | `latent` CLI |
 | `apps/server/` | 本地 Fastify API |
 | `openapi/` | 提交到仓库的 OpenAPI 3.1 契约 |

@@ -1,4 +1,5 @@
 import { questionKind } from "./constraints.js";
+import type { BriefValidator } from "./types.js";
 import type { VerticalPack } from "./vertical.js";
 
 export interface PackIssue {
@@ -47,6 +48,40 @@ export function validateVerticalPack(pack: VerticalPack): PackIssue[] {
       path: "/briefTemplate",
       message: "briefTemplate is required",
     });
+  }
+  if (pack.description !== undefined && !pack.description.trim()) {
+    issues.push({
+      code: "EMPTY_DESCRIPTION",
+      path: "/description",
+      message: "description must not be empty when present",
+    });
+  }
+  if (
+    pack.evidenceScale !== undefined &&
+    (pack.evidenceScale.length === 0 ||
+      pack.evidenceScale.some((entry) => !entry.trim()))
+  ) {
+    issues.push({
+      code: "INVALID_EVIDENCE_SCALE",
+      path: "/evidenceScale",
+      message: "evidenceScale entries must be non-empty",
+    });
+  }
+  if (pack.rules !== undefined) {
+    if (!pack.rules.version?.trim()) {
+      issues.push({
+        code: "MISSING_RULES_VERSION",
+        path: "/rules/version",
+        message: "rules version is required",
+      });
+    }
+    if (Number.isNaN(new Date(pack.rules.checked_at).getTime())) {
+      issues.push({
+        code: "INVALID_RULES_DATE",
+        path: "/rules/checked_at",
+        message: "rules checked_at must be a date",
+      });
+    }
   }
 
   const variables = new Set(pack.variables);
@@ -180,4 +215,27 @@ export function validateVerticalPack(pack: VerticalPack): PackIssue[] {
 export function assertValidPack(pack: VerticalPack): void {
   const issues = validateVerticalPack(pack);
   if (issues.length > 0) throw new PackValidationError(issues);
+}
+
+/** A versioned pack with a stale checked date fails its vertical-rule check. */
+export function verticalRulesValidator(
+  pack: VerticalPack,
+  now = new Date(),
+  maxAgeDays = 365,
+): BriefValidator {
+  if (!pack.rules) {
+    return {
+      name: "vertical_rules",
+      status: "pass",
+      detail: "no versioned rules for this pack",
+    };
+  }
+  const checked = new Date(pack.rules.checked_at).getTime();
+  const ageDays = Math.floor((now.getTime() - checked) / 86_400_000);
+  const fresh = Number.isFinite(ageDays) && ageDays <= maxAgeDays;
+  return {
+    name: "vertical_rules",
+    status: fresh ? "pass" : "fail",
+    detail: `${pack.id} ${pack.rules.version} checked ${ageDays} days ago`,
+  };
 }

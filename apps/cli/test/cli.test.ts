@@ -485,3 +485,88 @@ test("incubation proposes, reviews and digests within a budget", () => {
     cleanup();
   }
 });
+
+test("the research vertical validates, replays and runs the loop", () => {
+  cleanup();
+  try {
+    const replayCase =
+      "data/replay/fixtures/valid/research-illustrative-001.json";
+    const validated = run(["eval", "validate", replayCase, "--json"]);
+    assert.equal(validated.status, 0, validated.stderr);
+    assert.equal(
+      (jsonData(validated) as { id: string }).id,
+      "replay_research-illustrative-001",
+    );
+
+    const replay = run(["eval", "replay", replayCase, "--json"]);
+    assert.equal(replay.status, 0, replay.stderr);
+    assert.equal(
+      (jsonData(replay) as { case_id: string }).case_id,
+      "replay_research-illustrative-001",
+    );
+
+    const fragmentId = String(
+      jsonData(
+        run(["capture", "a citation-checking replication study", "--json"]),
+      ).id,
+    );
+    const developed = run([
+      "develop",
+      fragmentId,
+      "--vertical",
+      "research",
+      "--json",
+    ]);
+    assert.equal(developed.status, 0, developed.stderr);
+    const developedData = jsonData(developed) as { id: string; vertical: string };
+    assert.equal(developedData.vertical, "research");
+    const ideaId = developedData.id;
+
+    for (let i = 0; i < 32; i += 1) {
+      const asked = jsonData(run(["ask", ideaId, "--json"])) as {
+        ready: boolean;
+        question: {
+          variable: string;
+          options?: Array<{ value: unknown }>;
+        } | null;
+      };
+      if (asked.ready) break;
+      assert.ok(asked.question);
+      const value = asked.question.options?.[0]?.value ?? "a research plan";
+      const answered = run([
+        "answer",
+        ideaId,
+        asked.question.variable,
+        String(value),
+        "--json",
+      ]);
+      assert.equal(answered.status, 0, answered.stderr);
+    }
+    assert.equal(
+      (jsonData(run(["ask", ideaId, "--json"])) as { ready: boolean }).ready,
+      true,
+    );
+
+    assert.equal(run(["confirm", ideaId, "--all", "--json"]).status, 0);
+    assert.equal(
+      run(["decide", ideaId, "--all", "pass", "--reason", "pilot", "--json"])
+        .status,
+      0,
+    );
+
+    const brief = run(["brief", ideaId, "--json"]);
+    assert.equal(brief.status, 0, brief.stderr);
+    assert.match(String(jsonData(brief).id), /^brf_/);
+
+    const audit = jsonData(run(["ledger", "audit", ideaId, "--json"])) as {
+      validators: Array<{ name: string; status: string }>;
+    };
+    const statuses = Object.fromEntries(
+      audit.validators.map((validator) => [validator.name, validator.status]),
+    );
+    assert.notEqual(statuses["vertical_rules"], "skipped");
+    assert.notEqual(statuses["existence"], "skipped");
+  } finally {
+    cleanup();
+  }
+});
