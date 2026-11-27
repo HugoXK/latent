@@ -20,6 +20,20 @@ types are generated from them. A change needs an ADR (see
 `fragment.schema.json` by `$id`. The loader registers every schema before it
 compiles a validator, so the references resolve.
 
+## Generated types
+
+`pnpm schema:types` writes `packages/core/src/generated/schemas.ts`; it is
+committed. `pnpm schema:types:check` fails when the file is stale, and `pnpm check`
+runs it. A schema change without a regenerated file is a CI failure.
+
+The core consumes the generated `MemoryEdge`, `MemoryEdgeNode` and `Outcome`
+types (and derives `MemoryNodeType`, `MemoryRelation`, `OutcomeDecision` and
+`OutcomeDecider` from them). `Fragment`, `Claim`, `Idea`, `Gate`, `Brief`,
+`ConstraintState` and `ReplayCase` remain hand-written exceptions: they carry domain
+invariants and are used in function signatures. A type-level test in
+`packages/core/test/generated-types.test.ts` keeps them assignable to the generated
+schemas. See [ADR 0010](../../docs/decisions/0010-generated-schema-types.md).
+
 ## Validate
 
 ```sh

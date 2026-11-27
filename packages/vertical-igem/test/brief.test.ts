@@ -55,6 +55,7 @@ function claim(): Claim {
 
 function gate(overrides: Partial<Gate> = {}): Gate {
   return {
+    evidence: [],
     id: "gate_1",
     name: "measurable readout",
     status: "pass",

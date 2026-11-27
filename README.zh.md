@@ -189,7 +189,7 @@ pnpm latent outcome <idea-id> tested --success --confidence 0.62  # 人的真实
 pnpm latent calibration                      # Brier、log loss 与缺失结果
 ```
 
-CLI 契约见 [docs/api.md](docs/api.md)。默认复原器是确定性模板，目的是让管道在没有模型提供方时也能测试。
+CLI 契约见 [docs/api.md](docs/api.md)。每条命令都接受 `--json`：成功输出稳定的 `{ ok, command, data }`，失败在 stderr 输出 `{ ok, command, error }`。默认复原器是确定性模板，目的是让管道在没有模型提供方时也能测试。
 
 ### 使用模型
 

@@ -6,6 +6,7 @@ import {
   ConstraintAnswerError,
   ConstraintError,
   OutcomeError,
+  SchemaValidationError,
   SpecValidationError,
   GateError,
   TransitionError,
@@ -52,6 +53,7 @@ const BOOLEAN_FLAGS = new Set([
   "all",
   "failure",
   "help",
+  "json",
   "mark",
   "refute",
   "success",
@@ -108,6 +110,58 @@ function openStore(): Store {
 
 function print(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
+}
+
+let JSON_OUTPUT = false;
+let CURRENT_COMMAND = "";
+
+function exitCodeName(code: number): string {
+  switch (code) {
+    case 2:
+      return "NOT_FOUND";
+    case 3:
+      return "BLOCKED";
+    case 4:
+      return "AUTH";
+    case 5:
+      return "PROVIDER";
+    default:
+      return "INVALID";
+  }
+}
+
+function emit(
+  flags: Record<string, string | true>,
+  command: string,
+  data: unknown,
+): void {
+  if (flags.json === true) {
+    console.log(JSON.stringify({ ok: true, command, data }, null, 2));
+    return;
+  }
+  print(data);
+}
+
+function fail(
+  code: number,
+  errorCode: string,
+  message: string,
+  details?: unknown,
+): never {
+  if (JSON_OUTPUT) {
+    const error: Record<string, unknown> = { code: errorCode, message };
+    if (details !== undefined) error.details = details;
+    console.error(
+      JSON.stringify(
+        { ok: false, command: CURRENT_COMMAND, error },
+        null,
+        2,
+      ),
+    );
+  } else {
+    console.error(message);
+  }
+  process.exit(code);
 }
 
 function renderLedgerMarkdown(claims: Claim[]): string {
@@ -230,9 +284,16 @@ Environment:
 async function main(): Promise<number> {
   const [command, ...rest] = process.argv.slice(2);
   const { positionals, flags } = parseArgs(rest);
+  JSON_OUTPUT = flags.json === true;
+  CURRENT_COMMAND = command ?? "help";
+  const out = (data: unknown) => emit(flags, CURRENT_COMMAND, data);
 
   if (!command || command === "help" || flags.help) {
-    console.log(HELP);
+    if (JSON_OUTPUT) {
+      emit(flags, "help", { help: HELP });
+    } else {
+      console.log(HELP);
+    }
     return 0;
   }
 
@@ -255,7 +316,7 @@ async function main(): Promise<number> {
         };
         store.putFragment(fragment);
         store.appendEvent("fragment.captured", fragment.id, { kind: fragment.kind });
-        print({ id: fragment.id, status: "captured" });
+        out({ id: fragment.id, status: "captured" });
         return 0;
       }
 
@@ -280,7 +341,7 @@ async function main(): Promise<number> {
           gates: result.gates.length,
         });
         const first = nextQuestion(result.constraint, igem.questions);
-        print({
+        out({
           id: result.idea.id,
           status: result.idea.status,
           hypotheses: result.idea.hypotheses.map((h) => ({
@@ -335,7 +396,7 @@ async function main(): Promise<number> {
             "warning: every assumption was confirmed by a human without new evidence; this is recorded in the audit log.",
           );
         }
-        print({
+        out({
           id: updated.id,
           assumptions: updated.assumptions.map((a) => ({
             id: a.id,
@@ -368,7 +429,7 @@ async function main(): Promise<number> {
           status,
           decided_by: "human",
         });
-        print({
+        out({
           id: idea.id,
           gates: updated.map((g) => ({
             id: g.id,
@@ -388,7 +449,7 @@ async function main(): Promise<number> {
         const blocking = blockingQuestions(state, igem.questions).map(
           (q) => q.variable,
         );
-        print({
+        out({
           idea_id: idea.id,
           ready: blocking.length === 0,
           blocking,
@@ -415,7 +476,7 @@ async function main(): Promise<number> {
         const updated = answerConstraint(state, igem.questions, variable, value, 1);
         store.putConstraintState(idea.id, updated);
         store.appendEvent("constraint.answered", idea.id, { variable });
-        print({
+        out({
           idea_id: idea.id,
           variable,
           value,
@@ -432,7 +493,7 @@ async function main(): Promise<number> {
         const state =
           store.getConstraintState(idea.id) ??
           createConstraintState(idea.vertical ?? "igem", igem.questions);
-        print({
+        out({
           idea_id: idea.id,
           state,
           blocking: blockingQuestions(state, igem.questions).map(
@@ -476,7 +537,9 @@ async function main(): Promise<number> {
         store.putIdea(saved);
         store.appendEvent("brief.compiled", idea.id, { brief_id: brief.id });
 
-        if (flags.format === "json") {
+        if (flags.json === true) {
+          out(brief);
+        } else if (flags.format === "json") {
           print(brief);
         } else if (flags.format === "html") {
           console.log(exportBriefHtml(brief));
@@ -506,12 +569,15 @@ async function main(): Promise<number> {
         }
         const issues = validateReplayCase(value);
         if (issues.length > 0) {
-          print({ ok: false, issues });
+          if (flags.json === true) {
+            fail(1, "INVALID_REPLAY_CASE", "replay case failed validation", issues);
+          }
+          out({ ok: false, issues });
           return 1;
         }
         const replay = value as ReplayCase;
         if (sub === "validate") {
-          print({
+          out({
             ok: true,
             id: replay.metadata.id,
             illustrative: replay.metadata.illustrative,
@@ -527,7 +593,7 @@ async function main(): Promise<number> {
         if (flags.format === "md") {
           console.log(renderReplayMarkdown(result));
         } else {
-          print(result);
+          out(result);
         }
         return 0;
       }
@@ -537,7 +603,9 @@ async function main(): Promise<number> {
         const claims = store.listClaims(idea.id);
         const gates = store.listGates(idea.id);
         const spec = compileSpec({ idea, claims, gates });
-        if (flags.format === "json") {
+        if (flags.json === true) {
+          out(spec);
+        } else if (flags.format === "json") {
           print(spec);
         } else {
           console.log(renderSpecMarkdown(spec));
@@ -556,7 +624,9 @@ async function main(): Promise<number> {
         }
         const idea = requireIdea(store, ideaId);
         const claims = store.listClaims(idea.id);
-        if (flags.format === "md") {
+        if (flags.json === true) {
+          out({ idea_id: idea.id, claims });
+        } else if (flags.format === "md") {
           console.log(renderLedgerMarkdown(claims));
         } else {
           for (const claim of claims) console.log(JSON.stringify(claim));
@@ -570,17 +640,17 @@ async function main(): Promise<number> {
         if (id.startsWith("frg_")) {
           const fragment = store.getFragment(id);
           if (!fragment) throw new CliError(`fragment not found: ${id}`, 2);
-          print(fragment);
+          out(fragment);
           return 0;
         }
         if (id.startsWith("brf_")) {
           const brief = store.getBrief(id);
           if (!brief) throw new CliError(`brief not found: ${id}`, 2);
-          print(brief);
+          out(brief);
           return 0;
         }
         const idea = requireIdea(store, id);
-        print({
+        out({
           idea,
           claims: store.listClaims(idea.id),
           gates: store.listGates(idea.id),
@@ -595,7 +665,7 @@ async function main(): Promise<number> {
         if (sub === "search") {
           const query = positionals.slice(1).join(" ").trim();
           if (!query) throw new CliError("usage: latent memory search <query>", 1);
-          print({ owner_id: ownerId, hits: store.searchMemory(query, { ownerId }) });
+          out({ owner_id: ownerId, hits: store.searchMemory(query, { ownerId }) });
           return 0;
         }
         if (sub === "connect") {
@@ -609,7 +679,7 @@ async function main(): Promise<number> {
           }
           const rawDepth = typeof flags.depth === "string" ? Number(flags.depth) : 3;
           const depth = Number.isFinite(rawDepth) ? rawDepth : 3;
-          print(
+          out(
             store.connectionExplanation(
               { type: nodeTypeFromId(fromId), id: fromId },
               { type: nodeTypeFromId(toId), id: toId },
@@ -619,7 +689,7 @@ async function main(): Promise<number> {
           return 0;
         }
         if (sub === "export") {
-          print(store.exportMemory({ ownerId }));
+          out(store.exportMemory({ ownerId }));
           return 0;
         }
         if (sub === "delete") {
@@ -631,7 +701,7 @@ async function main(): Promise<number> {
             ownerId,
             policy: flags.mark === true ? "mark" : "block",
           });
-          print(result);
+          out(result);
           return result.deleted ? 0 : 1;
         }
         throw new CliError("usage: latent memory <search|connect|export|delete>", 1);
@@ -705,13 +775,13 @@ async function main(): Promise<number> {
           decision: outcome.decision,
           realised_success: outcome.realised_success,
         });
-        print({ outcome, idea_status: saved.status });
+        out({ outcome, idea_status: saved.status });
         return 0;
       }
 
       case "outcomes": {
         const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
-        print({
+        out({
           owner_id: ownerId,
           outcomes: store.listOutcomes({
             ownerId,
@@ -723,7 +793,7 @@ async function main(): Promise<number> {
 
       case "calibration": {
         const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
-        print(store.calibrationReport({ ownerId }));
+        out(store.calibrationReport({ ownerId }));
         return 0;
       }
 
@@ -739,40 +809,41 @@ main()
   .then((code) => process.exit(code))
   .catch((error: unknown) => {
     if (error instanceof BriefValidationError) {
-      console.error("brief blocked:");
-      for (const issue of error.issues) console.error(`  - ${issue}`);
-      process.exit(3);
+      fail(3, "BRIEF_VALIDATION_FAILED", error.message, error.issues);
     }
     if (error instanceof SpecValidationError) {
-      console.error("spec blocked:");
-      for (const issue of error.issues) console.error(`  - ${issue}`);
-      process.exit(3);
-    }
-    if (error instanceof OutcomeError) {
-      console.error(`${error.code}: ${error.message}`);
-      process.exit(1);
+      fail(3, "SPEC_VALIDATION_FAILED", error.message, error.issues);
     }
     if (error instanceof ConstraintError) {
-      console.error("blocking constraints:");
-      for (const variable of error.variables) console.error(`  - ${variable}`);
-      process.exit(3);
+      fail(
+        3,
+        "BLOCKING_CONSTRAINTS",
+        "Answer the blocking constraints first.",
+        error.variables,
+      );
+    }
+    if (error instanceof OutcomeError) {
+      fail(1, error.code, error.message);
     }
     if (error instanceof ConstraintAnswerError) {
-      console.error(error.message);
-      process.exit(1);
+      fail(1, error.code, error.message);
     }
     if (error instanceof TransitionError) {
-      console.error(`${error.code}: ${error.message}`);
-      process.exit(3);
+      fail(3, error.code, error.message);
     }
     if (error instanceof GateError) {
-      console.error(`${error.code}: ${error.message}`);
-      process.exit(3);
+      fail(3, error.code, error.message);
+    }
+    if (error instanceof SchemaValidationError) {
+      fail(
+        1,
+        "SCHEMA_VALIDATION_FAILED",
+        error.message,
+        error.errors.map((issue) => issue.message ?? "invalid"),
+      );
     }
     if (error instanceof CliError) {
-      console.error(error.message);
-      process.exit(error.code);
+      fail(error.code, exitCodeName(error.code), error.message);
     }
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exit(1);
+    fail(1, "ERROR", error instanceof Error ? error.message : String(error));
   });
