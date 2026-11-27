@@ -196,6 +196,12 @@ pnpm latent digest                            # 只读的每周视图
 
 CLI 契约见 [docs/api.md](docs/api.md)。每条命令都接受 `--json`：成功输出稳定的 `{ ok, command, data }`，失败在 stderr 输出 `{ ok, command, error }`。默认复原器是确定性模板，目的是让管道在没有模型提供方时也能测试。
 
+### 本地 UI
+
+`pnpm dev` 在 <http://127.0.0.1:4310/> 提供一个无需构建的 UI。页面本身公开，但会要求输入
+`data/runtime/auth-token`（或 `LATENT_AUTH_TOKEN`）里的 bearer token，并在每次 API 调用时携带。
+流程是：捕获 → 访谈 → 假设台账 → 闸门板 → 简报，支持 JSON 与 Markdown 导出。
+
 ### 使用模型
 
 `ModelReconstructor` 实现同一端口，兼容 OpenAI 的 chat-completions：
