@@ -232,9 +232,10 @@ pnpm latent outcome <idea-id> tested --success --confidence 0.62  # realised res
 pnpm latent calibration                      # Brier, log loss and missing outcomes
 ```
 
-The CLI contract is specified in [docs/api.md](docs/api.md). The default
-reconstructor is a deterministic template so the pipeline is testable without a
-provider.
+The CLI contract is specified in [docs/api.md](docs/api.md). Every command accepts
+`--json` and returns a stable `{ ok, command, data }` envelope or a
+`{ ok, command, error }` envelope on stderr. The default reconstructor is a
+deterministic template so the pipeline is testable without a provider.
 
 ### Using a model
 

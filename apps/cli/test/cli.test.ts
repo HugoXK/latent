@@ -11,13 +11,16 @@ const cli = join(root, "apps/cli/src/index.ts");
 const dbPath = join(tmpdir(), `latent-cli-${process.pid}-${Date.now()}.sqlite`);
 
 function run(args: string[]) {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    LATENT_DB_PATH: dbPath,
+    LATENT_RECONSTRUCTOR: "template",
+  };
+  delete env.NODE_TEST_CONTEXT;
+  delete env.NODE_OPTIONS;
   return spawnSync(process.execPath, ["--import", "tsx", cli, ...args], {
     cwd: root,
-    env: {
-      ...process.env,
-      LATENT_DB_PATH: dbPath,
-      LATENT_RECONSTRUCTOR: "template",
-    },
+    env,
     encoding: "utf8",
   });
 }
@@ -182,6 +185,151 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
     const briefHtml = run(["brief", idea.id, "--format", "html"]);
     assert.equal(briefHtml.status, 0, briefHtml.stderr);
     assert.match(briefHtml.stdout, /<!doctype html>/);
+  } finally {
+    cleanup();
+  }
+});
+
+function jsonBody(result: ReturnType<typeof run>): Record<string, unknown> {
+  return JSON.parse(result.stdout) as Record<string, unknown>;
+}
+
+function jsonData(result: ReturnType<typeof run>): Record<string, unknown> {
+  return jsonBody(result).data as Record<string, unknown>;
+}
+
+test("every command has a parseable --json envelope and stable exit codes", () => {
+  cleanup();
+  try {
+    const help = run(["help", "--json"]);
+    assert.equal(help.status, 0);
+    const helpBody = jsonBody(help);
+    assert.equal(helpBody.ok, true);
+    assert.equal(helpBody.command, "help");
+    assert.match(
+      String((helpBody.data as { help: string }).help),
+      /latent outcome/,
+    );
+    assert.match(
+      String((helpBody.data as { help: string }).help),
+      /latent calibration/,
+    );
+
+    const capture = run(["capture", "soil microbial biosensor", "--json"]);
+    assert.equal(capture.status, 0);
+    const fragmentId = String(jsonData(capture).id);
+
+    const develop = run(["develop", fragmentId, "--json"]);
+    assert.equal(develop.status, 0);
+    const ideaId = String(jsonData(develop).id);
+
+    for (let i = 0; i < 32; i += 1) {
+      const asked = run(["ask", ideaId, "--json"]);
+      assert.equal(asked.status, 0);
+      const payload = jsonBody(asked).data as {
+        ready: boolean;
+        question: {
+          variable: string;
+          options?: Array<{ value: unknown }>;
+        } | null;
+      };
+      if (payload.ready) break;
+      assert.ok(payload.question, "a blocking question must be returned");
+      const value = payload.question.options?.[0]?.value ?? "test";
+      const answered = run([
+        "answer",
+        ideaId,
+        payload.question.variable,
+        String(value),
+        "--json",
+      ]);
+      assert.equal(answered.status, 0, answered.stderr);
+    }
+
+    const ready = run(["ask", ideaId, "--json"]);
+    assert.equal((jsonData(ready) as { ready: boolean }).ready, true);
+
+    for (const args of [
+      ["constraints", ideaId, "--json"],
+      ["confirm", ideaId, "--all", "--json"],
+      ["decide", ideaId, "--all", "pass", "--reason", "pilot", "--json"],
+      ["show", ideaId, "--json"],
+      ["ledger", "export", ideaId, "--json"],
+      ["memory", "search", "biosensor", "--json"],
+      ["memory", "connect", fragmentId, ideaId, "--json"],
+      ["memory", "export", "--json"],
+    ]) {
+      const result = run(args);
+      assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr}`);
+      assert.equal(jsonBody(result).ok, true, args.join(" "));
+    }
+
+    const connect = run([
+      "memory",
+      "connect",
+      fragmentId,
+      ideaId,
+      "--json",
+    ]);
+    assert.equal((jsonData(connect) as { found: boolean }).found, true);
+
+    const brief = run(["brief", ideaId, "--json"]);
+    assert.equal(brief.status, 0, brief.stderr);
+    assert.match(String(jsonData(brief).id), /^brf_/);
+
+    const spec = run(["spec", ideaId, "--json"]);
+    assert.equal(spec.status, 0, spec.stderr);
+
+    const outcome = run([
+      "outcome",
+      ideaId,
+      "tested",
+      "--success",
+      "--confidence",
+      "0.62",
+      "--json",
+    ]);
+    assert.equal(outcome.status, 0, outcome.stderr);
+    const record = jsonData(outcome).outcome as {
+      realised_success: boolean;
+      predicted_confidence: number;
+    };
+    assert.equal(record.realised_success, true);
+    assert.equal(record.predicted_confidence, 0.62);
+
+    const outcomes = run(["outcomes", ideaId, "--json"]);
+    assert.equal(outcomes.status, 0);
+    assert.equal((jsonData(outcomes).outcomes as unknown[]).length, 1);
+
+    const calibration = run(["calibration", "--json"]);
+    assert.equal(calibration.status, 0);
+    assert.equal(
+      (jsonData(calibration) as { sample_count: number }).sample_count,
+      1,
+    );
+
+    const blockedFragment = String(
+      jsonData(run(["capture", "unanswered idea", "--json"])).id,
+    );
+    const blockedIdea = String(
+      jsonData(run(["develop", blockedFragment, "--json"])).id,
+    );
+    const blocked = run(["brief", blockedIdea, "--json"]);
+    assert.equal(blocked.status, 3);
+    const blockedBody = JSON.parse(blocked.stderr) as {
+      ok: boolean;
+      error: { code: string; details?: unknown };
+    };
+    assert.equal(blockedBody.ok, false);
+    assert.equal(blockedBody.error.code, "BLOCKING_CONSTRAINTS");
+    assert.ok(blockedBody.error.details);
+
+    const missing = run(["show", "frg_missing0000", "--json"]);
+    assert.equal(missing.status, 2);
+    const missingBody = JSON.parse(missing.stderr) as {
+      error: { code: string };
+    };
+    assert.equal(missingBody.error.code, "NOT_FOUND");
   } finally {
     cleanup();
   }

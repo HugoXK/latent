@@ -279,14 +279,23 @@ latent decide <idea-id> <gate-id>|--all <pass|fail|unknown|waive> [--reason "...
 latent brief <idea-id> [--format md|json|html] [--verify]
 latent spec <idea-id> [--format md|json]
 latent ledger export <idea-id> [--format jsonl|md]
+latent memory search <query> | connect <from-id> <to-id> | export | delete <fragment-id> [--mark]
+latent outcome <idea-id> <decision> --success|--failure [--confidence N]
+latent outcomes [idea-id]
+latent calibration [--owner <id>]
 latent show <id>
 ```
 
-Targeted for `v0.3+`:
+Every command accepts `--json`. On success it prints
+`{ "ok": true, "command": "...", "data": ... }` to stdout. On failure it prints
+`{ "ok": false, "command": "...", "error": { "code", "message", "details" } }` to
+stderr and exits with the table below. Without `--json`, the command prints the
+same `data` as pretty JSON (or Markdown/HTML when `--format` asks for it).
+
+Targeted for `v0.4+`:
 
 ```
 latent export <idea-id> --out <dir>
-latent memory search <query>
 latent job list [--status running]
 ```
 
@@ -295,9 +304,9 @@ Exit codes:
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Validation error (schema, units, citations) |
+| `1` | Validation or usage error (schema, units, citations, bad flag) |
 | `2` | Not found |
-| `3` | Gate blocked (a hard gate is `fail` or `unknown`) |
+| `3` | Blocked: a hard gate is `fail`/`unknown`, or a brief/spec/constraint check refuses |
 | `4` | Auth error |
 | `5` | Provider or runtime error |
 
