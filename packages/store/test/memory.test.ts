@@ -62,7 +62,7 @@ function edge(
 test("a new store reports the current schema version", () => {
   const store = new Store(":memory:");
   try {
-    assert.equal(store.schemaVersion(), 4);
+    assert.equal(store.schemaVersion(), 5);
   } finally {
     store.close();
   }
@@ -80,7 +80,7 @@ test("migrations and edges survive a reopen", () => {
 
     const second = new Store(path);
     try {
-      assert.equal(second.schemaVersion(), 4);
+      assert.equal(second.schemaVersion(), 5);
       assert.deepEqual(second.getFragment(fragment.id), fragment);
       assert.equal(second.getEdge("edg_dddd0001")?.relation, "derived_from");
     } finally {
@@ -214,7 +214,7 @@ test("an existing v1 database migrates to the current version without losing fra
 
     const store = new Store(path);
     try {
-      assert.equal(store.schemaVersion(), 4);
+      assert.equal(store.schemaVersion(), 5);
       assert.deepEqual(store.getFragment(fragment.id), fragment);
     } finally {
       store.close();

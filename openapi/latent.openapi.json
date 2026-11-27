@@ -45,6 +45,9 @@
     },
     {
       "name": "priors"
+    },
+    {
+      "name": "retrieval"
     }
   ],
   "components": {
@@ -132,6 +135,128 @@
                   "type": "number"
                 }
               }
+            }
+          }
+        }
+      },
+      "IngestDocument": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "url",
+          "text"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IngestResult": {
+        "type": "object",
+        "required": [
+          "documents",
+          "snapshots_added",
+          "snapshots_cached"
+        ],
+        "properties": {
+          "documents": {
+            "type": "integer"
+          },
+          "snapshots_added": {
+            "type": "integer"
+          },
+          "snapshots_cached": {
+            "type": "integer"
+          }
+        }
+      },
+      "RetrievalHit": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "url",
+          "snippet",
+          "score",
+          "metadata"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "bm25": {
+            "type": "number"
+          },
+          "vector": {
+            "type": "number"
+          },
+          "rerank": {
+            "type": "number"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "RetrievalResponse": {
+        "type": "object",
+        "required": [
+          "query",
+          "filters",
+          "hits"
+        ],
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "filters": {
+            "type": "object"
+          },
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetrievalHit"
             }
           }
         }
@@ -1290,6 +1415,126 @@
             "description": "Pack id, for example igem or research."
           }
         ]
+      }
+    },
+    "/v1/corpus": {
+      "post": {
+        "tags": [
+          "retrieval"
+        ],
+        "operationId": "ingestCorpus",
+        "x-latent-scope": "ideas:write",
+        "summary": "Ingest a local corpus into content-addressed snapshots and the retrieval index",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "documents"
+                ],
+                "properties": {
+                  "documents": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/IngestDocument"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ingested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/v1/retrieval": {
+      "post": {
+        "tags": [
+          "retrieval"
+        ],
+        "operationId": "retrieve",
+        "x-latent-scope": "memory:read",
+        "summary": "Hybrid BM25 + vector retrieval over the ingested corpus",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "query"
+                ],
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50
+                  },
+                  "filters": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ranked hits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
       }
     }
   },

@@ -54,6 +54,7 @@ import type {
   CandidateMechanism,
   PriorArtEntry,
 } from "@latent/novelty";
+import type { IngestDocumentInput } from "@latent/store";
 import type {
   AssumptionStatus,
   BriefCollision,
@@ -73,7 +74,8 @@ import {
   existenceProviderFromEnv,
   reconstructorFromEnv,
 } from "@latent/adapters";
-import { JobError, Store } from "@latent/store";
+import { LocalRetrievalIndex } from "@latent/retrieval";
+import { EvidenceError, JobError, Store } from "@latent/store";
 import { compileIgemBrief } from "@latent/vertical-igem";
 import { verticalById } from "@latent/verticals";
 
@@ -311,6 +313,8 @@ Usage:
   latent ledger audit <idea-id>               every claim, source, span and validator
   latent eval validate <file>                 validate a replay case
   latent eval replay <file> [--format md]     run the replay harness
+  latent ingest <file>                        index a local corpus (snapshots + documents)
+  latent retrieve <query> [--limit N] [--filter k=v]
   latent novelty <idea-id> --input <json>      collision report against prior art
   latent memory search <query>                search fragments and ideas
   latent memory connect <from-id> <to-id>     explain why two nodes are connected
@@ -1015,6 +1019,83 @@ async function main(): Promise<number> {
         return 0;
       }
 
+      case "ingest": {
+        const path = positionals[0];
+        if (!path) {
+          throw new CliError(
+            "usage: latent ingest <file> (JSON: { documents: [...] } or an array)",
+            1,
+          );
+        }
+        const raw = readJson(path);
+        const documents = Array.isArray(raw)
+          ? raw
+          : (raw as { documents?: unknown }).documents;
+        if (!Array.isArray(documents) || documents.length === 0) {
+          throw new CliError("input needs a non-empty documents array", 1);
+        }
+        try {
+          out(store.ingestDocuments(documents as IngestDocumentInput[]));
+        } catch (error) {
+          if (error instanceof EvidenceError) {
+            throw new CliError(`${error.code}: ${error.message}`, 1);
+          }
+          throw error;
+        }
+        return 0;
+      }
+
+      case "retrieve": {
+        const query = positionals.join(" ").trim();
+        if (!query) {
+          throw new CliError(
+            "usage: latent retrieve <query> [--limit N] [--filter k=v]",
+            1,
+          );
+        }
+        const documents = store.listRetrievalDocuments();
+        if (documents.length === 0) {
+          throw new CliError(
+            "no documents indexed; run `latent ingest <file>` first",
+            2,
+          );
+        }
+        const filters: Record<string, string | number | boolean> = {};
+        if (typeof flags.filter === "string") {
+          for (const pair of flags.filter.split(",")) {
+            const [key, rawValue] = pair.split("=", 2);
+            if (!key || rawValue === undefined) {
+              throw new CliError("filter must be key=value", 1);
+            }
+            let value: unknown = rawValue;
+            try {
+              value = JSON.parse(rawValue);
+            } catch {
+              value = rawValue;
+            }
+            filters[key] = value as string | number | boolean;
+          }
+        }
+        const rawLimit =
+          typeof flags.limit === "string" ? Number(flags.limit) : 10;
+        const limit = Number.isFinite(rawLimit)
+          ? Math.max(1, Math.min(50, Math.trunc(rawLimit)))
+          : 10;
+        const index = await LocalRetrievalIndex.build(
+          documents.map((document) => ({
+            ...document,
+            snapshot_hash: document.snapshot_hash ?? undefined,
+          })),
+        );
+        const hits = await index.searchDetailed({
+          text: query,
+          filters,
+          limit,
+        });
+        out({ query, filters, hits });
+        return 0;
+      }
+
       case "novelty": {
         const idea = requireIdea(store, positionals[0]);
         const inputPath = typeof flags.input === "string" ? flags.input : null;
@@ -1252,7 +1333,7 @@ main()
     if (error instanceof SuggestionError) {
       fail(1, error.code, error.message);
     }
-    if (error instanceof JobError) {
+    if (error instanceof JobError || error instanceof EvidenceError) {
       fail(1, error.code, error.message);
     }
     if (error instanceof CliError) {

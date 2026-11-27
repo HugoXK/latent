@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent.dev/schemas/source-snapshot.schema.json",
+  "title": "SourceSnapshot",
+  "description": "A content-addressed source snapshot. The hash is the identity; the URL is provenance, not identity.",
+  "type": "object",
+  "required": ["hash", "url", "fetched_at", "content"],
+  "properties": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "url": { "type": "string", "minLength": 1 },
+    "title": { "type": ["string", "null"] },
+    "fetched_at": { "type": "string", "format": "date-time" },
+    "content": { "type": "string" },
+    "content_type": { "type": ["string", "null"] },
+    "schema_version": { "const": "1.0.0" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,9 @@
+{
+  "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "url": "https://example.org/paper",
+  "title": "A source paper",
+  "fetched_at": "2026-11-27T00:00:00Z",
+  "content": "The limit of detection was 10 ng/mL.",
+  "content_type": "text/plain",
+  "schema_version": "1.0.0"
+}

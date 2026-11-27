@@ -1,4 +1,4 @@
-import test from "node:test";
+import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, rmSync, writeFileSync } from "node:fs";
@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+describe("cli", { concurrency: 1 }, () => {
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 const cli = join(root, "apps/cli/src/index.ts");
 const dbPath = join(tmpdir(), `latent-cli-${process.pid}-${Date.now()}.sqlite`);
@@ -645,4 +646,73 @@ test("the research vertical validates, replays and runs the loop", () => {
   } finally {
     cleanup();
   }
+});
+
+test("ingest and retrieve the local evidence corpus", () => {
+  cleanup();
+  const corpusPath = join(tmpdir(), `latent-corpus-${process.pid}.json`);
+  try {
+    const empty = run(["retrieve", "anything", "--json"]);
+    assert.equal(empty.status, 2);
+
+    writeFileSync(
+      corpusPath,
+      JSON.stringify({
+        documents: [
+          {
+            id: "doc_arsenic",
+            title: "Arsenic whole-cell biosensor",
+            url: "https://example.org/arsenic",
+            text: "arsenic responsive repressor fluorescence soil field",
+            metadata: { village: "Diagnostics", year: 2019 },
+          },
+          {
+            id: "doc_pathogen",
+            title: "CRISPR pathogen detection",
+            url: "https://example.org/pathogen",
+            text: "CRISPR pathogen detection clinical sample",
+            metadata: { village: "Diagnostics", year: 2022 },
+          },
+        ],
+      }),
+    );
+
+    const ingest = run(["ingest", corpusPath, "--json"]);
+    assert.equal(ingest.status, 0, ingest.stderr);
+    assert.deepEqual(jsonData(ingest), {
+      documents: 2,
+      snapshots_added: 2,
+      snapshots_cached: 0,
+    });
+
+    const retrieval = run([
+      "retrieve",
+      "arsenic biosensor",
+      "--limit",
+      "3",
+      "--json",
+    ]);
+    assert.equal(retrieval.status, 0, retrieval.stderr);
+    const hits = (jsonData(retrieval) as { hits: Array<{ id: string }> }).hits;
+    assert.equal(hits[0]?.id, "doc_arsenic");
+
+    const filtered = run([
+      "retrieve",
+      "detection",
+      "--filter",
+      "village=Diagnostics,year=2022",
+      "--json",
+    ]);
+    assert.equal(filtered.status, 0, filtered.stderr);
+    assert.deepEqual(
+      (jsonData(filtered) as { hits: Array<{ id: string }> }).hits.map(
+        (hit) => hit.id,
+      ),
+      ["doc_pathogen"],
+    );
+  } finally {
+    rmSync(corpusPath, { force: true });
+    cleanup();
+  }
+});
 });

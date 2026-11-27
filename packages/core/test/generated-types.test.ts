@@ -9,6 +9,7 @@ import type {
   Gate,
   Idea,
   MemoryEdge,
+  ContentSnapshot,
   Outcome,
   Suggestion,
 } from "../src/index.js";
@@ -25,6 +26,7 @@ const _constraint: Generated.ConstraintState = {} as ConstraintState;
 const _edge: Generated.MemoryEdge = {} as MemoryEdge;
 const _outcome: Generated.Outcome = {} as Outcome;
 const _suggestion: Generated.Suggestion = {} as Suggestion;
+const _snapshot: Generated.SourceSnapshot = {} as ContentSnapshot;
 
 test("core types stay assignable to the generated schemas", () => {
   assert.ok(true);

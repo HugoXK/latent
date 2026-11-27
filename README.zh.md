@@ -185,6 +185,8 @@ pnpm latent decide <idea-id> --all pass --reason "设计伙伴试点"
 pnpm latent brief <idea-id>                  # 约束/闸门/假设未过时拒绝编译
 pnpm latent memory search "biosensor"        # 搜索碎片与想法
 pnpm latent novelty <idea-id> --input prior-art.json  # 带 claim/来源链接的碰撞报告
+pnpm latent ingest corpus.json                 # 快照 + 本地索引
+pnpm latent retrieve "arsenic biosensor"       # BM25 + 向量检索，带来源
 pnpm latent memory connect <fragment-id> <idea-id>  # 解释连接路径
 pnpm latent memory export                    # 开放 JSON 图谱；删除在仍被引用时拒绝
 pnpm latent outcome <idea-id> tested --success --confidence 0.62  # 人的真实结果记录

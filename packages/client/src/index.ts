@@ -72,6 +72,39 @@ export interface OutcomeInput {
   notes?: string | null;
 }
 
+export interface CorpusDocumentInput {
+  id: string;
+  title: string;
+  url: string;
+  text: string;
+  metadata?: Record<string, string | number | boolean>;
+  fetched_at?: string;
+}
+
+export interface IngestResult {
+  documents: number;
+  snapshots_added: number;
+  snapshots_cached: number;
+}
+
+export interface RetrievalHit {
+  id: string;
+  title: string;
+  url: string;
+  snippet: string;
+  score: number;
+  bm25: number;
+  vector: number;
+  rerank: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface RetrievalResponse {
+  query: string;
+  filters: Record<string, string | number | boolean>;
+  hits: RetrievalHit[];
+}
+
 export interface ApiErrorBody {
   error: {
     code: string;
@@ -133,6 +166,8 @@ export const CLIENT_OPERATIONS: readonly ClientOperation[] = [
   { operationId: "listOutcomes", method: "get", path: "/v1/ideas/{id}/outcome" },
   { operationId: "calibrationReport", method: "get", path: "/v1/calibration" },
   { operationId: "questionPriors", method: "get", path: "/v1/priors" },
+  { operationId: "ingestCorpus", method: "post", path: "/v1/corpus" },
+  { operationId: "retrieve", method: "post", path: "/v1/retrieval" },
 ];
 
 export class LatentClient {
@@ -293,5 +328,17 @@ export class LatentClient {
   priors(vertical?: string): Promise<PriorReport> {
     const query = vertical ? `?vertical=${encodeURIComponent(vertical)}` : "";
     return this.#request<PriorReport>("GET", `/v1/priors${query}`);
+  }
+
+  ingestCorpus(documents: CorpusDocumentInput[]): Promise<IngestResult> {
+    return this.#request<IngestResult>("POST", "/v1/corpus", { documents });
+  }
+
+  retrieve(input: {
+    query: string;
+    limit?: number;
+    filters?: Record<string, string | number | boolean>;
+  }): Promise<RetrievalResponse> {
+    return this.#request<RetrievalResponse>("POST", "/v1/retrieval", input);
   }
 }

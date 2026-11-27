@@ -356,6 +356,8 @@ latent outcome <idea-id> <decision> --success|--failure [--confidence N]
 latent outcomes [idea-id]
 latent calibration [--owner <id>]
 latent priors [--vertical id] [--min-samples N]
+latent ingest <file>                         # local corpus JSON -> snapshots + documents
+latent retrieve <query> [--limit N] [--filter k=v]
 latent incubate <idea|fragment-id> [--budget N] [--min-score N] [--since ISO]
 latent suggestions [--status proposed|accepted|rejected|revoked] [--job <id>]
 latent suggestion <id> <accept|reject|revoke>
@@ -386,6 +388,18 @@ Exit codes:
 | `3` | Blocked: a hard gate is `fail`/`unknown`, or a brief/spec/constraint check refuses |
 | `4` | Auth error |
 | `5` | Provider or runtime error |
+
+## Local corpus and retrieval
+
+`latent ingest <file>` (or `POST /v1/corpus`) accepts
+`{ "documents": [{ "id", "title", "url", "text", "metadata"? }] }` or a bare
+array. Each text becomes a `SourceSnapshot` addressed by its SHA-256; identical
+content from two URLs is stored once. `latent retrieve <query>` (or
+`POST /v1/retrieval`) builds the BM25 + hashing-embedding + reciprocal-rank-fusion
+index from the stored documents on demand. `--filter k=v` / `filters` are exact
+metadata matches. Retrieval without a corpus fails closed with `NO_CORPUS`.
+Network Registry/wiki/paper adapters remain the `CorpusSource` port; this local
+ingest is the first implementation.
 
 ## Novelty evidence
 
