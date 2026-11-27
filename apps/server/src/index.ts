@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import Fastify, {
   type FastifyInstance,
   type FastifyReply,
@@ -96,6 +96,24 @@ declare module "fastify" {
 const VERSION = "0.2.0-alpha.0";
 const DEFAULT_RATE_LIMIT: RateLimitOptions = { limit: 120, windowMs: 60_000 };
 const DEFAULT_BODY_LIMIT = 1_048_576;
+const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
+const UI_HEADERS: Record<string, string> = {
+  "Content-Security-Policy":
+    "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+};
+
+function serveUi(
+  reply: FastifyReply,
+  file: string,
+  type: string,
+): FastifyReply {
+  for (const [name, value] of Object.entries(UI_HEADERS)) {
+    reply.header(name, value);
+  }
+  return reply.type(type).send(readFileSync(join(PUBLIC_DIR, file)));
+}
 
 function safeEqual(left: string, right: string): boolean {
   const a = Buffer.from(left);
@@ -256,7 +274,15 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         },
       });
     }
-    if (req.url === "/healthz" || req.url === "/readyz") return;
+    const path = req.url.split("?")[0] ?? req.url;
+    if (
+      path === "/healthz" ||
+      path === "/readyz" ||
+      path === "/" ||
+      path.startsWith("/ui/")
+    ) {
+      return;
+    }
 
     const header = req.headers.authorization;
     const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
@@ -290,6 +316,16 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     }
     req.auth = { token: match.token, scopes: match.scopes };
   });
+
+  app.get("/", async (_req, reply) =>
+    serveUi(reply, "index.html", "text/html; charset=utf-8"),
+  );
+  app.get("/ui/app.js", async (_req, reply) =>
+    serveUi(reply, "app.js", "text/javascript; charset=utf-8"),
+  );
+  app.get("/ui/style.css", async (_req, reply) =>
+    serveUi(reply, "style.css", "text/css; charset=utf-8"),
+  );
 
   app.get("/healthz", async () => ({ status: "ok", version: VERSION }));
   app.get("/readyz", async () => ({ status: "ok", counts: store.counts() }));

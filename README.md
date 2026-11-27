@@ -242,6 +242,13 @@ The CLI contract is specified in [docs/api.md](docs/api.md). Every command accep
 `{ ok, command, error }` envelope on stderr. The default reconstructor is a
 deterministic template so the pipeline is testable without a provider.
 
+### Local UI
+
+`pnpm dev` serves a no-build UI at <http://127.0.0.1:4310/>. The shell is public;
+the page asks for the bearer token from `data/runtime/auth-token` (or
+`LATENT_AUTH_TOKEN`) and sends it on every API call. The flow is capture →
+interview → assumption ledger → gate board → brief, with JSON and Markdown export.
+
 ### Using a model
 
 `ModelReconstructor` implements the same port and speaks the OpenAI-compatible
@@ -356,6 +363,7 @@ and fixtures live in [`data/replay/`](data/replay/); validate a case with
 | `docs/vertical-igem.md` | The first vertical, end to end |
 | `docs/api.md` | REST and CLI contract |
 | `docs/security.md` | Threat model and data handling |
+| `docs/release.md` | Two-phase release: PR, tag, SBOM, provenance |
 | `docs/decisions/` | Architecture decision records |
 | `data/schemas/` | JSON Schema 2020-12 for the five primitives |
 | `packages/core/` | State machine, ledger, gates, compiler, ports |

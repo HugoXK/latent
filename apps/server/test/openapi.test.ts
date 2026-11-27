@@ -49,6 +49,7 @@ function actualRoutes(app: ReturnType<typeof buildServer>): string[] {
     segments.length = depth + 1;
     if (!methods) continue;
     const path = normalizePath(segments.slice(0, depth + 1).join(""));
+    if (path === "/" || path.startsWith("/ui/")) continue;
     for (const method of methods.split(",").map((item) => item.trim())) {
       if (method === "" || method === "HEAD") continue;
       routes.push(`${method.toLowerCase()} ${path}`);
