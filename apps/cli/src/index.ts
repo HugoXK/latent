@@ -13,7 +13,6 @@ import {
   TransitionError,
   answerConstraint,
   blockingQuestions,
-  compileBrief,
   compileSpec,
   createConstraintState,
   createOutcome,
@@ -35,6 +34,7 @@ import {
   runReplayCase,
   outcomeEdge,
   questionPriors,
+  runExistenceValidator,
   runIncubation,
   SuggestionError,
   transition,
@@ -55,9 +55,13 @@ import type {
   QuestionDefinition,
   ReplayCase,
 } from "@latent/core";
-import { NoopAgentRuntime, reconstructorFromEnv } from "@latent/adapters";
+import {
+  NoopAgentRuntime,
+  existenceProviderFromEnv,
+  reconstructorFromEnv,
+} from "@latent/adapters";
 import { JobError, Store } from "@latent/store";
-import { igem } from "@latent/vertical-igem";
+import { compileIgemBrief, igem } from "@latent/vertical-igem";
 
 const BOOLEAN_FLAGS = new Set([
   "all",
@@ -175,13 +179,21 @@ function fail(
 }
 
 function renderLedgerMarkdown(claims: Claim[]): string {
-  const rows = claims.map(
-    (claim) =>
-      `| ${claim.id} | ${claim.status} | ${claim.confidence.toFixed(2)} | ${claim.text.replace(/\|/g, "\\|")} |`,
-  );
+  const rows = claims.map((claim) => {
+    const sources =
+      claim.sources
+        .map((source) => {
+          const span = source.span
+            ? ` (“${source.span.replace(/\|/g, "\\|")}”)`
+            : "";
+          return `${source.kind}: ${source.url}${span}`;
+        })
+        .join("<br>") || "—";
+    return `| ${claim.id} | ${claim.status} | ${claim.confidence.toFixed(2)} | ${claim.verifier ?? "—"} | ${claim.text.replace(/\|/g, "\\|")} | ${sources} |`;
+  });
   return [
-    "| Claim | Status | Confidence | Text |",
-    "|---|---|---|---|",
+    "| Claim | Status | Confidence | Verifier | Text | Sources (span) |",
+    "|---|---|---|---|---|---|",
     ...rows,
   ].join("\n");
 }
@@ -274,6 +286,7 @@ Usage:
   latent brief <idea-id> [--format md|json|html] [--verify]  compile a brief (fails if blocked)
   latent spec <idea-id> [--format md|json]            compile an implementation spec
   latent ledger export <idea-id> [--format jsonl|md]   export the claim ledger
+  latent ledger audit <idea-id>               every claim, source, span and validator
   latent eval validate <file>                 validate a replay case
   latent eval replay <file> [--format md]     run the replay harness
   latent memory search <query>                search fragments and ideas
@@ -609,7 +622,18 @@ async function main(): Promise<number> {
         if (next.status === "verifying") next = transition(next, "viable");
         if (next.status === "viable") next = transition(next, "briefed");
 
-        const brief = compileBrief({ idea: next, claims, gates });
+        const existence = await runExistenceValidator(
+          claims,
+          existenceProviderFromEnv(),
+        );
+        claims = existence.claims;
+        const brief = compileIgemBrief({
+          idea: next,
+          claims,
+          gates,
+          validators: { existence: existence.validator },
+          strictValidators: true,
+        });
         const saved: Idea = { ...next, brief_ref: brief.id };
         store.putBrief(brief);
         store.putIdea(saved);
@@ -694,14 +718,23 @@ async function main(): Promise<number> {
       case "ledger": {
         const sub = positionals[0];
         const ideaId = positionals[1];
-        if (sub !== "export" || !ideaId) {
+        if ((sub !== "export" && sub !== "audit") || !ideaId) {
           throw new CliError(
-            "usage: latent ledger export <idea-id> [--format jsonl|md]",
+            "usage: latent ledger <export|audit> <idea-id> [--format jsonl|md]",
             1,
           );
         }
         const idea = requireIdea(store, ideaId);
         const claims = store.listClaims(idea.id);
+        if (sub === "audit") {
+          const brief = store.getBriefByIdea(idea.id);
+          out({
+            idea_id: idea.id,
+            claims,
+            validators: brief?.validators ?? [],
+          });
+          return 0;
+        }
         if (flags.json === true) {
           out({ idea_id: idea.id, claims });
         } else if (flags.format === "md") {

@@ -1,4 +1,4 @@
-import type { Claim, Source } from "./types.js";
+import type { BriefValidator, Claim, Source } from "./types.js";
 
 export type ExistenceKind = "part" | "paper" | "doi";
 
@@ -171,4 +171,66 @@ export function applyExistence(
     };
   }
   return { ...claim, verifier: "existence-v1", verified_at: now };
+}
+
+export interface ExistenceValidation {
+  validator: BriefValidator;
+  claims: Claim[];
+}
+
+/**
+ * Run the existence validator for a brief. With no external objects the check
+ * passes and says so; with external objects and no provider it fails closed
+ * rather than silently skipping. A missing object demotes a verified claim.
+ */
+export async function runExistenceValidator(
+  claims: Claim[],
+  provider?: ExistenceProvider | null,
+  now = new Date().toISOString(),
+): Promise<ExistenceValidation> {
+  const withObjects = claims.filter((claim) =>
+    claim.sources.some((source) => existenceKind(source) !== null),
+  );
+  if (withObjects.length === 0) {
+    return {
+      validator: {
+        name: "existence",
+        status: "pass",
+        detail: "no external objects",
+      },
+      claims,
+    };
+  }
+  if (!provider) {
+    return {
+      validator: {
+        name: "existence",
+        status: "fail",
+        detail: "no existence provider configured; failing closed",
+      },
+      claims,
+    };
+  }
+
+  const checks: ExistenceCheck[] = [];
+  for (const claim of withObjects) {
+    checks.push(await checkClaimExistence(claim, provider));
+  }
+  const byClaim = new Map(checks.map((check) => [check.claim_id, check]));
+  const updated = claims.map((claim) => {
+    const check = byClaim.get(claim.id);
+    return check ? applyExistence(claim, check.results, now) : claim;
+  });
+  const failed = checks.filter((check) => !check.ok);
+  return {
+    validator: {
+      name: "existence",
+      status: failed.length === 0 ? "pass" : "fail",
+      detail:
+        failed.length === 0
+          ? `${checks.length} object(s) checked`
+          : `${failed.length} existence issue(s)`,
+    },
+    claims: updated,
+  };
 }

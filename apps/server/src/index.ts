@@ -15,7 +15,6 @@ import {
   TransitionError,
   answerConstraint,
   blockingQuestions,
-  compileBrief,
   createConstraintState,
   createOutcome,
   DEFAULT_MIN_SAMPLES,
@@ -27,6 +26,7 @@ import {
   nextQuestion,
   observationsFromOutcomes,
   outcomeEdge,
+  runExistenceValidator,
   questionKind,
   questionPriors,
   transition,
@@ -39,9 +39,13 @@ import type {
   OutcomeDecision,
   QuestionDefinition,
 } from "@latent/core";
-import { TemplateReconstructor, reconstructorFromEnv } from "@latent/adapters";
+import {
+  TemplateReconstructor,
+  existenceProviderFromEnv,
+  reconstructorFromEnv,
+} from "@latent/adapters";
 import { Store } from "@latent/store";
-import { igem } from "@latent/vertical-igem";
+import { compileIgemBrief, igem } from "@latent/vertical-igem";
 import type { Reconstructor } from "@latent/core";
 
 export const SCOPES = [
@@ -647,7 +651,17 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     if (next.status === "verifying") next = transition(next, "viable");
     if (next.status === "viable") next = transition(next, "briefed");
 
-    const brief = compileBrief({ idea: next, claims, gates });
+    const existence = await runExistenceValidator(
+      claims,
+      existenceProviderFromEnv(),
+    );
+    const brief = compileIgemBrief({
+      idea: next,
+      claims: existence.claims,
+      gates,
+      validators: { existence: existence.validator },
+      strictValidators: true,
+    });
     const saved: Idea = { ...next, brief_ref: brief.id };
     store.putBrief(brief);
     store.putIdea(saved);

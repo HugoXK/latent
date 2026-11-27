@@ -344,6 +344,7 @@ latent decide <idea-id> <gate-id>|--all <pass|fail|unknown|waive> [--reason "...
 latent brief <idea-id> [--format md|json|html] [--verify]
 latent spec <idea-id> [--format md|json]
 latent ledger export <idea-id> [--format jsonl|md]
+latent ledger audit <idea-id>               # every claim, source, span and validator
 latent memory search <query> | connect <from-id> <to-id> | export | delete <fragment-id> [--mark]
 latent outcome <idea-id> <decision> --success|--failure [--confidence N]
 latent outcomes [idea-id]
@@ -379,6 +380,14 @@ Exit codes:
 | `3` | Blocked: a hard gate is `fail`/`unknown`, or a brief/spec/constraint check refuses |
 | `4` | Auth error |
 | `5` | Provider or runtime error |
+
+## Ledger audit
+
+`latent ledger export <idea-id>` writes every claim as JSONL (default) or a
+Markdown table with status, confidence, verifier, text and sources including the
+source span. `latent ledger audit <idea-id>` returns the claims plus the latest
+brief's validator results, so a reviewer can see why a claim is `verified`,
+`unsupported` or `unknown` and which check produced the verdict.
 
 ## Incubation (CLI)
 

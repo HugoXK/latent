@@ -280,6 +280,23 @@ test("every command has a parseable --json envelope and stable exit codes", () =
     const spec = run(["spec", ideaId, "--json"]);
     assert.equal(spec.status, 0, spec.stderr);
 
+    const audit = run(["ledger", "audit", ideaId, "--json"]);
+    assert.equal(audit.status, 0, audit.stderr);
+    const auditData = jsonData(audit) as {
+      claims: unknown[];
+      validators: Array<{ name: string; status: string }>;
+    };
+    assert.equal(auditData.validators.length, 4);
+    const statuses = Object.fromEntries(
+      auditData.validators.map((validator) => [validator.name, validator.status]),
+    );
+    assert.notEqual(statuses["existence"], "skipped");
+    assert.notEqual(statuses["vertical_rules"], "skipped");
+
+    const ledgerMd = run(["ledger", "export", ideaId, "--format", "md"]);
+    assert.equal(ledgerMd.status, 0, ledgerMd.stderr);
+    assert.match(ledgerMd.stdout, /Sources \(span\)/);
+
     const outcome = run([
       "outcome",
       ideaId,

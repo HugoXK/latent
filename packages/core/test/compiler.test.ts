@@ -165,3 +165,35 @@ test("collisions are compiled into the brief", () => {
   assert.equal(brief.collisions?.length, 1);
   assert.match(renderBriefMarkdown(brief), /Novelty and collisions/);
 });
+
+test("a failing validator blocks the brief", () => {
+  assert.throws(
+    () =>
+      compileBrief({
+        idea: idea(),
+        claims: [claim()],
+        gates: [gate()],
+        validators: {
+          existence: { name: "existence", status: "fail", detail: "missing" },
+        },
+      }),
+    (error: unknown) =>
+      error instanceof BriefValidationError &&
+      error.issues.some((issue) => issue.includes("VALIDATORS_BLOCKED")),
+  );
+});
+
+test("strictValidators blocks a skipped required check", () => {
+  assert.throws(
+    () =>
+      compileBrief({
+        idea: idea(),
+        claims: [claim()],
+        gates: [gate()],
+        strictValidators: true,
+      }),
+    (error: unknown) =>
+      error instanceof BriefValidationError &&
+      error.issues.some((issue) => issue.includes("existence:skipped")),
+  );
+});

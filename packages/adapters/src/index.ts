@@ -8,6 +8,8 @@ import type {
   SearchHit,
   SearchProvider,
 } from "@latent/core";
+import { FixtureExistenceProvider } from "@latent/core";
+import type { ExistenceProvider } from "@latent/core";
 import {
   ModelReconstructor,
   createReplayFetch,
@@ -183,4 +185,21 @@ export function reconstructorFromEnv(
     });
   }
   throw new Error(`unknown LATENT_RECONSTRUCTOR: ${mode}`);
+}
+
+export function existenceProviderFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): ExistenceProvider | null {
+  const raw = env.LATENT_EXISTENCE_JSON;
+  if (!raw) return null;
+  try {
+    const options = JSON.parse(raw) as {
+      exists?: Record<string, string[]>;
+      missing?: Record<string, string[]>;
+      offline?: boolean;
+    };
+    return new FixtureExistenceProvider(options);
+  } catch {
+    return null;
+  }
 }
