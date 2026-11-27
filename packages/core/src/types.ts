@@ -227,3 +227,24 @@ export interface MemoryEdge {
   deleted_at?: string | null;
   schema_version?: "1.0.0";
 }
+
+export type OutcomeDecision = "shipped" | "tested" | "parked" | "killed" | "failed";
+
+export type OutcomeDecider = "human" | "expert";
+
+export interface Outcome {
+  id: string;
+  idea_id: string;
+  idea_version: number;
+  owner_id: string;
+  decision: OutcomeDecision;
+  realised_success: boolean;
+  predicted_confidence: number;
+  predicted_at?: string | null;
+  decided_at: string;
+  decided_by: OutcomeDecider;
+  evidence?: string[];
+  notes?: string | null;
+  created_at: string;
+  schema_version?: "1.0.0";
+}

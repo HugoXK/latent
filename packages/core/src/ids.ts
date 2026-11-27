@@ -8,7 +8,8 @@ export type IdPrefix =
   | "brf"
   | "spec"
   | "evt"
-  | "edg";
+  | "edg"
+  | "outcome";
 
 export function newId(prefix: IdPrefix): string {
   const time = Date.now().toString(36);

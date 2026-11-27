@@ -62,7 +62,7 @@ function edge(
 test("a new store reports the current schema version", () => {
   const store = new Store(":memory:");
   try {
-    assert.equal(store.schemaVersion(), 2);
+    assert.equal(store.schemaVersion(), 3);
   } finally {
     store.close();
   }
@@ -80,7 +80,7 @@ test("migrations and edges survive a reopen", () => {
 
     const second = new Store(path);
     try {
-      assert.equal(second.schemaVersion(), 2);
+      assert.equal(second.schemaVersion(), 3);
       assert.deepEqual(second.getFragment(fragment.id), fragment);
       assert.equal(second.getEdge("edg_dddd0001")?.relation, "derived_from");
     } finally {
@@ -194,7 +194,7 @@ test("exportMemory is a deterministic open-format graph", () => {
   }
 });
 
-test("an existing v1 database migrates to v2 without losing fragments", () => {
+test("an existing v1 database migrates to the current version without losing fragments", () => {
   const dir = mkdtempSync(join(tmpdir(), "latent-migrate-"));
   const path = join(dir, "latent.sqlite");
   try {
@@ -214,7 +214,7 @@ test("an existing v1 database migrates to v2 without losing fragments", () => {
 
     const store = new Store(path);
     try {
-      assert.equal(store.schemaVersion(), 2);
+      assert.equal(store.schemaVersion(), 3);
       assert.deepEqual(store.getFragment(fragment.id), fragment);
     } finally {
       store.close();

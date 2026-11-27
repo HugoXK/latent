@@ -266,6 +266,13 @@ implemented in `v0.3`; it consumes recorded outcomes (#54, #28).
 Replay benchmarks, expert panels and calibration reports. See
 [roadmap.md](roadmap.md).
 
+The first calibration surface is the outcome report (#54): every decided idea
+(`briefed`, `learned`, `killed`) is expected to have an immutable `Outcome` with
+an explicit `realised_success`; the report scores the recorded prediction with
+Brier and log loss, exposes reliability bins, and lists the decided ideas that
+still have no outcome. Missing does not mean failed. Priors (#28) do not move
+until there is a documented minimum sample.
+
 ## Data model
 
 Canonical JSON Schema 2020-12 in [`../data/schemas/`](../data/schemas/):
@@ -279,6 +286,7 @@ Canonical JSON Schema 2020-12 in [`../data/schemas/`](../data/schemas/):
 | `gate.schema.json` | `Gate` | `criteria`, `falsifier`, `evidence[]`, `status`, `fallback` |
 | `brief.schema.json` | `Brief` | `one_liner`, `problem`, `approach`, `evidence`, `risks`, `unknowns` |
 | `edge.schema.json` | `MemoryEdge` | `owner_id`, `from`, `to`, `relation`, `provenance`, `deleted_at` |
+| `outcome.schema.json` | `Outcome` | `idea_id`, `decision`, `realised_success`, `predicted_confidence`, `decided_by` |
 | `replay-case.schema.json` | `ReplayCase` | `metadata`, `constraints`, `fragment`, `prior_art`, `expected_candidates`, `collisions`, `gate_labels`, `outcome` |
 
 The schemas are the source of truth. Every store write is validated against

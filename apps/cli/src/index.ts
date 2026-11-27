@@ -5,6 +5,7 @@ import {
   BriefValidationError,
   ConstraintAnswerError,
   ConstraintError,
+  OutcomeError,
   SpecValidationError,
   GateError,
   TransitionError,
@@ -13,6 +14,7 @@ import {
   compileBrief,
   compileSpec,
   createConstraintState,
+  createOutcome,
   decideGate,
   develop,
   developEdges,
@@ -26,6 +28,7 @@ import {
   renderReplayMarkdown,
   renderSpecMarkdown,
   runReplayCase,
+  outcomeEdge,
   transition,
   validateReplayCase,
   verifyEvidence,
@@ -37,6 +40,7 @@ import type {
   Claim,
   Idea,
   MemoryNodeType,
+  OutcomeDecision,
   QuestionDefinition,
   ReplayCase,
 } from "@latent/core";
@@ -44,7 +48,15 @@ import { reconstructorFromEnv } from "@latent/adapters";
 import { Store } from "@latent/store";
 import { igem } from "@latent/vertical-igem";
 
-const BOOLEAN_FLAGS = new Set(["all", "refute", "help", "mark", "verify"]);
+const BOOLEAN_FLAGS = new Set([
+  "all",
+  "failure",
+  "help",
+  "mark",
+  "refute",
+  "success",
+  "verify",
+]);
 
 interface Parsed {
   positionals: string[];
@@ -202,6 +214,10 @@ Usage:
   latent memory connect <from-id> <to-id>     explain why two nodes are connected
   latent memory export [--owner <id>]         export the owner's memory graph
   latent memory delete <fragment-id> [--mark] delete a fragment (blocks if referenced)
+  latent outcome <idea-id> <decision>         record shipped|tested|parked|killed|failed
+        --success|--failure [--confidence N] [--notes "..."] [--by human|expert]
+  latent outcomes [idea-id]                   list recorded outcomes
+  latent calibration [--owner <id>]           Brier, log loss and missing outcomes
   latent show <id>                            show a fragment, idea or brief
   latent help                                 this text
 
@@ -621,6 +637,96 @@ async function main(): Promise<number> {
         throw new CliError("usage: latent memory <search|connect|export|delete>", 1);
       }
 
+      case "outcome": {
+        const idea = requireIdea(store, positionals[0]);
+        const decisions: OutcomeDecision[] = [
+          "shipped",
+          "tested",
+          "parked",
+          "killed",
+          "failed",
+        ];
+        const rawDecision = positionals[1];
+        if (
+          !rawDecision ||
+          !decisions.includes(rawDecision as OutcomeDecision)
+        ) {
+          throw new CliError(
+            "usage: latent outcome <idea-id> <shipped|tested|parked|killed|failed> (--success|--failure) [--confidence N]",
+            1,
+          );
+        }
+        if (flags.success === true && flags.failure === true) {
+          throw new CliError("choose --success or --failure, not both", 1);
+        }
+        const realised =
+          flags.success === true
+            ? true
+            : flags.failure === true
+              ? false
+              : undefined;
+        if (realised === undefined) {
+          throw new CliError(
+            "record the realised result with --success or --failure",
+            1,
+          );
+        }
+        const maxConfidence = idea.hypotheses.reduce(
+          (max, hypothesis) => Math.max(max, hypothesis.confidence),
+          0,
+        );
+        const confidence =
+          typeof flags.confidence === "string"
+            ? Number(flags.confidence)
+            : maxConfidence;
+        const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        const decidedBy = flags.by === "expert" ? "expert" : "human";
+        const outcome = createOutcome({
+          idea_id: idea.id,
+          idea_version: idea.version,
+          owner_id: ownerId,
+          decision: rawDecision as OutcomeDecision,
+          realised_success: realised,
+          predicted_confidence: confidence,
+          predicted_at: idea.updated_at ?? idea.created_at ?? null,
+          decided_by: decidedBy,
+          evidence: idea.claims,
+          notes: typeof flags.notes === "string" ? flags.notes : null,
+        });
+        store.putOutcome(outcome);
+        store.putEdge(outcomeEdge(outcome));
+        let saved = idea;
+        if (idea.status === "briefed") {
+          saved = transition(idea, "learned");
+          store.putIdea(saved);
+        }
+        store.appendEvent("outcome.recorded", idea.id, {
+          outcome_id: outcome.id,
+          decision: outcome.decision,
+          realised_success: outcome.realised_success,
+        });
+        print({ outcome, idea_status: saved.status });
+        return 0;
+      }
+
+      case "outcomes": {
+        const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        print({
+          owner_id: ownerId,
+          outcomes: store.listOutcomes({
+            ownerId,
+            ideaId: positionals[0],
+          }),
+        });
+        return 0;
+      }
+
+      case "calibration": {
+        const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        print(store.calibrationReport({ ownerId }));
+        return 0;
+      }
+
       default:
         throw new CliError(`unknown command: ${command}\n\n${HELP}`, 1);
     }
@@ -641,6 +747,10 @@ main()
       console.error("spec blocked:");
       for (const issue of error.issues) console.error(`  - ${issue}`);
       process.exit(3);
+    }
+    if (error instanceof OutcomeError) {
+      console.error(`${error.code}: ${error.message}`);
+      process.exit(1);
     }
     if (error instanceof ConstraintError) {
       console.error("blocking constraints:");

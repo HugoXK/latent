@@ -1,7 +1,13 @@
 import { DatabaseSync } from "node:sqlite";
-import { assertValid, explainConnection, newId } from "@latent/core";
+import {
+  assertValid,
+  calibrationReport as buildCalibrationReport,
+  explainConnection,
+  newId,
+} from "@latent/core";
 import type {
   Brief,
+  CalibrationReport,
   Claim,
   ConstraintState,
   Fragment,
@@ -12,6 +18,7 @@ import type {
   MemoryNodeRef,
   MemoryNodeType,
   MemoryRelation,
+  Outcome,
 } from "@latent/core";
 
 /**
@@ -84,7 +91,27 @@ CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(from_type, from_id);
 CREATE INDEX IF NOT EXISTS idx_edges_to ON edges(to_type, to_id);
 `;
 
-const MIGRATIONS: readonly string[] = [BASE_SCHEMA, MEMORY_SCHEMA];
+const OUTCOME_SCHEMA = `
+CREATE TABLE IF NOT EXISTS outcomes (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  idea_id TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  realised_success INTEGER NOT NULL,
+  predicted_confidence REAL NOT NULL,
+  decided_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_outcomes_owner ON outcomes(owner_id);
+CREATE INDEX IF NOT EXISTS idx_outcomes_idea ON outcomes(idea_id);
+`;
+
+const MIGRATIONS: readonly string[] = [
+  BASE_SCHEMA,
+  MEMORY_SCHEMA,
+  OUTCOME_SCHEMA,
+];
 
 type Row = { data: string };
 
@@ -117,6 +144,11 @@ export interface DeleteFragmentResult {
   deleted: boolean;
   reason?: "not_found" | "in_use";
   orphanedIdeas: string[];
+}
+
+export interface ListOutcomeOptions {
+  ownerId?: string;
+  ideaId?: string;
 }
 
 export class Store {
@@ -503,6 +535,80 @@ export class Store {
     }
 
     return { deleted: true, orphanedIdeas };
+  }
+
+  // --- outcomes and calibration -------------------------------------------
+
+  putOutcome(outcome: Outcome): void {
+    assertValid("outcome", outcome);
+    this.#db
+      .prepare(
+        `INSERT INTO outcomes
+           (id, owner_id, idea_id, decision, realised_success, predicted_confidence, decided_at, created_at, data)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           owner_id = excluded.owner_id,
+           idea_id = excluded.idea_id,
+           decision = excluded.decision,
+           realised_success = excluded.realised_success,
+           predicted_confidence = excluded.predicted_confidence,
+           decided_at = excluded.decided_at,
+           created_at = excluded.created_at,
+           data = excluded.data`,
+      )
+      .run(
+        outcome.id,
+        outcome.owner_id,
+        outcome.idea_id,
+        outcome.decision,
+        outcome.realised_success ? 1 : 0,
+        outcome.predicted_confidence,
+        outcome.decided_at,
+        outcome.created_at,
+        JSON.stringify(outcome),
+      );
+  }
+
+  getOutcome(id: string): Outcome | null {
+    const row = this.#db
+      .prepare("SELECT data FROM outcomes WHERE id = ?")
+      .get(id) as Row | undefined;
+    return parse<Outcome>(row);
+  }
+
+  listOutcomes(options: ListOutcomeOptions = {}): Outcome[] {
+    const clauses: string[] = [];
+    const params: string[] = [];
+    if (options.ownerId !== undefined) {
+      clauses.push("owner_id = ?");
+      params.push(options.ownerId);
+    }
+    if (options.ideaId !== undefined) {
+      clauses.push("idea_id = ?");
+      params.push(options.ideaId);
+    }
+    const where = clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";
+    const rows = this.#db
+      .prepare(`SELECT data FROM outcomes${where} ORDER BY id`)
+      .all(...params) as Row[];
+    return rows.map((row) => JSON.parse(row.data) as Outcome);
+  }
+
+  calibrationReport(
+    options: { ownerId?: string; now?: string } = {},
+  ): CalibrationReport {
+    const outcomes = this.listOutcomes({ ownerId: options.ownerId });
+    const decidedIdeaIds = this.listIdeas()
+      .filter((idea) =>
+        idea.status === "briefed" ||
+        idea.status === "learned" ||
+        idea.status === "killed",
+      )
+      .map((idea) => idea.id);
+    return buildCalibrationReport(outcomes, {
+      now: options.now,
+      decidedIdeaIds,
+    });
   }
 
   // --- events --------------------------------------------------------------

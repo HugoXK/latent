@@ -35,6 +35,7 @@ const NAMES: Record<string, string> = {
   gate: "gate",
   brief: "brief",
   edge: "edge",
+  outcome: "outcome",
   "replay-case": "replayCase",
 };
 
