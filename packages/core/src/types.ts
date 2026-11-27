@@ -1,3 +1,9 @@
+import type {
+  MemoryEdge as GeneratedMemoryEdge,
+  MemoryEdgeNode as GeneratedMemoryEdgeNode,
+  Outcome as GeneratedOutcome,
+} from "./generated/schemas.js";
+
 export type Privacy = "private" | "team" | "public";
 export type FragmentKind = "text" | "voice" | "image" | "link" | "sketch";
 
@@ -134,7 +140,7 @@ export interface Gate {
   criteria: string;
   falsifier: string;
   controls?: string[];
-  evidence?: string[];
+  evidence: string[];
   fallback: GateFallback;
   hard?: boolean;
   decided_by: GateDecider;
@@ -198,53 +204,16 @@ export interface Brief {
   schema_version?: "1.0.0";
 }
 
-export type MemoryNodeType = "fragment" | "idea" | "claim" | "gate" | "outcome";
+export type MemoryNodeType = GeneratedMemoryEdgeNode["type"];
 
-export type MemoryRelation =
-  | "derived_from"
-  | "references"
-  | "supports"
-  | "contradicts"
-  | "supersedes"
-  | "duplicates"
-  | "collided_with"
-  | "outcome_of";
+export type MemoryRelation = GeneratedMemoryEdge["relation"];
 
-export interface MemoryNodeRef {
-  type: MemoryNodeType;
-  id: string;
-}
+export type MemoryNodeRef = GeneratedMemoryEdgeNode;
 
-export interface MemoryEdge {
-  id: string;
-  owner_id: string;
-  from: MemoryNodeRef;
-  to: MemoryNodeRef;
-  relation: MemoryRelation;
-  weight?: number;
-  provenance: string;
-  created_at: string;
-  deleted_at?: string | null;
-  schema_version?: "1.0.0";
-}
+export type MemoryEdge = GeneratedMemoryEdge;
 
-export type OutcomeDecision = "shipped" | "tested" | "parked" | "killed" | "failed";
+export type OutcomeDecision = GeneratedOutcome["decision"];
 
-export type OutcomeDecider = "human" | "expert";
+export type OutcomeDecider = GeneratedOutcome["decided_by"];
 
-export interface Outcome {
-  id: string;
-  idea_id: string;
-  idea_version: number;
-  owner_id: string;
-  decision: OutcomeDecision;
-  realised_success: boolean;
-  predicted_confidence: number;
-  predicted_at?: string | null;
-  decided_at: string;
-  decided_by: OutcomeDecider;
-  evidence?: string[];
-  notes?: string | null;
-  created_at: string;
-  schema_version?: "1.0.0";
-}
+export type Outcome = GeneratedOutcome;

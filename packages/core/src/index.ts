@@ -24,3 +24,4 @@ export * from "./spec.js";
 export * from "./develop.js";
 export * from "./memory.js";
 export * from "./calibration.js";
+export type * as GeneratedSchemas from "./generated/schemas.js";

@@ -8,9 +8,11 @@
     "node": ">=22.9"
   },
   "scripts": {
+    "schema:types": "tsx scripts/generate-schema-types.ts",
+    "schema:types:check": "tsx scripts/generate-schema-types.ts --check",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test packages/*/test/*.test.ts apps/*/test/*.test.ts",
-    "check": "pnpm typecheck && pnpm test",
+    "check": "pnpm schema:types:check && pnpm typecheck && pnpm test",
     "dev": "tsx apps/server/src/index.ts",
     "latent": "tsx apps/cli/src/index.ts"
   },

@@ -41,6 +41,7 @@ function idea(overrides: Partial<Idea> = {}): Idea {
 
 function gate(overrides: Partial<Gate> = {}): Gate {
   return {
+    evidence: [],
     id: "gate_test0001",
     name: "measurable readout",
     status: "pass",

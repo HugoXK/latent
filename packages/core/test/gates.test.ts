@@ -10,6 +10,7 @@ import type { Gate } from "../src/index.js";
 
 function gate(overrides: Partial<Gate> = {}): Gate {
   return {
+    evidence: [],
     id: "gate_test0001",
     name: "measurable readout",
     status: "unknown",
