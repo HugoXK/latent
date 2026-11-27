@@ -105,15 +105,51 @@ test("API: fragment -> idea -> decide -> brief", async () => {
       headers: AUTH,
       method: "POST",
       url: `/v1/ideas/${body.idea.id}/brief`,
+      payload: {
+        components: [
+          {
+            id: "c1",
+            name: "arsR",
+            source: "Registry",
+            grade: "B",
+            length_bp: 800,
+          },
+        ],
+        timeline: {
+          tasks: [
+            { id: "t1", name: "build", min_weeks: 1, likely_weeks: 2, max_weeks: 4 },
+          ],
+          calendar: { summer_full_weeks: 10 },
+          runs: 200,
+          seed: 7,
+        },
+        material: {
+          target: "product",
+          target_amount: 1,
+          reactions: [
+            {
+              id: "r1",
+              substrates: { glucose: 2 },
+              products: { product: 1 },
+            },
+          ],
+          available: { glucose: 10 },
+        },
+      },
     });
     assert.equal(briefRes.statusCode, 201);
     const brief = briefRes.json() as {
       unknowns: string[];
       validators: unknown[];
       evidence: string[];
+      sections?: Array<{ title: string }>;
     };
     assert.ok(brief.unknowns.length >= 1);
     assert.equal(brief.validators.length, 4);
+    assert.deepEqual(
+      (brief.sections ?? []).map((section) => section.title),
+      ["Components", "Timeline", "Material balance"],
+    );
 
     const stored = await app.inject({
       headers: AUTH,

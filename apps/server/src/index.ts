@@ -36,6 +36,7 @@ import {
 } from "@latent/core";
 import type {
   AssumptionStatus,
+  BriefCollision,
   Fragment,
   Idea,
   OutcomeDecision,
@@ -49,6 +50,11 @@ import {
 import { EvidenceError, Store } from "@latent/store";
 import type { IngestDocumentInput } from "@latent/store";
 import { compileIgemBrief } from "@latent/vertical-igem";
+import type {
+  ComponentInput,
+  MaterialBalanceInput,
+  TimelineInput,
+} from "@latent/vertical-igem";
 import { verticalById } from "@latent/verticals";
 import { LocalRetrievalIndex } from "@latent/retrieval";
 import type { Reconstructor } from "@latent/core";
@@ -681,6 +687,40 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
     }
     const pack = verticalById(idea.vertical ?? "igem");
+    const body = req.body as
+      | {
+          components?: ComponentInput[];
+          timeline?: TimelineInput;
+          material?: MaterialBalanceInput;
+          collisions?: BriefCollision[];
+        }
+      | null;
+    if (
+      (body?.components !== undefined && !Array.isArray(body.components)) ||
+      (body?.collisions !== undefined && !Array.isArray(body.collisions)) ||
+      (body?.timeline !== undefined &&
+        (typeof body.timeline !== "object" || body.timeline === null)) ||
+      (body?.material !== undefined &&
+        (typeof body.material !== "object" || body.material === null))
+    ) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_BRIEF_INPUT",
+          message: "components and collisions are arrays; timeline and material are objects",
+        },
+      });
+    }
+    if (
+      pack.id !== "igem" &&
+      (body?.components || body?.timeline || body?.material)
+    ) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_BRIEF_INPUT",
+          message: "components/timeline/material apply to the igem vertical only",
+        },
+      });
+    }
     const claims = store.listClaims(id);
     const gates = store.listGates(id);
 
@@ -713,6 +753,10 @@ export function buildServer(options: ServerOptions): FastifyInstance {
             idea: next,
             claims: existence.claims,
             gates,
+            components: body?.components,
+            timeline: body?.timeline,
+            material: body?.material,
+            collisions: body?.collisions,
             validators: { existence: existence.validator },
             strictValidators: true,
           })
@@ -720,6 +764,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
             idea: next,
             claims: existence.claims,
             gates,
+            collisions: body?.collisions,
             validators: {
               existence: existence.validator,
               vertical_rules: verticalRulesValidator(pack),

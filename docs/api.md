@@ -232,8 +232,30 @@ gate that changes scope, spend or safety.
 
 ```http
 POST /v1/ideas/{id}/brief
-{ "format": "markdown" }
+{
+  "components": [
+    { "id": "c1", "name": "arsR", "source": "Registry", "grade": "B", "length_bp": 800 }
+  ],
+  "timeline": {
+    "tasks": [{ "id": "t1", "name": "build", "min_weeks": 1, "likely_weeks": 2, "max_weeks": 4 }],
+    "calendar": { "summer_full_weeks": 10 },
+    "runs": 200,
+    "seed": 7
+  },
+  "material": {
+    "target": "product",
+    "target_amount": 1,
+    "reactions": [{ "id": "r1", "substrates": { "glucose": 2 }, "products": { "product": 1 } }],
+    "available": { "glucose": 10 }
+  },
+  "collisions": []
+}
 ```
+
+`components`, `timeline` and `material` are iGEM inputs; they become sections
+(and a risk when the timeline or material balance fails). `collisions` is
+vertical-agnostic; omit it to record `collision_check: not_checked`. A blocking
+constraint, gate, assumption or validator still refuses the brief.
 
 If a blocking constraint is unanswered, the route returns `409`:
 
@@ -346,7 +368,8 @@ latent constraints <idea-id>                # state, blocking set, next question
 latent constraints undo|diff <idea-id>      # undo the last answer / show its diff
 latent confirm <idea-id> <assumption-id> | --all [--refute]
 latent decide <idea-id> <gate-id>|--all <pass|fail|unknown|waive> [--reason "..."]
-latent brief <idea-id> [--format md|json|html] [--collisions <file>] [--verify]
+latent brief <idea-id> [--format md|json|html] [--collisions <file>]
+        [--components <file>] [--timeline <file>] [--material <file>] [--verify]
 latent spec <idea-id> [--format md|json]
 latent ledger export <idea-id> [--format jsonl|md]
 latent ledger audit <idea-id>               # every claim, source, span and validator

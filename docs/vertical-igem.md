@@ -144,6 +144,19 @@ readout, change the host, reduce the scope, replace with computation.
 One page, plain language, conclusion first, numbers with units, acronyms expanded,
 risks not hidden. Template: [`../verticals/igem/brief.md`](../verticals/igem/brief.md).
 
+`compileIgemBrief` composes the generic brief with optional depth:
+
+- `components`: A/B/C evidence table with reuse / re-characterise / build, weeks
+  and cost;
+- `timeline`: seeded DBTL Monte Carlo (p50/p90, 8-week probability, bottlenecks);
+- `material`: reverse stoichiometric balance; infeasible supply becomes a risk;
+- `collisions`: claim/source-linked novelty evidence.
+
+CLI: `latent brief <idea-id> --components file --timeline file --material file
+--collisions file`. The API accepts the same fields on `POST /v1/ideas/{id}/brief`.
+A failed timeline or material balance is a risk, not a hidden sentence; unsupported
+claims and blocking gates still block.
+
 ## Gates
 
 | # | Gate | If it fails |

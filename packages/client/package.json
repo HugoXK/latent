@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@latent/core": "workspace:*"
+    "@latent/core": "workspace:*",
+    "@latent/vertical-igem": "workspace:*"
   }
 }

@@ -78,6 +78,11 @@ import {
 import { LocalRetrievalIndex } from "@latent/retrieval";
 import { EvidenceError, JobError, Store } from "@latent/store";
 import { compileIgemBrief } from "@latent/vertical-igem";
+import type {
+  ComponentInput,
+  MaterialBalanceInput,
+  TimelineInput,
+} from "@latent/vertical-igem";
 import { verticalById } from "@latent/verticals";
 
 const BOOLEAN_FLAGS = new Set([
@@ -149,6 +154,19 @@ function readJson(path: string): unknown {
   } catch {
     throw new CliError(`cannot read JSON: ${path}`, 1);
   }
+}
+
+function readArray<T>(raw: unknown, key: string): T[] {
+  const value = Array.isArray(raw)
+    ? raw
+    : (raw as Record<string, unknown>)[key];
+  if (!Array.isArray(value)) {
+    throw new CliError(
+      `${key} file must be an array or { ${key}: [] }`,
+      1,
+    );
+  }
+  return value as T[];
 }
 
 let JSON_OUTPUT = false;
@@ -308,7 +326,8 @@ Usage:
   latent confirm <idea-id> --all [--refute]   confirm/refute every assumption (human)
   latent decide <idea-id> --all <status>      decide every gate (human)
   latent decide <idea-id> <gate-id> <status>  decide one gate (human)
-  latent brief <idea-id> [--format md|json|html] [--verify]  compile a brief (fails if blocked)
+  latent brief <idea-id> [--format md|json|html] [--verify]
+        [--components file] [--timeline file] [--material file]  compile a brief (fails if blocked)
   latent spec <idea-id> [--format md|json]            compile an implementation spec
   latent ledger export <idea-id> [--format jsonl|md]   export the claim ledger
   latent ledger audit <idea-id>               every claim, source, span and validator
@@ -677,6 +696,27 @@ async function main(): Promise<number> {
           }
           collisions = value as BriefCollision[];
         }
+        const components =
+          typeof flags.components === "string"
+            ? readArray<ComponentInput>(readJson(flags.components), "components")
+            : undefined;
+        const timeline =
+          typeof flags.timeline === "string"
+            ? (readJson(flags.timeline) as TimelineInput)
+            : undefined;
+        const material =
+          typeof flags.material === "string"
+            ? (readJson(flags.material) as MaterialBalanceInput)
+            : undefined;
+        if (
+          pack.id !== "igem" &&
+          (components || timeline || material)
+        ) {
+          throw new CliError(
+            "components/timeline/material apply to the igem vertical only",
+            1,
+          );
+        }
 
         const existence = await runExistenceValidator(
           claims,
@@ -689,6 +729,9 @@ async function main(): Promise<number> {
                 idea: next,
                 claims,
                 gates,
+                components,
+                timeline,
+                material,
                 collisions,
                 validators: { existence: existence.validator },
                 strictValidators: true,

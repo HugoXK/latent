@@ -1077,6 +1077,45 @@
           "422": {
             "$ref": "#/components/responses/Unprocessable"
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "description": "iGEM component table inputs."
+                  },
+                  "timeline": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "iGEM DBTL timeline Monte Carlo input."
+                  },
+                  "material": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "iGEM reverse stoichiometric balance input."
+                  },
+                  "collisions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "description": "BriefCollision evidence; omit to record not_checked."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
         }
       },
       "get": {

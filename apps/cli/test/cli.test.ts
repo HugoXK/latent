@@ -719,4 +719,115 @@ test("ingest and retrieve the local evidence corpus", () => {
     cleanup();
   }
 });
+
+test("the iGEM brief accepts component, timeline and material inputs", () => {
+  cleanup();
+  const componentsPath = join(tmpdir(), `latent-components-${process.pid}.json`);
+  const timelinePath = join(tmpdir(), `latent-timeline-${process.pid}.json`);
+  const materialPath = join(tmpdir(), `latent-material-${process.pid}.json`);
+  try {
+    const fragmentId = String(
+      jsonData(run(["capture", "arsenic soil biosensor", "--json"])).id,
+    );
+    const ideaId = String(
+      jsonData(run(["develop", fragmentId, "--json"])).id,
+    );
+
+    for (let i = 0; i < 32; i += 1) {
+      const asked = jsonData(run(["ask", ideaId, "--json"])) as {
+        ready: boolean;
+        question: {
+          variable: string;
+          options?: Array<{ value: unknown }>;
+        } | null;
+      };
+      if (asked.ready) break;
+      assert.ok(asked.question);
+      const value = asked.question.options?.[0]?.value ?? "test";
+      const answered = run([
+        "answer",
+        ideaId,
+        asked.question.variable,
+        String(value),
+        "--json",
+      ]);
+      assert.equal(answered.status, 0, answered.stderr);
+    }
+    assert.equal(
+      (jsonData(run(["ask", ideaId, "--json"])) as { ready: boolean }).ready,
+      true,
+    );
+    assert.equal(run(["confirm", ideaId, "--all", "--json"]).status, 0);
+    assert.equal(
+      run(["decide", ideaId, "--all", "pass", "--reason", "pilot", "--json"])
+        .status,
+      0,
+    );
+
+    writeFileSync(
+      componentsPath,
+      JSON.stringify([
+        {
+          id: "c1",
+          name: "arsR",
+          source: "Registry",
+          grade: "B",
+          length_bp: 800,
+        },
+      ]),
+    );
+    writeFileSync(
+      timelinePath,
+      JSON.stringify({
+        tasks: [
+          {
+            id: "t1",
+            name: "build",
+            min_weeks: 1,
+            likely_weeks: 2,
+            max_weeks: 4,
+          },
+        ],
+        calendar: { summer_full_weeks: 10 },
+        runs: 200,
+        seed: 7,
+      }),
+    );
+    writeFileSync(
+      materialPath,
+      JSON.stringify({
+        target: "product",
+        target_amount: 1,
+        reactions: [
+          { id: "r1", substrates: { glucose: 2 }, products: { product: 1 } },
+        ],
+        available: { glucose: 10 },
+      }),
+    );
+
+    const brief = run([
+      "brief",
+      ideaId,
+      "--components",
+      componentsPath,
+      "--timeline",
+      timelinePath,
+      "--material",
+      materialPath,
+      "--json",
+    ]);
+    assert.equal(brief.status, 0, brief.stderr);
+    assert.deepEqual(
+      (jsonData(brief) as { sections: Array<{ title: string }> }).sections.map(
+        (section) => section.title,
+      ),
+      ["Components", "Timeline", "Material balance"],
+    );
+  } finally {
+    rmSync(componentsPath, { force: true });
+    rmSync(timelinePath, { force: true });
+    rmSync(materialPath, { force: true });
+    cleanup();
+  }
+});
 });
