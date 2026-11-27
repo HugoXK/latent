@@ -9,6 +9,7 @@ import {
   SchemaValidationError,
   SpecValidationError,
   GateError,
+  IncubationError,
   TransitionError,
   answerConstraint,
   blockingQuestions,
@@ -34,6 +35,8 @@ import {
   runReplayCase,
   outcomeEdge,
   questionPriors,
+  runIncubation,
+  SuggestionError,
   transition,
   undoConstraint,
   validateReplayCase,
@@ -46,13 +49,14 @@ import type {
   GateStatus,
   Claim,
   Idea,
+  Job,
   MemoryNodeType,
   OutcomeDecision,
   QuestionDefinition,
   ReplayCase,
 } from "@latent/core";
-import { reconstructorFromEnv } from "@latent/adapters";
-import { Store } from "@latent/store";
+import { NoopAgentRuntime, reconstructorFromEnv } from "@latent/adapters";
+import { JobError, Store } from "@latent/store";
 import { igem } from "@latent/vertical-igem";
 
 const BOOLEAN_FLAGS = new Set([
@@ -281,6 +285,10 @@ Usage:
   latent outcomes [idea-id]                   list recorded outcomes
   latent calibration [--owner <id>]           Brier, log loss and missing outcomes
   latent priors [--min-samples N]             empirical option priors from outcomes
+  latent incubate <idea|fragment-id>          propose connections within a budget
+  latent suggestions [--status proposed]      list incubation suggestions
+  latent suggestion <id> <accept|reject|revoke>
+  latent digest [--since ISO]                 weekly proposal digest
   latent show <id>                            show a fragment, idea or brief
   latent help                                 this text
 
@@ -892,6 +900,163 @@ async function main(): Promise<number> {
         return 0;
       }
 
+      case "incubate": {
+        const seedId = positionals[0];
+        if (!seedId) {
+          throw new CliError(
+            "usage: latent incubate <idea-id|fragment-id> [--budget N] [--min-score N] [--since ISO]",
+            1,
+          );
+        }
+        const seedType = nodeTypeFromId(seedId);
+        if (seedType !== "idea" && seedType !== "fragment") {
+          throw new CliError("incubate needs an idea or fragment id", 1);
+        }
+        if (seedType === "idea" && !store.getIdea(seedId)) {
+          throw new CliError(`idea not found: ${seedId}`, 2);
+        }
+        if (seedType === "fragment" && !store.getFragment(seedId)) {
+          throw new CliError(`fragment not found: ${seedId}`, 2);
+        }
+        const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        const budget = typeof flags.budget === "string" ? Number(flags.budget) : 5;
+        const minScore =
+          typeof flags["min-score"] === "string"
+            ? Number(flags["min-score"])
+            : 0.2;
+        const since = typeof flags.since === "string" ? flags.since : null;
+        let job: Job;
+        try {
+          job = store.createJob({ ownerId, budget });
+        } catch (error) {
+          if (error instanceof JobError) {
+            throw new CliError(`${error.code}: ${error.message}`, 1);
+          }
+          throw error;
+        }
+        job = { ...job, status: "running", updated_at: new Date().toISOString() };
+        store.putJob(job);
+
+        const nodes = [
+          ...store.listFragments().map((fragment) => ({
+            ref: { type: "fragment" as const, id: fragment.id },
+            text: fragment.content,
+            created_at: fragment.captured_at,
+          })),
+          ...store.listIdeas().map((idea) => ({
+            ref: { type: "idea" as const, id: idea.id },
+            text: [
+              idea.title,
+              idea.one_liner,
+              ...idea.hypotheses.map((hypothesis) => hypothesis.statement),
+            ].join(" "),
+            created_at: idea.created_at,
+            updated_at: idea.updated_at,
+          })),
+        ];
+
+        const result = await runIncubation(
+          {
+            owner_id: ownerId,
+            job_id: job.id,
+            seed: { type: seedType, id: seedId },
+            nodes,
+            edges: store.listEdges({ ownerId }),
+            existing: store
+              .listSuggestions({ ownerId })
+              .map((item) => ({ from: item.from, to: item.to })),
+            budget,
+            min_score: minScore,
+            since,
+          },
+          new NoopAgentRuntime(),
+        );
+        for (const suggestion of result.suggestions) {
+          store.putSuggestion(suggestion);
+        }
+        const finished = {
+          ...job,
+          status: "succeeded" as const,
+          spent: result.spent,
+          updated_at: new Date().toISOString(),
+        };
+        store.putJob(finished);
+        store.appendEvent("job.succeeded", finished.id, {
+          suggestions: result.suggestions.length,
+          spent: result.spent,
+        });
+        out({
+          job: finished,
+          spent: result.spent,
+          skipped: result.skipped,
+          suggestions: result.suggestions,
+        });
+        return 0;
+      }
+
+      case "suggestions": {
+        const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        const rawStatus = flags.status;
+        const status =
+          rawStatus === "proposed" ||
+          rawStatus === "accepted" ||
+          rawStatus === "rejected" ||
+          rawStatus === "revoked"
+            ? rawStatus
+            : undefined;
+        if (rawStatus !== undefined && status === undefined) {
+          throw new CliError(
+            "status must be proposed, accepted, rejected or revoked",
+            1,
+          );
+        }
+        out({
+          owner_id: ownerId,
+          suggestions: store.listSuggestions({
+            ownerId,
+            status,
+            jobId: typeof flags.job === "string" ? flags.job : undefined,
+          }),
+        });
+        return 0;
+      }
+
+      case "suggestion": {
+        const id = positionals[0];
+        const action = positionals[1];
+        if (
+          !id ||
+          (action !== "accept" && action !== "reject" && action !== "revoke")
+        ) {
+          throw new CliError(
+            "usage: latent suggestion <id> <accept|reject|revoke>",
+            1,
+          );
+        }
+        const status =
+          action === "accept"
+            ? "accepted"
+            : action === "reject"
+              ? "rejected"
+              : "revoked";
+        try {
+          out(store.decideSuggestion(id, status));
+        } catch (error) {
+          if (error instanceof JobError || error instanceof SuggestionError) {
+            throw new CliError(`${error.code}: ${error.message}`, 1);
+          }
+          throw error;
+        }
+        return 0;
+      }
+
+      case "digest": {
+        const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        const since = typeof flags.since === "string" ? flags.since : null;
+        out(store.suggestionDigest({ ownerId, since }));
+        return 0;
+      }
+
       default:
         throw new CliError(`unknown command: ${command}\n\n${HELP}`, 1);
     }
@@ -936,6 +1101,15 @@ main()
         error.message,
         error.errors.map((issue) => issue.message ?? "invalid"),
       );
+    }
+    if (error instanceof IncubationError) {
+      fail(1, error.code, error.message);
+    }
+    if (error instanceof SuggestionError) {
+      fail(1, error.code, error.message);
+    }
+    if (error instanceof JobError) {
+      fail(1, error.code, error.message);
     }
     if (error instanceof CliError) {
       fail(error.code, exitCodeName(error.code), error.message);

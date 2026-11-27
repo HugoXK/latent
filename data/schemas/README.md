@@ -14,6 +14,7 @@ types are generated from them. A change needs an ADR (see
 | [`brief.schema.json`](brief.schema.json) | Brief | Compiler |
 | [`edge.schema.json`](edge.schema.json) | MemoryEdge | Memory graph |
 | [`outcome.schema.json`](outcome.schema.json) | Outcome | Calibration loop |
+| [`suggestion.schema.json`](suggestion.schema.json) | Suggestion | Incubator, digest |
 | [`replay-case.schema.json`](replay-case.schema.json) | ReplayCase | Replay harness |
 
 `replay-case.schema.json` refers to `constraint-state.schema.json` and

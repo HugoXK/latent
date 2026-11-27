@@ -349,6 +349,10 @@ latent outcome <idea-id> <decision> --success|--failure [--confidence N]
 latent outcomes [idea-id]
 latent calibration [--owner <id>]
 latent priors [--min-samples N]
+latent incubate <idea|fragment-id> [--budget N] [--min-score N] [--since ISO]
+latent suggestions [--status proposed|accepted|rejected|revoked] [--job <id>]
+latent suggestion <id> <accept|reject|revoke>
+latent digest [--since ISO]
 latent show <id>
 ```
 
@@ -375,6 +379,19 @@ Exit codes:
 | `3` | Blocked: a hard gate is `fail`/`unknown`, or a brief/spec/constraint check refuses |
 | `4` | Auth error |
 | `5` | Provider or runtime error |
+
+## Incubation (CLI)
+
+Incubation is shipped first through the CLI. `latent incubate <seed> --budget N`
+creates an owner-scoped job, calls `AgentRuntime.schedule`, executes the
+deterministic scoring plan, and stores `Suggestion` records. A suggestion is
+`proposed`, `accepted`, `rejected` or `revoked` by a human; a job never edits a
+fragment or an idea. The budget is in credits (one per suggestion), a job is capped
+at 100 credits, and a user has at most four open jobs. `latent digest` is a
+read-only weekly view of proposed suggestions.
+
+HTTP job and suggestion routes ship with the runtime work; the `AgentRuntime` port
+is the seam for a real scheduler (FlyBot, #55).
 
 ## Jobs and callbacks
 

@@ -2,6 +2,8 @@ import type {
   MemoryEdge as GeneratedMemoryEdge,
   MemoryEdgeNode as GeneratedMemoryEdgeNode,
   Outcome as GeneratedOutcome,
+  Suggestion as GeneratedSuggestion,
+  SuggestionNode as GeneratedSuggestionNode,
 } from "./generated/schemas.js";
 
 export type Privacy = "private" | "team" | "public";
@@ -217,3 +219,32 @@ export type OutcomeDecision = GeneratedOutcome["decision"];
 export type OutcomeDecider = GeneratedOutcome["decided_by"];
 
 export type Outcome = GeneratedOutcome;
+
+export type SuggestionKind = GeneratedSuggestion["kind"];
+
+export type SuggestionStatus = GeneratedSuggestion["status"];
+
+export type SuggestionNode = GeneratedSuggestionNode;
+
+export type Suggestion = GeneratedSuggestion;
+
+export type JobKind = "incubate";
+
+export type JobStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+
+export interface Job {
+  id: string;
+  owner_id: string;
+  kind: JobKind;
+  status: JobStatus;
+  budget: number;
+  spent: number;
+  created_at: string;
+  updated_at: string;
+  error?: string | null;
+}

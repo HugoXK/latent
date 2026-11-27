@@ -1,0 +1,16 @@
+{
+  "id": "sug_fixture0001",
+  "owner_id": "local",
+  "job_id": "job_fixture0001",
+  "kind": "connection",
+  "from": { "type": "idea", "id": "idea_fixture0001" },
+  "to": { "type": "fragment", "id": "frg_fixture0001" },
+  "reason": "shared terms: soil, biosensor",
+  "score": 0.42,
+  "budget_cost": 1,
+  "status": "proposed",
+  "created_at": "2026-11-27T00:00:00Z",
+  "decided_at": null,
+  "decided_by": null,
+  "schema_version": "1.0.0"
+}

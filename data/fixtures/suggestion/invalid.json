@@ -1,0 +1,12 @@
+{
+  "id": "sug_fixture0001",
+  "owner_id": "local",
+  "job_id": "job_fixture0001",
+  "kind": "maybe",
+  "from": { "type": "idea", "id": "idea_fixture0001" },
+  "to": { "type": "idea", "id": "idea_fixture0001" },
+  "score": 2,
+  "budget_cost": -1,
+  "status": "proposed",
+  "created_at": "not-a-date"
+}

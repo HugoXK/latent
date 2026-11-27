@@ -35,6 +35,7 @@ const SCHEMA_FILES = {
   brief: "brief.schema.json",
   edge: "edge.schema.json",
   outcome: "outcome.schema.json",
+  suggestion: "suggestion.schema.json",
   replayCase: "replay-case.schema.json",
 } as const;
 
@@ -60,6 +61,7 @@ const validators = {
   brief: getValidator(SCHEMA_FILES.brief),
   edge: getValidator(SCHEMA_FILES.edge),
   outcome: getValidator(SCHEMA_FILES.outcome),
+  suggestion: getValidator(SCHEMA_FILES.suggestion),
   replayCase: getValidator(SCHEMA_FILES.replayCase),
 } satisfies Record<string, ValidateFunction>;
 

@@ -405,3 +405,66 @@ test("constraint answers keep history and undo restores the blocking set", () =>
     cleanup();
   }
 });
+
+test("incubation proposes, reviews and digests within a budget", () => {
+  cleanup();
+  try {
+    const seed = String(
+      jsonData(run(["capture", "soil biosensor heavy metals", "--json"])).id,
+    );
+    jsonData(run(["capture", "soil biosensor for arsenic", "--json"]));
+    jsonData(run(["capture", "biosensor heavy metal detection", "--json"]));
+
+    const zero = run(["incubate", seed, "--budget", "0", "--json"]);
+    assert.equal(zero.status, 0, zero.stderr);
+    const zeroData = jsonData(zero) as { spent: number; suggestions: unknown[] };
+    assert.equal(zeroData.spent, 0);
+    assert.equal(zeroData.suggestions.length, 0);
+
+    const incubated = run(["incubate", seed, "--budget", "2", "--json"]);
+    assert.equal(incubated.status, 0, incubated.stderr);
+    const data = jsonData(incubated) as {
+      job: { status: string; spent: number; budget: number };
+      suggestions: Array<{ id: string; kind: string; to: { id: string } }>;
+    };
+    assert.equal(data.job.status, "succeeded");
+    assert.ok(data.job.spent <= data.job.budget);
+    assert.equal(data.suggestions.length, data.job.spent);
+    assert.ok(data.suggestions.length >= 1);
+    const first = data.suggestions[0];
+    assert.ok(first);
+
+    const again = run(["incubate", seed, "--budget", "2", "--json"]);
+    assert.equal(again.status, 0, again.stderr);
+    assert.equal(
+      (jsonData(again) as { suggestions: unknown[] }).suggestions.length,
+      0,
+    );
+
+    const accepted = run(["suggestion", first.id, "accept", "--json"]);
+    assert.equal(accepted.status, 0, accepted.stderr);
+    assert.equal((jsonData(accepted) as { status: string }).status, "accepted");
+
+    const listed = run(["suggestions", "--status", "accepted", "--json"]);
+    assert.equal(listed.status, 0);
+    assert.equal(
+      (jsonData(listed) as { suggestions: unknown[] }).suggestions.length,
+      1,
+    );
+
+    const digest = run(["digest", "--json"]);
+    assert.equal(digest.status, 0);
+    const digestData = jsonData(digest) as {
+      proposed_count: number;
+      by_kind: Record<string, number>;
+    };
+    assert.ok(digestData.proposed_count >= 0);
+    assert.ok((digestData.by_kind["connection"] ?? 0) >= 0);
+
+    const revoked = run(["suggestion", first.id, "revoke", "--json"]);
+    assert.equal(revoked.status, 0, revoked.stderr);
+    assert.equal((jsonData(revoked) as { status: string }).status, "revoked");
+  } finally {
+    cleanup();
+  }
+});

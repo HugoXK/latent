@@ -57,7 +57,7 @@ function outcome(
 test("the store migrates to the outcome schema version", () => {
   const store = new Store(":memory:");
   try {
-    assert.equal(store.schemaVersion(), 3);
+    assert.equal(store.schemaVersion(), 4);
   } finally {
     store.close();
   }
@@ -107,7 +107,7 @@ test("outcomes survive a reopen", () => {
 
     const second = new Store(path);
     try {
-      assert.equal(second.schemaVersion(), 3);
+      assert.equal(second.schemaVersion(), 4);
       assert.equal(second.getOutcome("outcome_cccc0001")?.decision, "failed");
     } finally {
       second.close();

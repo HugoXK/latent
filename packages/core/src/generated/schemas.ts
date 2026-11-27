@@ -257,3 +257,24 @@ export interface ReplayCasePriorArt {
   interface: string;
   source_grade: "A" | "B" | "C";
 }
+
+export interface Suggestion {
+  id: string;
+  owner_id: string;
+  job_id: string;
+  kind: "connection" | "resurface" | "contradiction" | "duplicate";
+  from: SuggestionNode;
+  to: SuggestionNode;
+  reason: string;
+  score: number;
+  budget_cost: number;
+  status: "proposed" | "accepted" | "rejected" | "revoked";
+  created_at: string;
+  decided_at?: string | null;
+  decided_by?: string | null;
+  schema_version?: "1.0.0";
+}
+export interface SuggestionNode {
+  type: "fragment" | "idea" | "claim" | "gate" | "outcome";
+  id: string;
+}

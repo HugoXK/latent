@@ -184,9 +184,18 @@ A scheduled, background process. It connects a fragment or idea to:
 - contradictions and near-duplicates;
 - a periodic resurfacing ("this is relevant again").
 
-It is a **proposal** engine: it writes a `connection` suggestion, never a silent
-edit. It is implemented on the runtime port (for example, FlyBot schedules), but
-the core defines the contract.
+It is a **proposal** engine: it writes a `Suggestion`, never a silent edit. It is
+implemented on the runtime port (for example, FlyBot schedules), but the core
+defines the contract.
+
+The `v0.4` local implementation ([0014](decisions/0014-incubation-suggestions.md))
+is deliberately small and deterministic: Jaccard overlap over Latin words and Han
+bigrams, one credit per proposal, a per-job budget and a four-open-job cap, and a
+`Suggestion` lifecycle (`proposed`, `accepted`, `rejected`, `revoked`). It skips a
+pair already linked by a live edge or already proposed. `since` marks a proposal as
+a `resurface` rather than a `connection`. The digest is a read-only view; scheduling
+it is the runtime's job. A retrieval-backed or embedding scorer can replace the
+local scorer without changing the suggestion contract.
 
 ### Retrieval
 
