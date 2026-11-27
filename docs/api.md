@@ -42,7 +42,7 @@ CLI does, the API can do. The OpenAPI 3.1 document ships in `v0.2`.
 | Claim | `/v1/ideas/{id}/claims` | List, verify, contradict |
 | Gate | `/v1/ideas/{id}/gates` | Run, decide, waive |
 | Brief | `/v1/ideas/{id}/brief` | Compile, get, export |
-| Memory | `/v1/memory` | Search, connections |
+| Memory | `/v1/memory` | Search, connection explanations, owner-scoped export; fragment delete blocks on references |
 | Jobs | `/v1/jobs` | Incubation and research jobs |
 | Health | `/healthz`, `/readyz` | Liveness, readiness |
 

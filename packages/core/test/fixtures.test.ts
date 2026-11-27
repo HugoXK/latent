@@ -34,6 +34,7 @@ const NAMES: Record<string, string> = {
   idea: "idea",
   gate: "gate",
   brief: "brief",
+  edge: "edge",
   "replay-case": "replayCase",
 };
 

@@ -13,6 +13,7 @@ import {
   createConstraintState,
   decideGate,
   develop,
+  developEdges,
   findQuestion,
   newId,
   nextQuestion,
@@ -146,6 +147,12 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     store.putClaims(result.idea.id, result.claims);
     store.putGates(result.idea.id, result.gates);
     store.putConstraintState(result.idea.id, result.constraint);
+    for (const edge of developEdges({
+      idea: result.idea,
+      fragmentId: fragment.id,
+    })) {
+      store.putEdge(edge);
+    }
     store.appendEvent("idea.developed", result.idea.id, {
       fragment_id: fragment.id,
     });

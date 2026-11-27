@@ -15,6 +15,7 @@ import {
   createConstraintState,
   decideGate,
   develop,
+  developEdges,
   findQuestion,
   questionKind,
   newId,
@@ -35,6 +36,7 @@ import type {
   GateStatus,
   Claim,
   Idea,
+  MemoryNodeType,
   QuestionDefinition,
   ReplayCase,
 } from "@latent/core";
@@ -42,7 +44,7 @@ import { reconstructorFromEnv } from "@latent/adapters";
 import { Store } from "@latent/store";
 import { igem } from "@latent/vertical-igem";
 
-const BOOLEAN_FLAGS = new Set(["all", "refute", "help", "verify"]);
+const BOOLEAN_FLAGS = new Set(["all", "refute", "help", "mark", "verify"]);
 
 interface Parsed {
   positionals: string[];
@@ -122,6 +124,15 @@ function parseGateStatus(value: string | true | undefined): GateStatus {
   throw new CliError("gate status must be pass, fail, unknown or waive", 1);
 }
 
+function nodeTypeFromId(id: string): MemoryNodeType {
+  if (id.startsWith("frg_")) return "fragment";
+  if (id.startsWith("idea_")) return "idea";
+  if (id.startsWith("clm_")) return "claim";
+  if (id.startsWith("gate_")) return "gate";
+  if (id.startsWith("outcome_")) return "outcome";
+  throw new CliError(`cannot infer a node type from id: ${id}`, 1);
+}
+
 function parseOptionValue(
   question: QuestionDefinition | null,
   raw: string,
@@ -187,6 +198,10 @@ Usage:
   latent ledger export <idea-id> [--format jsonl|md]   export the claim ledger
   latent eval validate <file>                 validate a replay case
   latent eval replay <file> [--format md]     run the replay harness
+  latent memory search <query>                search fragments and ideas
+  latent memory connect <from-id> <to-id>     explain why two nodes are connected
+  latent memory export [--owner <id>]         export the owner's memory graph
+  latent memory delete <fragment-id> [--mark] delete a fragment (blocks if referenced)
   latent show <id>                            show a fragment, idea or brief
   latent help                                 this text
 
@@ -238,6 +253,12 @@ async function main(): Promise<number> {
         store.putClaims(result.idea.id, result.claims);
         store.putGates(result.idea.id, result.gates);
         store.putConstraintState(result.idea.id, result.constraint);
+        for (const edge of developEdges({
+          idea: result.idea,
+          fragmentId: fragment.id,
+        })) {
+          store.putEdge(edge);
+        }
         store.appendEvent("idea.developed", result.idea.id, {
           fragment_id: fragment.id,
           gates: result.gates.length,
@@ -550,6 +571,54 @@ async function main(): Promise<number> {
           brief: store.getBriefByIdea(idea.id),
         });
         return 0;
+      }
+
+      case "memory": {
+        const sub = positionals[0];
+        const ownerId = typeof flags.owner === "string" ? flags.owner : "local";
+        if (sub === "search") {
+          const query = positionals.slice(1).join(" ").trim();
+          if (!query) throw new CliError("usage: latent memory search <query>", 1);
+          print({ owner_id: ownerId, hits: store.searchMemory(query, { ownerId }) });
+          return 0;
+        }
+        if (sub === "connect") {
+          const fromId = positionals[1];
+          const toId = positionals[2];
+          if (!fromId || !toId) {
+            throw new CliError(
+              "usage: latent memory connect <from-id> <to-id> [--depth N]",
+              1,
+            );
+          }
+          const rawDepth = typeof flags.depth === "string" ? Number(flags.depth) : 3;
+          const depth = Number.isFinite(rawDepth) ? rawDepth : 3;
+          print(
+            store.connectionExplanation(
+              { type: nodeTypeFromId(fromId), id: fromId },
+              { type: nodeTypeFromId(toId), id: toId },
+              { ownerId, maxDepth: depth },
+            ),
+          );
+          return 0;
+        }
+        if (sub === "export") {
+          print(store.exportMemory({ ownerId }));
+          return 0;
+        }
+        if (sub === "delete") {
+          const fragmentId = positionals[1];
+          if (!fragmentId) {
+            throw new CliError("usage: latent memory delete <fragment-id> [--mark]", 1);
+          }
+          const result = store.deleteFragment(fragmentId, {
+            ownerId,
+            policy: flags.mark === true ? "mark" : "block",
+          });
+          print(result);
+          return result.deleted ? 0 : 1;
+        }
+        throw new CliError("usage: latent memory <search|connect|export|delete>", 1);
       }
 
       default:
