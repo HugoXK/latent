@@ -389,6 +389,18 @@ source span. `latent ledger audit <idea-id>` returns the claims plus the latest
 brief's validator results, so a reviewer can see why a claim is `verified`,
 `unsupported` or `unknown` and which check produced the verdict.
 
+## Web UI
+
+`apps/server/public/` is served by Fastify at `/` and `/ui/*`. The shell is public
+(no private data) and uses a strict CSP with external `app.js`/`style.css`; every
+`/v1` call sends the bearer token entered in the page (kept in `sessionStorage`).
+The flow is capture → interview → assumption ledger → gate board → brief, with a
+JSON and a Markdown download. There is no frontend build step.
+
+The smoke test asserts that `/` and `/ui/*` are public, the API still returns 401
+without a token, and the CSP header is present. The loop itself is the same API
+covered by the server tests.
+
 ## Incubation (CLI)
 
 Incubation is shipped first through the CLI. `latent incubate <seed> --budget N`

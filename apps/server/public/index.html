@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Latent — develop an idea</title>
+  <link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+  <header>
+    <h1>Latent</h1>
+    <p class="tagline">Capture a fragment, answer what is blocking, decide the gates, compile a brief.</p>
+  </header>
+
+  <section aria-labelledby="auth-title" class="panel">
+    <h2 id="auth-title">Local access</h2>
+    <p class="hint">The API requires a bearer token. Read it from
+      <code>data/runtime/auth-token</code> or set <code>LATENT_AUTH_TOKEN</code>.</p>
+    <form id="token-form">
+      <label for="token">Bearer token</label>
+      <div class="row">
+        <input id="token" name="token" type="password" autocomplete="off" spellcheck="false">
+        <button type="submit">Use token</button>
+        <button type="button" id="clear-token" class="secondary">Clear</button>
+      </div>
+    </form>
+    <p id="status" role="status" aria-live="polite" data-kind="info">Ready.</p>
+  </section>
+
+  <main>
+    <section aria-labelledby="capture-title" class="panel">
+      <h2 id="capture-title">1. Capture</h2>
+      <form id="capture-form">
+        <label for="fragment">The unfinished thought</label>
+        <textarea id="fragment" name="fragment" rows="4" required
+          placeholder="e.g. use a soil microbial community as a field biosensor for heavy metals"></textarea>
+        <button type="submit">Capture and develop</button>
+      </form>
+      <p class="hint" id="capture-state"></p>
+    </section>
+
+    <section aria-labelledby="interview-title" class="panel">
+      <h2 id="interview-title">2. Interview</h2>
+      <p class="hint">Answers are human decisions; every answer is a new version.</p>
+      <div id="question" aria-live="polite"></div>
+      <div id="constraint-summary" class="hint"></div>
+    </section>
+
+    <section aria-labelledby="ledger-title" class="panel">
+      <h2 id="ledger-title">3. Assumption ledger</h2>
+      <p class="hint">What the system guessed and what you confirmed. High-risk unconfirmed assumptions block verification.</p>
+      <ul id="assumptions" class="cards"></ul>
+      <h3>Hypotheses</h3>
+      <ul id="hypotheses" class="cards"></ul>
+    </section>
+
+    <section aria-labelledby="gates-title" class="panel">
+      <h2 id="gates-title">4. Gate board</h2>
+      <p class="hint">A hard gate is decided by a human. Waiving needs a reason.</p>
+      <div id="gates" class="cards"></div>
+    </section>
+
+    <section aria-labelledby="brief-title" class="panel">
+      <h2 id="brief-title">5. Brief</h2>
+      <div class="row">
+        <button type="button" id="compile-brief">Compile brief</button>
+        <button type="button" id="download-json" class="secondary" disabled>Download JSON</button>
+        <button type="button" id="download-md" class="secondary" disabled>Download Markdown</button>
+      </div>
+      <article id="brief" aria-live="polite"></article>
+    </section>
+  </main>
+
+  <footer>
+    <p>Local-first. Private fragments are not sent to a model without consent.
+      See <code>docs/security.md</code> in the repository.</p>
+  </footer>
+  <script src="/ui/app.js" defer></script>
+</body>
+</html>
