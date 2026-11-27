@@ -7,6 +7,18 @@
 The HTTP API and the CLI share one contract. The CLI is a thin client; anything the
 CLI does, the API can do. The OpenAPI 3.1 document ships in `v0.2`.
 
+## Contract and client
+
+The committed OpenAPI 3.1 document is
+[`openapi/latent.openapi.json`](../openapi/latent.openapi.json). It documents every
+route, the bearer scheme, the scopes (`x-latent-scope`) and the error responses.
+The server test derives the actual Fastify route table from `printRoutes` and fails
+when the spec drifts; a route change without a spec update fails CI.
+
+The typed client is [`packages/client`](../packages/client/src/index.ts). Its
+operation manifest is checked against the same spec in both directions, so the
+client cannot silently miss a route or invent one.
+
 ## Conventions
 
 - Base URL: `http://127.0.0.1:4310` for a local install.

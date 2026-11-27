@@ -1,0 +1,1286 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Latent local API",
+    "version": "0.3.0",
+    "description": "The local, loopback-only API. Every /v1 route requires a scoped bearer token; /healthz and /readyz are public. The canonical object schemas live in data/schemas/ and are referenced below.",
+    "license": {
+      "name": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:4310"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "health"
+    },
+    {
+      "name": "fragments"
+    },
+    {
+      "name": "ideas"
+    },
+    {
+      "name": "constraints"
+    },
+    {
+      "name": "gates"
+    },
+    {
+      "name": "brief"
+    },
+    {
+      "name": "outcome"
+    },
+    {
+      "name": "calibration"
+    },
+    {
+      "name": "priors"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The local token from LATENT_AUTH_TOKEN or data/runtime/auth-token. Scopes: fragments:read|write, ideas:read|write, gates:run, briefs:compile, memory:read, admin."
+      }
+    },
+    "schemas": {
+      "Fragment": {
+        "$ref": "../data/schemas/fragment.schema.json"
+      },
+      "Idea": {
+        "$ref": "../data/schemas/idea.schema.json"
+      },
+      "Claim": {
+        "$ref": "../data/schemas/claim.schema.json"
+      },
+      "Gate": {
+        "$ref": "../data/schemas/gate.schema.json"
+      },
+      "Brief": {
+        "$ref": "../data/schemas/brief.schema.json"
+      },
+      "ConstraintState": {
+        "$ref": "../data/schemas/constraint-state.schema.json"
+      },
+      "Outcome": {
+        "$ref": "../data/schemas/outcome.schema.json"
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            }
+          }
+        }
+      },
+      "Question": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "variable": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {},
+                "label": {
+                  "type": "string"
+                },
+                "prior": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid input",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid bearer token",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Missing scope, or a cross-origin/non-loopback request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The object does not exist",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The current state blocks the transition",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooLarge": {
+        "description": "Request body exceeds the configured limit",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unprocessable": {
+        "description": "A validator refused the artifact",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Per-token rate limit exceeded",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Unexpected server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "AssumptionId": {
+        "name": "assumptionId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "GateId": {
+        "name": "gateId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "health",
+        "summary": "Liveness",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "version"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "ready",
+        "summary": "Readiness and counts",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "counts": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/fragments": {
+      "post": {
+        "tags": [
+          "fragments"
+        ],
+        "operationId": "captureFragment",
+        "x-latent-scope": "fragments:write",
+        "summary": "Capture a fragment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "privacy": {
+                    "enum": [
+                      "private",
+                      "team",
+                      "public"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Captured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Fragment"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/fragments/{id}": {
+      "get": {
+        "tags": [
+          "fragments"
+        ],
+        "operationId": "getFragment",
+        "x-latent-scope": "fragments:read",
+        "summary": "Read a fragment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The fragment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Fragment"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/ideas": {
+      "post": {
+        "tags": [
+          "ideas"
+        ],
+        "operationId": "developIdea",
+        "x-latent-scope": "ideas:write",
+        "summary": "Develop a fragment into hypotheses, claims and gates",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "fragment_id"
+                ],
+                "properties": {
+                  "fragment_id": {
+                    "type": "string"
+                  },
+                  "vertical": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The developed idea",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "idea",
+                    "claims",
+                    "gates"
+                  ],
+                  "properties": {
+                    "idea": {
+                      "$ref": "#/components/schemas/Idea"
+                    },
+                    "claims": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Claim"
+                      }
+                    },
+                    "gates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Gate"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/ideas/{id}": {
+      "get": {
+        "tags": [
+          "ideas"
+        ],
+        "operationId": "getIdea",
+        "x-latent-scope": "ideas:read",
+        "summary": "Read an idea with its claims, gates, brief, constraint state and next question",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The idea bundle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "idea",
+                    "claims",
+                    "gates",
+                    "constraint",
+                    "blocking",
+                    "next_question"
+                  ],
+                  "properties": {
+                    "idea": {
+                      "$ref": "#/components/schemas/Idea"
+                    },
+                    "claims": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Claim"
+                      }
+                    },
+                    "gates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Gate"
+                      }
+                    },
+                    "brief": {
+                      "$ref": "#/components/schemas/Brief"
+                    },
+                    "constraint": {
+                      "$ref": "#/components/schemas/ConstraintState"
+                    },
+                    "blocking": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "next_question": {
+                      "$ref": "#/components/schemas/Question"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/ideas/{id}/constraints": {
+      "get": {
+        "tags": [
+          "constraints"
+        ],
+        "operationId": "getConstraints",
+        "x-latent-scope": "ideas:read",
+        "summary": "Read the constraint state, blocking set and next question",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The constraint state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "constraint",
+                    "blocking",
+                    "next_question"
+                  ],
+                  "properties": {
+                    "constraint": {
+                      "$ref": "#/components/schemas/ConstraintState"
+                    },
+                    "blocking": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "next_question": {
+                      "$ref": "#/components/schemas/Question"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/ideas/{id}/constraints/answer": {
+      "post": {
+        "tags": [
+          "constraints"
+        ],
+        "operationId": "answerConstraint",
+        "x-latent-scope": "ideas:write",
+        "summary": "Answer one constraint as a human",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "variable",
+                  "value"
+                ],
+                "properties": {
+                  "variable": {
+                    "type": "string"
+                  },
+                  "value": {},
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "constraint",
+                    "blocking",
+                    "next_question"
+                  ],
+                  "properties": {
+                    "constraint": {
+                      "$ref": "#/components/schemas/ConstraintState"
+                    },
+                    "blocking": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "next_question": {
+                      "$ref": "#/components/schemas/Question"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/ideas/{id}/constraints/undo": {
+      "post": {
+        "tags": [
+          "constraints"
+        ],
+        "operationId": "undoConstraint",
+        "x-latent-scope": "ideas:write",
+        "summary": "Undo the last answer as a new version",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restored state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "constraint",
+                    "blocking",
+                    "next_question"
+                  ],
+                  "properties": {
+                    "constraint": {
+                      "$ref": "#/components/schemas/ConstraintState"
+                    },
+                    "blocking": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "next_question": {
+                      "$ref": "#/components/schemas/Question"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/v1/ideas/{id}/assumptions/{assumptionId}/decide": {
+      "post": {
+        "tags": [
+          "ideas"
+        ],
+        "operationId": "decideAssumption",
+        "x-latent-scope": "ideas:write",
+        "summary": "Confirm or refute an assumption as a human",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/AssumptionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "confirmed",
+                      "refuted"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated idea",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Idea"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/ideas/{id}/gates/{gateId}/decide": {
+      "post": {
+        "tags": [
+          "gates"
+        ],
+        "operationId": "decideGate",
+        "x-latent-scope": "gates:run",
+        "summary": "Decide a gate as a human",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/GateId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "pass",
+                      "fail",
+                      "unknown",
+                      "waive"
+                    ]
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The decided gate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gate"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/v1/ideas/{id}/brief": {
+      "post": {
+        "tags": [
+          "brief"
+        ],
+        "operationId": "compileBrief",
+        "x-latent-scope": "briefs:compile",
+        "summary": "Compile the brief; refuses on blocking constraints, gates or assumptions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The compiled brief",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Brief"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "brief"
+        ],
+        "operationId": "getBrief",
+        "x-latent-scope": "ideas:read",
+        "summary": "Read the latest brief for an idea",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The brief",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Brief"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/ideas/{id}/outcome": {
+      "post": {
+        "tags": [
+          "outcome"
+        ],
+        "operationId": "recordOutcome",
+        "x-latent-scope": "ideas:write",
+        "summary": "Record an immutable realised outcome",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "decision",
+                  "realised_success"
+                ],
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "shipped",
+                      "tested",
+                      "parked",
+                      "killed",
+                      "failed"
+                    ]
+                  },
+                  "realised_success": {
+                    "type": "boolean"
+                  },
+                  "predicted_confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "predicted_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "decided_by": {
+                    "enum": [
+                      "human",
+                      "expert"
+                    ]
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "notes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Outcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "outcome"
+        ],
+        "operationId": "listOutcomes",
+        "x-latent-scope": "ideas:read",
+        "summary": "List the outcomes recorded for an idea",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outcomes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "outcomes"
+                  ],
+                  "properties": {
+                    "outcomes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Outcome"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/calibration": {
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "operationId": "calibrationReport",
+        "x-latent-scope": "memory:read",
+        "summary": "Brier, log loss, reliability bins and missing outcomes",
+        "responses": {
+          "200": {
+            "description": "The calibration report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "generated_at",
+                    "sample_count",
+                    "bins",
+                    "missing_outcome_ideas"
+                  ],
+                  "properties": {
+                    "generated_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "sample_count": {
+                      "type": "integer"
+                    },
+                    "brier": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "log_loss": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "bins": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "missing_outcome_ideas": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/priors": {
+      "get": {
+        "tags": [
+          "priors"
+        ],
+        "operationId": "questionPriors",
+        "x-latent-scope": "memory:read",
+        "summary": "Outcome-backed option priors with sample counts",
+        "responses": {
+          "200": {
+            "description": "The prior report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "outcome_sample_count",
+                    "min_samples",
+                    "questions"
+                  ],
+                  "properties": {
+                    "outcome_sample_count": {
+                      "type": "integer"
+                    },
+                    "min_samples": {
+                      "type": "integer"
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "variable",
+                          "sample_count",
+                          "source",
+                          "options"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "variable": {
+                            "type": "string"
+                          },
+                          "sample_count": {
+                            "type": "integer"
+                          },
+                          "source": {
+                            "enum": [
+                              "uniform",
+                              "empirical"
+                            ]
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    }
+  },
+  "x-latent-note": "The canonical object schemas are referenced from data/schemas; a client must bundle them or treat them as external refs."
+}

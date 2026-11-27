@@ -57,6 +57,12 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/client:
+    dependencies:
+      '@latent/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/core:
     dependencies:
       ajv:

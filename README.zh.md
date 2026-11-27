@@ -286,6 +286,8 @@ pnpm latent develop <fragment-id>
 | `packages/vertical-igem/` | 作为运行时数据的 iGEM pack |
 | `apps/cli/` | `latent` CLI |
 | `apps/server/` | 本地 Fastify API |
+| `openapi/` | 提交到仓库的 OpenAPI 3.1 契约 |
+| `packages/client/` | 本地 API 的类型化客户端 |
 | `verticals/igem/` | iGEM 垂直场景说明与一页纸模板 |
 | `pnpm-workspace.yaml`、`pnpm-lock.yaml` | 工作区与锁定的依赖图 |
 | `AGENTS.md` | 在本仓库工作的 AI agent 必须遵守的规则 |

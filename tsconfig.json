@@ -8,7 +8,8 @@
       "@latent/adapters": ["packages/adapters/src/index.ts"],
       "@latent/vertical-igem": ["packages/vertical-igem/src/index.ts"],
       "@latent/retrieval": ["packages/retrieval/src/index.ts"],
-      "@latent/novelty": ["packages/novelty/src/index.ts"]
+      "@latent/novelty": ["packages/novelty/src/index.ts"],
+      "@latent/client": ["packages/client/src/index.ts"]
     }
   },
   "include": [
