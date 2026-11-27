@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import unittest
 from unittest.mock import patch
 
@@ -125,6 +126,83 @@ class EvaluateTests(unittest.TestCase):
             )
         self.assertFalse(ok)
         self.assertIn("identities must be separate", detail)
+
+
+class EventTests(unittest.TestCase):
+    def test_commit_comment_maps_to_open_pulls(self) -> None:
+        payload = {"comment": {"commit_id": HEAD}}
+
+        def fake_api(path, method="GET", data=None):
+            self.assertIn(f"/commits/{HEAD}/pulls", path)
+            return [
+                {"number": 7, "state": "open"},
+                {"number": 8, "state": "closed"},
+            ]
+
+        with patch.dict(os.environ, {"GITHUB_EVENT_NAME": "commit_comment"}):
+            with patch.object(review_gate, "api", fake_api):
+                self.assertEqual(review_gate.pull_numbers(payload), [7])
+
+
+class PublishTests(unittest.TestCase):
+    def test_refreshes_the_summary_at_the_same_conclusion(self) -> None:
+        calls = []
+
+        def fake_api(path, method="GET", data=None):
+            calls.append((path, method, data))
+            return {}
+
+        current = {
+            "id": 99,
+            "status": "completed",
+            "conclusion": "failure",
+            "output": {"summary": "no verdict"},
+        }
+        with patch.object(review_gate, "latest_check", return_value=current):
+            with patch.object(review_gate, "api", fake_api):
+                review_gate.publish_check(pull(), False, "REQUEST_CHANGES at aaaaaaa")
+        self.assertTrue(
+            any(
+                method == "PATCH" and path == "/check-runs/99"
+                for path, method, _ in calls
+            )
+        )
+
+    def test_an_unchanged_summary_is_not_repainted(self) -> None:
+        calls = []
+
+        def fake_api(path, method="GET", data=None):
+            calls.append((path, method, data))
+            return {}
+
+        current = {
+            "id": 99,
+            "status": "completed",
+            "conclusion": "failure",
+            "output": {"summary": "same reason"},
+        }
+        with patch.object(review_gate, "latest_check", return_value=current):
+            with patch.object(review_gate, "api", fake_api):
+                review_gate.publish_check(pull(), False, "same reason")
+        self.assertEqual(calls, [])
+
+
+class StrangerTests(unittest.TestCase):
+    def test_a_stranger_commit_comment_does_not_count(self) -> None:
+        fake = FakeApi(
+            commit_comments=[
+                {
+                    "user": {"login": "stranger"},
+                    "created_at": "2026-11-25T00:00:00Z",
+                    "body": f"Verdict: PASS at {HEAD}",
+                }
+            ],
+            files=[{"filename": "packages/core/src/state.ts"}],
+        )
+        with patch.object(review_gate, "api", fake):
+            ok, detail = review_gate.evaluate(pull(), "HugoXK-bot", False)
+        self.assertFalse(ok)
+        self.assertIn("no verdict", detail)
 
 
 if __name__ == "__main__":

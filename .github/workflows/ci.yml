@@ -90,8 +90,11 @@ jobs:
               ".github/agent/required-checks.md",
               ".github/scripts/review_gate.py",
               ".github/scripts/pr_lint.py",
+              ".github/scripts/ci_ok_publish.py",
+              ".github/scripts/test_ci_ok_publish.py",
               ".github/workflows/review-gate.yml",
               ".github/workflows/pr-lint.yml",
+              ".github/workflows/ci-ok-publish.yml",
           ]
           missing = [p for p in required if not os.path.exists(p)]
           if missing:

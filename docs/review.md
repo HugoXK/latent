@@ -30,8 +30,8 @@ The gate reads four channels and takes the **newest verdict at the head SHA**:
 3. **PR issue comment** — a comment by `HugoXK-bot` that contains the head SHA and
    `Verdict: PASS`.
 4. **Commit comment** — a comment by `HugoXK-bot` on the head commit whose body
-   contains `Verdict: PASS`. This is the current bot behaviour, and it is why the
-   gate also runs on a schedule: a commit comment does not trigger a workflow.
+   contains `Verdict: PASS`. This is the current bot behaviour. `commit_comment`
+   now triggers the workflow promptly; the schedule remains a fallback.
 5. **T0 docs-only auto-pass** — when every changed file is documentation and the
    reviewer posted no verdict, the gate passes if the base policy sets
    `t0DocsAutoPass: true`. An explicit `REQUEST_CHANGES` still blocks; an explicit
@@ -58,7 +58,7 @@ or `.github/` is not docs-only.
 
 | Context | Workflow | What it proves |
 |---|---|---|
-| `ci-ok` | `ci.yml` | `spec` + `node` passed at the tip |
+| `ci-ok` | `ci-ok-publish.yml` | `spec` + `node` + `gate-tests` passed; published from the default branch (the in-workflow aggregate in `ci.yml` is bootstrap only) |
 | `pr-lint` | `pr-lint.yml` | linked issue, one risk tier, evidence block, changelog obligation |
 | `review-gate` | `review-gate.yml` | the reviewer PASS at the tip |
 
@@ -72,12 +72,14 @@ visible in the PR, but they do not decide the merge today.
 - pull request open / synchronize / reopen / ready for review;
 - pull request review submitted / edited / dismissed;
 - issue comment created / edited;
-- every 10 minutes (a scheduled repaint for commit comments);
+- commit comment created / edited;
+- every 10 minutes (a fallback repaint for missed events);
 - manual dispatch.
 
 The job's own name is `review-gate-runner`; the script creates the required
-`review-gate` check run on the pull request head. It creates a new run only when
-the conclusion changed, so the schedule does not spam check runs.
+`review-gate` check run on the pull request head. It creates a new run when the
+conclusion changes and refreshes the summary when the reason changes at the same
+conclusion; an unchanged summary is not repainted.
 
 The script checks out the **base** ref, reads the reviewer from
 `.github/agent/review-policy.json` on the base, and executes no pull request code.
@@ -87,8 +89,8 @@ The script checks out the **base** ref, reads the reviewer from
 1. Open the PR with the template filled in (`Fixes #N` or `No-issue:`, one risk
    tier, `Ran:` and `Not run:`).
 2. Wait for `ci-ok` and `pr-lint`.
-3. Let `HugoXK-bot` review the head. If it comments on the commit, the scheduled
-   run picks it up within 10 minutes. You can also run it now:
+3. Let `HugoXK-bot` review the head. A commit comment triggers the gate promptly;
+   the 10-minute schedule is only a fallback. You can also run it now:
 
    ```sh
    gh workflow run review-gate.yml -f pr=<number>
@@ -110,6 +112,19 @@ submit a PR review.
 The current bot posts a **commit comment**. That is supported by channel 4 above.
 If the bot is upgraded to submit PR reviews, channels 1 and 2 apply with no gate
 change.
+
+## The ci-ok publisher
+
+`ci-ok` is published by `ci-ok-publish.yml` from the **default branch** on the
+`workflow_run` completion of `ci`. The publisher reads the triggering run's jobs and
+requires exactly `spec`, `node` and `gate-tests`, each `success`. A pull request
+that deletes `gate-tests` cannot obtain a green `ci-ok`. The publisher checks out
+the default branch, never the pull request head.
+
+The aggregate job in `ci.yml` keeps the same name during bootstrap so the required
+context exists before the publisher lands on the default branch. Once the publisher
+is live on `main`, the in-workflow aggregate is redundant; the publisher updates
+the existing check run instead of creating a duplicate.
 
 ## Fork pull requests
 

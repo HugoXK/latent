@@ -146,6 +146,16 @@ def pull_numbers(payload: dict[str, Any]) -> list[int]:
         if issue.get("pull_request") and issue.get("number"):
             return [int(issue["number"])]
         return []
+    if name == "commit_comment":
+        sha = str(payload.get("comment", {}).get("commit_id") or "")
+        if not sha:
+            return []
+        pulls = api(f"/commits/{sha}/pulls?per_page=100")
+        return [
+            int(pull["number"])
+            for pull in pulls
+            if str(pull.get("state", "")) == "open"
+        ]
     explicit = os.environ.get("PR") or payload.get("inputs", {}).get("pr")
     if explicit:
         return [int(explicit)]
@@ -240,13 +250,26 @@ def latest_check(head: str) -> dict[str, Any] | None:
 def publish_check(pull: dict[str, Any], ok: bool, detail: str) -> None:
     head = str(pull["head"]["sha"])
     conclusion = "success" if ok else "failure"
+    output = {
+        "title": f"review-gate: {'PASS' if ok else 'BLOCKED'}",
+        "summary": detail,
+    }
     current = latest_check(head)
     if (
         current
         and current.get("status") == "completed"
         and current.get("conclusion") == conclusion
     ):
-        print(f"review-gate: {head[:7]} already {conclusion}")
+        current_summary = str((current.get("output") or {}).get("summary") or "")
+        if current_summary == detail:
+            print(f"review-gate: {head[:7]} already {conclusion}")
+            return
+        api(
+            f"/check-runs/{current.get('id')}",
+            method="PATCH",
+            data={"output": output},
+        )
+        print(f"review-gate: {head[:7]} refreshed — {detail}")
         return
     api(
         "/check-runs",
@@ -256,10 +279,7 @@ def publish_check(pull: dict[str, Any], ok: bool, detail: str) -> None:
             "head_sha": head,
             "status": "completed",
             "conclusion": conclusion,
-            "output": {
-                "title": f"review-gate: {'PASS' if ok else 'BLOCKED'}",
-                "summary": detail,
-            },
+            "output": output,
         },
     )
     print(f"review-gate: {head[:7]} {conclusion} — {detail}")

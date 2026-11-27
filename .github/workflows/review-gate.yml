@@ -4,9 +4,10 @@ name: review-gate
 # head SHA. The job name is `review-gate-runner` so the job's own status is not
 # confused with the required context.
 #
-# Commit comments do not trigger a workflow, so a scheduled run repaints the
-# open pull requests. The same script also runs on review and comment events, and
-# can be dispatched manually.
+# Commit comments now trigger this workflow (commit_comment) so a verdict on the
+# head is picked up promptly. The schedule remains a fallback for missed events.
+# The same script also runs on review and issue-comment events, and can be
+# dispatched manually.
 
 on:
   pull_request:
@@ -14,6 +15,8 @@ on:
   pull_request_review:
     types: [submitted, edited, dismissed]
   issue_comment:
+    types: [created, edited]
+  commit_comment:
     types: [created, edited]
   schedule:
     - cron: "*/10 * * * *"

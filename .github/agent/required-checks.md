@@ -9,12 +9,15 @@ The required contexts on `main` are exactly what the checks API reports:
 
 | Context | Workflow | What it proves |
 |---|---|---|
-| `ci-ok` | `ci.yml` | the spec checks and the Node typecheck/test suite passed at the tip |
+| `ci-ok` | `ci-ok-publish.yml` | `spec`, `node` and `gate-tests` passed at the tip; published from the default branch |
 | `pr-lint` | `pr-lint.yml` | the PR body has a linked issue, one risk tier, an evidence block and a changelog obligation |
 | `review-gate` | `review-gate.yml` | `HugoXK-bot` posted a PASS at the pull request head SHA |
 
-`ci-ok` is the aggregate: `spec` (schemas, local links, required files) and
-`node` (install, typecheck, 48+ tests). It runs on push and pull request.
+`ci-ok` is published by `ci-ok-publish.yml` from the default branch on the
+`workflow_run` completion of `ci`. It requires exactly `spec` (schemas, local
+links, required files), `node` (install, typecheck, tests) and `gate-tests`
+(the review-gate unit tests). A PR that removes `gate-tests` cannot get a green
+`ci-ok`. The aggregate job in `ci.yml` is bootstrap only.
 
 Advisory (not required yet):
 
