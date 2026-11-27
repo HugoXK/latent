@@ -100,3 +100,26 @@ test("the client operation manifest matches the OpenAPI spec", () => {
     }
   }
 });
+
+test("compileBrief sends the iGEM extras", async () => {
+  let body: unknown = null;
+  const client = new LatentClient({
+    token: "t",
+    fetchImpl: async (_url, init) => {
+      body = init?.body ? JSON.parse(String(init.body)) : null;
+      return jsonResponse({ id: "brf_1" });
+    },
+  });
+  await client.compileBrief("idea_1", {
+    components: [
+      { id: "c1", name: "arsR", source: "Registry", grade: "B" },
+    ],
+    collisions: [],
+  });
+  assert.deepEqual(body, {
+    components: [
+      { id: "c1", name: "arsR", source: "Registry", grade: "B" },
+    ],
+    collisions: [],
+  });
+});

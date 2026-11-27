@@ -1,5 +1,6 @@
 import type {
   Brief,
+  BriefCollision,
   CalibrationReport,
   Claim,
   ConstraintState,
@@ -9,6 +10,11 @@ import type {
   Outcome,
   QuestionPrior,
 } from "@latent/core";
+import type {
+  ComponentInput,
+  MaterialBalanceInput,
+  TimelineInput,
+} from "@latent/vertical-igem";
 
 export interface QuestionOption {
   value: unknown;
@@ -103,6 +109,13 @@ export interface RetrievalResponse {
   query: string;
   filters: Record<string, string | number | boolean>;
   hits: RetrievalHit[];
+}
+
+export interface BriefOptions {
+  components?: ComponentInput[];
+  timeline?: TimelineInput;
+  material?: MaterialBalanceInput;
+  collisions?: BriefCollision[];
 }
 
 export interface ApiErrorBody {
@@ -292,10 +305,11 @@ export class LatentClient {
     );
   }
 
-  compileBrief(id: string): Promise<Brief> {
+  compileBrief(id: string, options: BriefOptions = {}): Promise<Brief> {
     return this.#request<Brief>(
       "POST",
       `/v1/ideas/${encodeURIComponent(id)}/brief`,
+      options,
     );
   }
 
