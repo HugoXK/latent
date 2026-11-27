@@ -43,6 +43,8 @@ CLI does, the API can do. The OpenAPI 3.1 document ships in `v0.2`.
 | Gate | `/v1/ideas/{id}/gates` | Run, decide, waive |
 | Brief | `/v1/ideas/{id}/brief` | Compile, get, export |
 | Memory | `/v1/memory` | Search, connection explanations, owner-scoped export; fragment delete blocks on references |
+| Outcome | `/v1/ideas/{id}/outcome` | Record or list an immutable realised outcome |
+| Calibration | `/v1/calibration` | Brier, log loss, reliability bins and missing outcomes |
 | Jobs | `/v1/jobs` | Incubation and research jobs |
 | Health | `/healthz`, `/readyz` | Liveness, readiness |
 
@@ -216,6 +218,51 @@ The compiler refuses to write if any of the four validators fails:
   }
 }
 ```
+
+### Record an outcome
+
+```http
+POST /v1/ideas/{id}/outcome
+{
+  "decision": "tested",
+  "realised_success": true,
+  "predicted_confidence": 0.62,
+  "notes": "Pilot showed a 6x dynamic range."
+}
+```
+
+`realised_success` is required and explicit; it is never inferred from `decision`.
+The prediction snapshot is stored with the result and cannot be rewritten. The
+first outcome for a `briefed` idea moves it to `learned` and writes an
+`outcome_of` edge.
+
+### Calibration report
+
+```http
+GET /v1/calibration
+```
+
+```json
+{
+  "generated_at": "2026-11-27T00:00:00Z",
+  "sample_count": 12,
+  "brier": 0.18,
+  "log_loss": 0.52,
+  "bins": [
+    {
+      "lower": 0.9,
+      "upper": 1.0,
+      "count": 2,
+      "mean_prediction": 0.93,
+      "observed_success_rate": 1.0
+    }
+  ],
+  "missing_outcome_ideas": ["idea_01h..."]
+}
+```
+
+A missing outcome is visible, not assumed to be a failure. The report sorts by
+outcome id and takes an injected clock, so the same rows produce the same report.
 
 ## CLI
 

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent.dev/schemas/outcome.schema.json",
+  "title": "Outcome",
+  "description": "The realised result of a decided idea, paired with the confidence that was predicted before the decision. An outcome is immutable; a correction is a new record.",
+  "type": "object",
+  "required": [
+    "id",
+    "idea_id",
+    "idea_version",
+    "owner_id",
+    "decision",
+    "realised_success",
+    "predicted_confidence",
+    "decided_at",
+    "decided_by",
+    "created_at"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^outcome_[a-z0-9]{8,}$" },
+    "idea_id": { "type": "string", "minLength": 1 },
+    "idea_version": { "type": "integer", "minimum": 1 },
+    "owner_id": { "type": "string", "minLength": 1 },
+    "decision": {
+      "enum": ["shipped", "tested", "parked", "killed", "failed"]
+    },
+    "realised_success": {
+      "type": "boolean",
+      "description": "The binary the calibration scores against. It is recorded, never inferred from a fluent note."
+    },
+    "predicted_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "The confidence snapshot taken before the outcome was known."
+    },
+    "predicted_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "decided_at": { "type": "string", "format": "date-time" },
+    "decided_by": { "enum": ["human", "expert"] },
+    "evidence": {
+      "type": "array",
+      "description": "Claim ids, experiment refs or external links that support the outcome.",
+      "items": { "type": "string" }
+    },
+    "notes": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "schema_version": { "const": "1.0.0" }
+  },
+  "additionalProperties": false
+}

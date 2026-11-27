@@ -13,6 +13,7 @@ types are generated from them. A change needs an ADR (see
 | [`gate.schema.json`](gate.schema.json) | Gate | Gate engine |
 | [`brief.schema.json`](brief.schema.json) | Brief | Compiler |
 | [`edge.schema.json`](edge.schema.json) | MemoryEdge | Memory graph |
+| [`outcome.schema.json`](outcome.schema.json) | Outcome | Calibration loop |
 | [`replay-case.schema.json`](replay-case.schema.json) | ReplayCase | Replay harness |
 
 `replay-case.schema.json` refers to `constraint-state.schema.json` and

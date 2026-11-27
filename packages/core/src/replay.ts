@@ -1,11 +1,10 @@
 import { assertValid, SchemaValidationError } from "./schema.js";
 import type { ConstraintState } from "./constraints.js";
-import type { Fragment } from "./types.js";
+import type { Fragment, OutcomeDecision } from "./types.js";
 
 export type ReplayVariant = "conservative" | "ambitious" | "cross_domain";
 export type SourceGrade = "A" | "B" | "C";
 export type GateExpectation = "pass" | "fail" | "unknown";
-export type OutcomeDecision = "shipped" | "tested" | "parked" | "killed" | "failed";
 
 export interface ReplayMetadata {
   id: string;

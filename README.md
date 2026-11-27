@@ -228,6 +228,8 @@ pnpm latent brief <idea-id>                  # refuses if a constraint, gate or 
 pnpm latent memory search "biosensor"        # find fragments and ideas
 pnpm latent memory connect <fragment-id> <idea-id>  # explain the path
 pnpm latent memory export                    # open JSON graph; delete blocks on references
+pnpm latent outcome <idea-id> tested --success --confidence 0.62  # realised result (human)
+pnpm latent calibration                      # Brier, log loss and missing outcomes
 ```
 
 The CLI contract is specified in [docs/api.md](docs/api.md). The default

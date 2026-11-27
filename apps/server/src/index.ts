@@ -6,17 +6,20 @@ import {
   BriefValidationError,
   ConstraintAnswerError,
   GateError,
+  OutcomeError,
   TransitionError,
   answerConstraint,
   blockingQuestions,
   compileBrief,
   createConstraintState,
+  createOutcome,
   decideGate,
   develop,
   developEdges,
   findQuestion,
   newId,
   nextQuestion,
+  outcomeEdge,
   questionKind,
   transition,
 } from "@latent/core";
@@ -24,6 +27,7 @@ import type {
   AssumptionStatus,
   Fragment,
   Idea,
+  OutcomeDecision,
   QuestionDefinition,
 } from "@latent/core";
 import { TemplateReconstructor, reconstructorFromEnv } from "@latent/adapters";
@@ -401,6 +405,93 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     return brief;
   });
 
+  app.post("/v1/ideas/:id/outcome", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const idea = store.getIdea(id);
+    if (!idea) {
+      return reply
+        .code(404)
+        .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
+    }
+    const body = req.body as
+      | {
+          decision?: string;
+          realised_success?: boolean;
+          predicted_confidence?: number;
+          predicted_at?: string | null;
+          decided_by?: string;
+          evidence?: string[];
+          notes?: string | null;
+        }
+      | null;
+    const decisions: OutcomeDecision[] = [
+      "shipped",
+      "tested",
+      "parked",
+      "killed",
+      "failed",
+    ];
+    if (!body?.decision || !decisions.includes(body.decision as OutcomeDecision)) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_OUTCOME",
+          message:
+            "decision must be shipped, tested, parked, killed or failed",
+        },
+      });
+    }
+    if (typeof body.realised_success !== "boolean") {
+      return reply.code(400).send({
+        error: {
+          code: "SUCCESS_REQUIRED",
+          message: "realised_success must be recorded explicitly",
+        },
+      });
+    }
+    const maxConfidence = idea.hypotheses.reduce(
+      (max, hypothesis) => Math.max(max, hypothesis.confidence),
+      0,
+    );
+    const outcome = createOutcome({
+      idea_id: idea.id,
+      idea_version: idea.version,
+      owner_id: "local",
+      decision: body.decision as OutcomeDecision,
+      realised_success: body.realised_success,
+      predicted_confidence: body.predicted_confidence ?? maxConfidence,
+      predicted_at: body.predicted_at ?? idea.updated_at ?? null,
+      decided_by: body.decided_by === "expert" ? "expert" : "human",
+      evidence: body.evidence ?? idea.claims,
+      notes: body.notes ?? null,
+    });
+    store.putOutcome(outcome);
+    store.putEdge(outcomeEdge(outcome));
+    let saved = idea;
+    if (idea.status === "briefed") {
+      saved = transition(idea, "learned");
+      store.putIdea(saved);
+    }
+    store.appendEvent("outcome.recorded", id, {
+      outcome_id: outcome.id,
+      decision: outcome.decision,
+      realised_success: outcome.realised_success,
+    });
+    return reply.code(201).send(outcome);
+  });
+
+  app.get("/v1/ideas/:id/outcome", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const idea = store.getIdea(id);
+    if (!idea) {
+      return reply
+        .code(404)
+        .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
+    }
+    return { outcomes: store.listOutcomes({ ownerId: "local", ideaId: id }) };
+  });
+
+  app.get("/v1/calibration", async () => store.calibrationReport());
+
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof BriefValidationError) {
       return reply.code(422).send({
@@ -409,6 +500,11 @@ export function buildServer(options: ServerOptions): FastifyInstance {
           message: error.message,
           details: error.issues,
         },
+      });
+    }
+    if (error instanceof OutcomeError) {
+      return reply.code(400).send({
+        error: { code: error.code, message: error.message },
       });
     }
     if (error instanceof ConstraintAnswerError) {
