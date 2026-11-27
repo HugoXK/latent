@@ -5,9 +5,11 @@ import { Store } from "@latent/store";
 
 test("API: fragment -> idea -> decide -> brief", async () => {
   const store = new Store(":memory:");
-  const app = buildServer({ store });
+  const app = buildServer({ store, authToken: "test-token" });
+  const AUTH = { authorization: "Bearer test-token" };
   try {
     const fragmentRes = await app.inject({
+      headers: AUTH,
       method: "POST",
       url: "/v1/fragments",
       payload: { content: "soil biosensor for heavy metals" },
@@ -16,6 +18,7 @@ test("API: fragment -> idea -> decide -> brief", async () => {
     const fragment = fragmentRes.json() as { id: string };
 
     const ideaRes = await app.inject({
+      headers: AUTH,
       method: "POST",
       url: "/v1/ideas",
       payload: { fragment_id: fragment.id, vertical: "igem" },
@@ -27,12 +30,14 @@ test("API: fragment -> idea -> decide -> brief", async () => {
     };
 
     const blocked = await app.inject({
+      headers: AUTH,
       method: "POST",
       url: `/v1/ideas/${body.idea.id}/brief`,
     });
     assert.equal(blocked.statusCode, 409);
 
     const constraintsRes = await app.inject({
+      headers: AUTH,
       method: "GET",
       url: `/v1/ideas/${body.idea.id}/constraints`,
     });
@@ -52,6 +57,7 @@ test("API: fragment -> idea -> decide -> brief", async () => {
     ];
     for (const [variable, value] of answers) {
       const res = await app.inject({
+      headers: AUTH,
         method: "POST",
         url: `/v1/ideas/${body.idea.id}/constraints/answer`,
         payload: { variable, value },
@@ -60,6 +66,7 @@ test("API: fragment -> idea -> decide -> brief", async () => {
     }
 
     const multi = await app.inject({
+      headers: AUTH,
       method: "POST",
       url: `/v1/ideas/${body.idea.id}/constraints/answer`,
       payload: { variable: "lab.equipment", value: ["plate_reader", "hplc"] },
@@ -67,6 +74,7 @@ test("API: fragment -> idea -> decide -> brief", async () => {
     assert.equal(multi.statusCode, 200);
 
     const text = await app.inject({
+      headers: AUTH,
       method: "POST",
       url: `/v1/ideas/${body.idea.id}/constraints/answer`,
       payload: { variable: "candidate.a", value: "soil biosensor for arsenic" },
@@ -75,6 +83,7 @@ test("API: fragment -> idea -> decide -> brief", async () => {
 
     for (const assumption of body.idea.assumptions) {
       const res = await app.inject({
+      headers: AUTH,
         method: "POST",
         url: `/v1/ideas/${body.idea.id}/assumptions/${assumption.id}/decide`,
         payload: { status: "confirmed" },
@@ -84,6 +93,7 @@ test("API: fragment -> idea -> decide -> brief", async () => {
 
     for (const gate of body.gates) {
       const res = await app.inject({
+      headers: AUTH,
         method: "POST",
         url: `/v1/ideas/${body.idea.id}/gates/${gate.id}/decide`,
         payload: { status: "pass", reason: "test" },
@@ -92,6 +102,7 @@ test("API: fragment -> idea -> decide -> brief", async () => {
     }
 
     const briefRes = await app.inject({
+      headers: AUTH,
       method: "POST",
       url: `/v1/ideas/${body.idea.id}/brief`,
     });
@@ -105,6 +116,7 @@ test("API: fragment -> idea -> decide -> brief", async () => {
     assert.equal(brief.validators.length, 4);
 
     const stored = await app.inject({
+      headers: AUTH,
       method: "GET",
       url: `/v1/ideas/${body.idea.id}`,
     });

@@ -24,12 +24,23 @@ CLI does, the API can do. The OpenAPI 3.1 document ships in `v0.2`.
 
 ## Auth
 
-- **Local**: a bearer token stored in the OS keychain, or a loopback-only session
-  cookie for the web UI.
-- **Hosted**: session cookie plus CSRF for browser forms; bearer token for the CLI
-  and integrations.
-- Scopes: `fragments:read`, `fragments:write`, `ideas:read`, `ideas:write`,
-  `gates:run`, `briefs:compile`, `memory:read`, `admin`.
+Implemented in `v0.3` (ADR [0011](decisions/0011-local-api-auth.md)):
+
+- **Every `/v1` route requires `Authorization: Bearer <token>`.** `/healthz` and
+  `/readyz` are public. Tokens are compared in constant time.
+- **Local token resolution**: `LATENT_AUTH_TOKEN` → `LATENT_AUTH_TOKEN_FILE` →
+  `data/runtime/auth-token` (created with mode `0600` on first start). The server
+  logs the source path, never the token. Do not commit the file.
+- **Scopes**: `fragments:read`, `fragments:write`, `ideas:read`, `ideas:write`,
+  `gates:run`, `briefs:compile`, `memory:read`, `admin`; `*` grants all.
+- **Host/Origin**: the `Host` hostname must be `127.0.0.1`, `localhost` or `::1`
+  (DNS rebinding). A request with an `Origin` must be same-origin or in
+  `allowedOrigins`, otherwise `403 CSRF_FAILED`. CORS is off.
+- **Rate limit**: per token, default 120/minute; `429 RATE_LIMITED` with
+  `Retry-After`.
+- **Body limit**: default 1 MiB; `413 BODY_TOO_LARGE`.
+- **Hosted**: session cookie plus a double-submit CSRF token and TLS are required
+  before a browser session is enabled. Cookie auth is not implemented yet.
 
 ## Resources
 

@@ -1,7 +1,12 @@
-import { mkdirSync } from "node:fs";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, {
+  type FastifyInstance,
+  type FastifyReply,
+  type FastifyRequest,
+} from "fastify";
 import {
   BriefValidationError,
   ConstraintAnswerError,
@@ -35,13 +40,146 @@ import { Store } from "@latent/store";
 import { igem } from "@latent/vertical-igem";
 import type { Reconstructor } from "@latent/core";
 
+export const SCOPES = [
+  "fragments:read",
+  "fragments:write",
+  "ideas:read",
+  "ideas:write",
+  "gates:run",
+  "briefs:compile",
+  "memory:read",
+  "admin",
+] as const;
+
+export type ServerScope = (typeof SCOPES)[number] | "*";
+
+export interface AuthTokenConfig {
+  token: string;
+  scopes: string[];
+}
+
+export interface RateLimitOptions {
+  limit: number;
+  windowMs: number;
+}
+
 export interface ServerOptions {
   store: Store;
   logger?: boolean;
   reconstructor?: Reconstructor;
+  authToken?: string;
+  authTokens?: AuthTokenConfig[];
+  rateLimit?: RateLimitOptions;
+  bodyLimit?: number;
+  allowedOrigins?: string[];
+}
+
+interface AuthInfo {
+  token: string;
+  scopes: string[];
+}
+
+declare module "fastify" {
+  interface FastifyRequest {
+    auth: AuthInfo | null;
+  }
 }
 
 const VERSION = "0.2.0-alpha.0";
+const DEFAULT_RATE_LIMIT: RateLimitOptions = { limit: 120, windowMs: 60_000 };
+const DEFAULT_BODY_LIMIT = 1_048_576;
+
+function safeEqual(left: string, right: string): boolean {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function tokenKey(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function hostnameOf(host: string | undefined): string | null {
+  if (!host) return null;
+  if (host.startsWith("[")) {
+    const end = host.indexOf("]");
+    return end > 0 ? host.slice(1, end) : null;
+  }
+  return host.split(":")[0] ?? null;
+}
+
+function hostAllowed(host: string | undefined): boolean {
+  const name = hostnameOf(host);
+  if (name === null) return true;
+  return name === "127.0.0.1" || name === "localhost" || name === "::1";
+}
+
+function originAllowed(
+  origin: string | undefined,
+  host: string | undefined,
+  allowed: Set<string>,
+): boolean {
+  if (!origin) return true;
+  if (allowed.has(origin)) return true;
+  if (!host) return false;
+  return origin === `http://${host}` || origin === `https://${host}`;
+}
+
+function createRateLimiter(options: RateLimitOptions) {
+  const buckets = new Map<string, { count: number; resetAt: number }>();
+  return (key: string, now = Date.now()): { limited: boolean; retryAfter: number } => {
+    const bucket = buckets.get(key);
+    if (!bucket || bucket.resetAt <= now) {
+      buckets.set(key, { count: 1, resetAt: now + options.windowMs });
+      return { limited: false, retryAfter: 0 };
+    }
+    bucket.count += 1;
+    if (bucket.count > options.limit) {
+      return {
+        limited: true,
+        retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)),
+      };
+    }
+    return { limited: false, retryAfter: 0 };
+  };
+}
+
+function scope(required: string) {
+  return async (req: FastifyRequest, reply: FastifyReply) => {
+    const auth = req.auth;
+    if (!auth) {
+      return reply.code(401).send({
+        error: { code: "UNAUTHENTICATED", message: "a bearer token is required" },
+      });
+    }
+    if (!auth.scopes.includes("*") && !auth.scopes.includes(required)) {
+      return reply.code(403).send({
+        error: {
+          code: "FORBIDDEN",
+          message: `missing scope: ${required}`,
+          details: { required },
+        },
+      });
+    }
+  };
+}
+
+function resolveLocalToken(): { token: string; source: string } {
+  const envToken = process.env.LATENT_AUTH_TOKEN?.trim();
+  if (envToken) return { token: envToken, source: "LATENT_AUTH_TOKEN" };
+  const file = process.env.LATENT_AUTH_TOKEN_FILE ?? "data/runtime/auth-token";
+  const path = resolve(file);
+  try {
+    const token = readFileSync(path, "utf8").trim();
+    if (token) return { token, source: path };
+  } catch {
+    // fall through and create one
+  }
+  const token = randomBytes(32).toString("hex");
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${token}\n`, { mode: 0o600 });
+  return { token, source: path };
+}
 
 function normalizeSingle(
   question: QuestionDefinition,
@@ -77,14 +215,78 @@ function normalizeAnswer(
 }
 
 export function buildServer(options: ServerOptions): FastifyInstance {
-  const app = Fastify({ logger: options.logger ?? false });
+  const app = Fastify({
+    logger: options.logger ?? false,
+    bodyLimit: options.bodyLimit ?? DEFAULT_BODY_LIMIT,
+  });
   const { store } = options;
   const reconstructor = options.reconstructor ?? new TemplateReconstructor();
+  const rateLimited = createRateLimiter(options.rateLimit ?? DEFAULT_RATE_LIMIT);
+  const tokens: AuthTokenConfig[] = options.authTokens ?? [
+    {
+      token: options.authToken ?? randomBytes(32).toString("hex"),
+      scopes: [...SCOPES],
+    },
+  ];
+  const allowedOrigins = new Set(options.allowedOrigins ?? []);
+
+  app.decorateRequest("auth", null);
+  app.addHook("preHandler", async (req, reply) => {
+    if (!hostAllowed(req.headers.host)) {
+      return reply.code(403).send({
+        error: {
+          code: "HOST_NOT_ALLOWED",
+          message: "unexpected Host header; bind to loopback",
+        },
+      });
+    }
+    if (!originAllowed(req.headers.origin, req.headers.host, allowedOrigins)) {
+      return reply.code(403).send({
+        error: {
+          code: "CSRF_FAILED",
+          message: "cross-origin request refused",
+        },
+      });
+    }
+    if (req.url === "/healthz" || req.url === "/readyz") return;
+
+    const header = req.headers.authorization;
+    const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
+    if (token === "") {
+      return reply.code(401).send({
+        error: {
+          code: "UNAUTHENTICATED",
+          message: "a bearer token is required",
+        },
+      });
+    }
+    const match = tokens.find((candidate) => safeEqual(candidate.token, token));
+    if (!match) {
+      return reply.code(401).send({
+        error: {
+          code: "UNAUTHENTICATED",
+          message: "invalid bearer token",
+        },
+      });
+    }
+    const limit = rateLimited(tokenKey(token));
+    if (limit.limited) {
+      reply.header("Retry-After", String(limit.retryAfter));
+      return reply.code(429).send({
+        error: {
+          code: "RATE_LIMITED",
+          message: "rate limit exceeded",
+          details: { retry_after_seconds: limit.retryAfter },
+        },
+      });
+    }
+    req.auth = { token: match.token, scopes: match.scopes };
+  });
 
   app.get("/healthz", async () => ({ status: "ok", version: VERSION }));
   app.get("/readyz", async () => ({ status: "ok", counts: store.counts() }));
 
-  app.post("/v1/fragments", async (req, reply) => {
+  app.post("/v1/fragments", { preHandler: scope("fragments:write") }, async (req, reply) => {
     const body = req.body as
       | { kind?: string; content?: string; privacy?: string }
       | null;
@@ -111,7 +313,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     return reply.code(201).send(fragment);
   });
 
-  app.get("/v1/fragments/:id", async (req, reply) => {
+  app.get("/v1/fragments/:id", { preHandler: scope("fragments:read") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const fragment = store.getFragment(id);
     if (!fragment) {
@@ -122,7 +324,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     return fragment;
   });
 
-  app.post("/v1/ideas", async (req, reply) => {
+  app.post("/v1/ideas", { preHandler: scope("ideas:write") }, async (req, reply) => {
     const body = req.body as
       | { fragment_id?: string; vertical?: string }
       | null;
@@ -165,7 +367,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
       .send({ idea: result.idea, claims: result.claims, gates: result.gates });
   });
 
-  app.get("/v1/ideas/:id", async (req, reply) => {
+  app.get("/v1/ideas/:id", { preHandler: scope("ideas:read") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const idea = store.getIdea(id);
     if (!idea) {
@@ -189,7 +391,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     };
   });
 
-  app.get("/v1/ideas/:id/constraints", async (req, reply) => {
+  app.get("/v1/ideas/:id/constraints", { preHandler: scope("ideas:read") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const idea = store.getIdea(id);
     if (!idea) {
@@ -209,7 +411,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     };
   });
 
-  app.post("/v1/ideas/:id/constraints/answer", async (req, reply) => {
+  app.post("/v1/ideas/:id/constraints/answer", { preHandler: scope("ideas:write") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = req.body as
       | { variable?: string; value?: unknown; confidence?: number }
@@ -260,7 +462,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     };
   });
 
-  app.post("/v1/ideas/:id/assumptions/:assumptionId/decide", async (req, reply) => {
+  app.post("/v1/ideas/:id/assumptions/:assumptionId/decide", { preHandler: scope("ideas:write") }, async (req, reply) => {
     const { id, assumptionId } = req.params as {
       id: string;
       assumptionId: string;
@@ -308,7 +510,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     return saved;
   });
 
-  app.post("/v1/ideas/:id/gates/:gateId/decide", async (req, reply) => {
+  app.post("/v1/ideas/:id/gates/:gateId/decide", { preHandler: scope("gates:run") }, async (req, reply) => {
     const { id, gateId } = req.params as { id: string; gateId: string };
     const body = req.body as { status?: string; reason?: string } | null;
     const idea = store.getIdea(id);
@@ -356,7 +558,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     return decided;
   });
 
-  app.post("/v1/ideas/:id/brief", async (req, reply) => {
+  app.post("/v1/ideas/:id/brief", { preHandler: scope("briefs:compile") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const idea = store.getIdea(id);
     if (!idea) {
@@ -394,7 +596,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     return reply.code(201).send(brief);
   });
 
-  app.get("/v1/ideas/:id/brief", async (req, reply) => {
+  app.get("/v1/ideas/:id/brief", { preHandler: scope("ideas:read") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const brief = store.getBriefByIdea(id);
     if (!brief) {
@@ -405,7 +607,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     return brief;
   });
 
-  app.post("/v1/ideas/:id/outcome", async (req, reply) => {
+  app.post("/v1/ideas/:id/outcome", { preHandler: scope("ideas:write") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const idea = store.getIdea(id);
     if (!idea) {
@@ -479,7 +681,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     return reply.code(201).send(outcome);
   });
 
-  app.get("/v1/ideas/:id/outcome", async (req, reply) => {
+  app.get("/v1/ideas/:id/outcome", { preHandler: scope("ideas:read") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const idea = store.getIdea(id);
     if (!idea) {
@@ -490,9 +692,21 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     return { outcomes: store.listOutcomes({ ownerId: "local", ideaId: id }) };
   });
 
-  app.get("/v1/calibration", async () => store.calibrationReport());
+  app.get("/v1/calibration", { preHandler: scope("memory:read") }, async () => store.calibrationReport());
 
   app.setErrorHandler((error, _req, reply) => {
+    const fastifyError = error as { code?: string; statusCode?: number };
+    if (
+      fastifyError.code === "FST_ERR_CTP_BODY_TOO_LARGE" ||
+      fastifyError.statusCode === 413
+    ) {
+      return reply.code(413).send({
+        error: {
+          code: "BODY_TOO_LARGE",
+          message: "request body exceeds the limit",
+        },
+      });
+    }
     if (error instanceof BriefValidationError) {
       return reply.code(422).send({
         error: {
@@ -545,16 +759,21 @@ if (isMain) {
     mkdirSync(dirname(resolve(dbPath)), { recursive: true });
   }
   const store = new Store(dbPath);
+  const auth = resolveLocalToken();
   const app = buildServer({
     store,
     logger: true,
     reconstructor: reconstructorFromEnv(),
+    authToken: auth.token,
   });
   const port = Number(process.env.LATENT_PORT ?? 4310);
   app
     .listen({ port, host: "127.0.0.1" })
     .then(() => {
       console.error(`latent listening on http://127.0.0.1:${port}`);
+      console.error(
+        `latent auth token: ${auth.source} (set LATENT_AUTH_TOKEN to override; do not commit it)`,
+      );
     })
     .catch((error: unknown) => {
       console.error(error instanceof Error ? error.message : String(error));

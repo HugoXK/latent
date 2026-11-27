@@ -50,6 +50,24 @@ The default deployment is one machine, one SQLite database and a
 content-addressed blob directory. A hosted deployment is optional and must not be
 required to use the product.
 
+### Local API auth
+
+Implemented in `v0.3` (ADR
+[0011](decisions/0011-local-api-auth.md)):
+
+- Every `/v1` route requires a bearer token; `/healthz` and `/readyz` are public.
+- The local token comes from `LATENT_AUTH_TOKEN`, `LATENT_AUTH_TOKEN_FILE`, or a
+  generated `data/runtime/auth-token` with mode `0600`. The server logs the path,
+  never the token.
+- Scopes are per route (`fragments:*`, `ideas:*`, `gates:run`,
+  `briefs:compile`, `memory:read`, `admin`).
+- The `Host` header must be loopback (DNS-rebinding defence). A request with an
+  `Origin` must be same-origin or in `allowedOrigins`; otherwise it is refused as
+  `CSRF_FAILED`. CORS is off.
+- Per-token rate limit (default 120/min) and a 1 MiB body limit.
+- Cookie sessions and per-form CSRF tokens are not implemented yet; the web UI
+  (#51) must add them before it relies on cookies.
+
 ### Encryption at rest
 
 - Sensitive fields and blobs are encrypted with AES-256-GCM.
