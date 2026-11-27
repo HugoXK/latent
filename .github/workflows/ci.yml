@@ -101,6 +101,7 @@ jobs:
               ".github/workflows/ci-ok-publish.yml",
               ".github/workflows/release.yml",
               "docs/release.md",
+              "docs/runtime.md",
           ]
           missing = [p for p in required if not os.path.exists(p)]
           if missing:

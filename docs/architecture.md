@@ -372,9 +372,10 @@ export interface ResearchTools {
 }
 ```
 
-Adapters shipped or planned: a local OpenAI-compatible model, a local search
-index, FlyBot as `AgentRuntime`, AgentDescent as `Evolver`, a Janus-style ledger
-as `Calibrator`, and ScienceDiscovery as `ResearchTools`.
+Adapters shipped or planned: a local OpenAI-compatible model, a local hybrid
+search index, `HttpAgentRuntime` as the FlyBot-compatible `AgentRuntime` (runtime
+token, idempotency key, job-scoped HMAC callback), AgentDescent as `Evolver`, a
+Janus-style ledger as `Calibrator`, and ScienceDiscovery as `ResearchTools`.
 
 **Frozen paths.** The ledger, the verifiers, the gate engine and the promotion
 rule are frozen. An evolution candidate that changes them is rejected before

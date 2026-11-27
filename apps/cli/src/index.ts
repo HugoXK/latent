@@ -70,9 +70,10 @@ import type {
   ReplayCase,
 } from "@latent/core";
 import {
-  NoopAgentRuntime,
+  RuntimeError,
   existenceProviderFromEnv,
   reconstructorFromEnv,
+  runtimeFromEnv,
 } from "@latent/adapters";
 import { LocalRetrievalIndex } from "@latent/retrieval";
 import { EvidenceError, JobError, Store } from "@latent/store";
@@ -1150,6 +1151,7 @@ async function main(): Promise<number> {
             ? Number(flags["min-score"])
             : 0.2;
         const since = typeof flags.since === "string" ? flags.since : null;
+        const runtime = runtimeFromEnv();
         let job: Job;
         try {
           job = store.createJob({ ownerId, budget });
@@ -1180,22 +1182,36 @@ async function main(): Promise<number> {
           })),
         ];
 
-        const result = await runIncubation(
-          {
-            owner_id: ownerId,
-            job_id: job.id,
-            seed: { type: seedType, id: seedId },
-            nodes,
-            edges: store.listEdges({ ownerId }),
-            existing: store
-              .listSuggestions({ ownerId })
-              .map((item) => ({ from: item.from, to: item.to })),
-            budget,
-            min_score: minScore,
-            since,
-          },
-          new NoopAgentRuntime(),
-        );
+        let result;
+        try {
+          result = await runIncubation(
+            {
+              owner_id: ownerId,
+              job_id: job.id,
+              seed: { type: seedType, id: seedId },
+              nodes,
+              edges: store.listEdges({ ownerId }),
+              existing: store
+                .listSuggestions({ ownerId })
+                .map((item) => ({ from: item.from, to: item.to })),
+              budget,
+              min_score: minScore,
+              since,
+            },
+            runtime,
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const failed = {
+            ...job,
+            status: "failed" as const,
+            error: message,
+            updated_at: new Date().toISOString(),
+          };
+          store.putJob(failed);
+          store.appendEvent("job.failed", job.id, { error: message });
+          throw error;
+        }
         for (const suggestion of result.suggestions) {
           store.putSuggestion(suggestion);
         }
@@ -1326,6 +1342,9 @@ main()
         error.message,
         error.errors.map((issue) => issue.message ?? "invalid"),
       );
+    }
+    if (error instanceof RuntimeError) {
+      fail(1, error.code, error.message);
     }
     if (error instanceof IncubationError) {
       fail(1, error.code, error.message);

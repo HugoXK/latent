@@ -19,6 +19,10 @@ function run(args: string[]) {
   };
   delete env.NODE_TEST_CONTEXT;
   delete env.NODE_OPTIONS;
+  delete env.LATENT_RUNTIME;
+  delete env.LATENT_RUNTIME_URL;
+  delete env.LATENT_RUNTIME_TOKEN;
+  delete env.LATENT_CALLBACK_URL;
   return spawnSync(process.execPath, ["--import", "tsx", cli, ...args], {
     cwd: root,
     env,

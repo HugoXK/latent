@@ -460,13 +460,17 @@ A runtime adapter may call back:
 
 ```http
 POST /v1/jobs/{job_id}/callback
+X-Latent-Timestamp: 2026-11-27T00:00:00Z
 X-Latent-Signature: <hmac>
 
 { "status": "succeeded", "result": { "connections": [] } }
 ```
 
-The callback is signed, job-scoped and revoked when the job ends. The core never
-writes to a user repository.
+The signature is job-scoped: `HMAC-SHA256(job_secret, job_id + "." + timestamp +
+"." + raw_body)` where `job_secret = HMAC-SHA256(root_secret,
+"latent-callback:" + job_id)`. A stale timestamp (default 300 s) and a different
+job id are rejected. The signing/verification utilities ship now; the HTTP
+callback route is a follow-up. The core never writes to a user repository.
 
 ## Rate limits and quotas
 

@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/jobs",
+    "headers": {
+      "authorization": "Bearer runtime-token",
+      "idempotency-key": "job_recorded0001"
+    },
+    "body": {
+      "id": "job_recorded0001",
+      "kind": "incubate",
+      "payload": {
+        "seed": { "type": "idea", "id": "idea_1" },
+        "budget": 2,
+        "callback": {
+          "url": "https://latent.local/callback",
+          "job_id": "job_recorded0001"
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": { "ref": "fly_recorded0001" }
+  }
+}
