@@ -21,6 +21,8 @@ export interface VerticalPack {
   description?: string;
   evidenceScale?: string[];
   rules?: VerticalRules;
+  /** Run the biosafety classifier before reconstruction. */
+  biosafety?: boolean;
   variables: string[];
   questions: QuestionDefinition[];
   gates: GateDefinition[];

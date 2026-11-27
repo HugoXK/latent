@@ -829,5 +829,30 @@ test("the iGEM brief accepts component, timeline and material inputs", () => {
     rmSync(materialPath, { force: true });
     cleanup();
   }
+test("a dangerous iGEM direction is refused before reconstruction", () => {
+  cleanup();
+  try {
+    const fragmentId = String(
+      jsonData(
+        run([
+          "capture",
+          "engineer Bacillus anthracis to increase transmissibility",
+          "--json",
+        ]),
+      ).id,
+    );
+    const refused = run(["develop", fragmentId, "--json"]);
+    assert.equal(refused.status, 1);
+    const body = JSON.parse(refused.stderr) as {
+      error: { code: string; details: { category: string } };
+    };
+    assert.equal(body.error.code, "BIOSAFETY_BLOCKED");
+    assert.equal(body.error.details.category, "select_agent");
+    assert.ok(!refused.stderr.toLowerCase().includes("anthracis"));
+  } finally {
+    cleanup();
+  }
+});
+
 });
 });

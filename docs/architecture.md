@@ -156,6 +156,10 @@ in the `constraint_states` table.
 
 ### Reconstruction
 
+When a pack sets `biosafety: true`, the classifier runs before the reconstructor;
+a refusal is a typed error and an audit event without the fragment text
+(ADR 0020). The iGEM pack opts in.
+
 Produces 1–3 hypotheses from a fragment plus the constraint state. For each
 hypothesis it records:
 

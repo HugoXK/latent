@@ -109,7 +109,9 @@ POST /v1/ideas
 }
 ```
 
-`vertical` is a registered pack id: `igem` (default) or `research`. The core has no
+`vertical` is a registered pack id: `igem` (default) or `research`. The iGEM pack
+runs the biosafety classifier before reconstruction; a dangerous direction returns
+`422 BIOSAFETY_BLOCKED` with `{ category, bsl }`, never the fragment text. The core has no
 pack branch; the app selects the pack and uses the generic compiler, with the iGEM
 extra composer at the app boundary.
 

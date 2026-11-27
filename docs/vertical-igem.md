@@ -157,6 +157,13 @@ CLI: `latent brief <idea-id> --components file --timeline file --material file
 A failed timeline or material balance is a risk, not a hidden sentence; unsupported
 claims and blocking gates still block.
 
+## Biosafety
+
+The iGEM pack sets `biosafety: true`; `develop` runs the classifier on the
+fragment and string constraints before the reconstructor. Select agents, toxins and
+enhancement language are refused; a BSL-2 pathogen requires `lab.bsl >= 2`. The
+refusal is a typed error and an audit event; no fragment text is logged.
+
 ## Gates
 
 | # | Gate | If it fails |

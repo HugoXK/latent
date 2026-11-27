@@ -130,8 +130,12 @@ consent. The core never executes user code.
 
 Science verticals carry a biosafety and dual-use classifier. A direction that
 involves a select agent, pathogen enhancement, toxin production or deliberate
-harm is refused, not softened. The iGEM vertical additionally enforces BSL-aware
-gates: a team without BSL-2 clearance cannot be routed to a BSL-2 host.
+harm is refused, not softened. The iGEM pack runs the classifier **before**
+reconstruction: a select agent, toxin or enhancement term is refused regardless of
+BSL; a BSL-2 pathogen requires the team's `lab.bsl` to be at least 2. The refusal
+is a typed error (CLI exit 1, API 422); the `biosafety.refused` audit event records
+only the category and BSL, never the fragment text or matched terms. A human
+appeal is manual; there is no model or automatic override.
 
 ### Supply chain
 

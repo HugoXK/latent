@@ -8,6 +8,7 @@ import Fastify, {
   type FastifyRequest,
 } from "fastify";
 import {
+  BiosafetyError,
   BriefValidationError,
   ConstraintAnswerError,
   GateError,
@@ -409,7 +410,28 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         },
       });
     }
-    const result = await develop({ fragment, vertical: pack, reconstructor });
+    let result;
+    try {
+      result = await develop({ fragment, vertical: pack, reconstructor });
+    } catch (error) {
+      if (error instanceof BiosafetyError) {
+        store.appendEvent("biosafety.refused", fragment.id, {
+          category: error.verdict.category,
+          bsl: error.verdict.bsl,
+        });
+        return reply.code(422).send({
+          error: {
+            code: error.code,
+            message: error.message,
+            details: {
+              category: error.verdict.category,
+              bsl: error.verdict.bsl,
+            },
+          },
+        });
+      }
+      throw error;
+    }
     store.putIdea(result.idea);
     store.putClaims(result.idea.id, result.claims);
     store.putGates(result.idea.id, result.gates);
@@ -975,6 +997,18 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         error: {
           code: "BODY_TOO_LARGE",
           message: "request body exceeds the limit",
+        },
+      });
+    }
+    if (error instanceof BiosafetyError) {
+      return reply.code(422).send({
+        error: {
+          code: error.code,
+          message: error.message,
+          details: {
+            category: error.verdict.category,
+            bsl: error.verdict.bsl,
+          },
         },
       });
     }

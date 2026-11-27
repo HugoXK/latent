@@ -2,6 +2,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
+  BiosafetyError,
   BriefValidationError,
   ConstraintAnswerError,
   ConstraintError,
@@ -411,7 +412,18 @@ async function main(): Promise<number> {
         } catch {
           throw new CliError(`unknown vertical: ${verticalId}`, 1);
         }
-        const result = await develop({ fragment, vertical: pack, reconstructor });
+        let result;
+        try {
+          result = await develop({ fragment, vertical: pack, reconstructor });
+        } catch (error) {
+          if (error instanceof BiosafetyError) {
+            store.appendEvent("biosafety.refused", fragment.id, {
+              category: error.verdict.category,
+              bsl: error.verdict.bsl,
+            });
+          }
+          throw error;
+        }
         store.putIdea(result.idea);
         store.putClaims(result.idea.id, result.claims);
         store.putGates(result.idea.id, result.gates);
@@ -1385,6 +1397,12 @@ main()
         error.message,
         error.errors.map((issue) => issue.message ?? "invalid"),
       );
+    }
+    if (error instanceof BiosafetyError) {
+      fail(1, error.code, error.message, {
+        category: error.verdict.category,
+        bsl: error.verdict.bsl,
+      });
     }
     if (error instanceof RuntimeError) {
       fail(1, error.code, error.message);

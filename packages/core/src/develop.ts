@@ -1,3 +1,9 @@
+import {
+  BiosafetyError,
+  RuleBasedBiosafetyClassifier,
+  checkBiosafety,
+} from "./biosafety.js";
+import type { BiosafetyClassifier } from "./biosafety.js";
 import { createConstraintState } from "./constraints.js";
 import type { ConstraintState } from "./constraints.js";
 import { newId } from "./ids.js";
@@ -17,6 +23,7 @@ export interface DevelopInput {
   vertical: VerticalPack;
   reconstructor: Reconstructor;
   constraint?: ConstraintState;
+  classifier?: BiosafetyClassifier;
   now?: string;
 }
 
@@ -25,6 +32,23 @@ export async function develop(input: DevelopInput): Promise<DevelopResult> {
   const constraint =
     input.constraint ??
     createConstraintState(input.vertical.id, input.vertical.questions, now);
+
+  if (input.vertical.biosafety === true) {
+    const text = [
+      input.fragment.content,
+      ...Object.values(constraint.variables)
+        .map((variable) => variable.value)
+        .filter((value): value is string => typeof value === "string"),
+    ].join("\n");
+    const bsl = constraint.variables["lab.bsl"]?.value;
+    const result = checkBiosafety({
+      text,
+      team_bsl: typeof bsl === "number" ? bsl : 1,
+      classifier: input.classifier ?? new RuleBasedBiosafetyClassifier(),
+    });
+    if (!result.pass) throw new BiosafetyError(result.verdict);
+  }
+
   const output = await input.reconstructor.reconstruct({
     fragment: input.fragment,
     verticalId: input.vertical.id,
