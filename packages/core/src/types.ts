@@ -197,3 +197,33 @@ export interface Brief {
   validators: BriefValidator[];
   schema_version?: "1.0.0";
 }
+
+export type MemoryNodeType = "fragment" | "idea" | "claim" | "gate" | "outcome";
+
+export type MemoryRelation =
+  | "derived_from"
+  | "references"
+  | "supports"
+  | "contradicts"
+  | "supersedes"
+  | "duplicates"
+  | "collided_with"
+  | "outcome_of";
+
+export interface MemoryNodeRef {
+  type: MemoryNodeType;
+  id: string;
+}
+
+export interface MemoryEdge {
+  id: string;
+  owner_id: string;
+  from: MemoryNodeRef;
+  to: MemoryNodeRef;
+  relation: MemoryRelation;
+  weight?: number;
+  provenance: string;
+  created_at: string;
+  deleted_at?: string | null;
+  schema_version?: "1.0.0";
+}

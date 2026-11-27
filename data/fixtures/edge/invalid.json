@@ -1,0 +1,9 @@
+{
+  "id": "edg_fixture0001",
+  "owner_id": "local",
+  "from": { "type": "fragment", "id": "frg_fixture0001" },
+  "to": { "type": "fragment", "id": "frg_fixture0001" },
+  "relation": "maybe",
+  "weight": 2,
+  "created_at": "not-a-date"
+}
