@@ -12,6 +12,11 @@ types are generated from them. A change needs an ADR (see
 | [`idea.schema.json`](idea.schema.json) | Idea | Reconstruction, gates |
 | [`gate.schema.json`](gate.schema.json) | Gate | Gate engine |
 | [`brief.schema.json`](brief.schema.json) | Brief | Compiler |
+| [`replay-case.schema.json`](replay-case.schema.json) | ReplayCase | Replay harness |
+
+`replay-case.schema.json` refers to `constraint-state.schema.json` and
+`fragment.schema.json` by `$id`. The loader registers every schema before it
+compiles a validator, so the references resolve.
 
 ## Validate
 
