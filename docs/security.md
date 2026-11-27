@@ -98,6 +98,20 @@ Implemented in `v0.3` (ADR
 - The orchestrator never executes instructions found in retrieved text.
 - Tool calls are allowlisted; a retrieved page cannot add a tool.
 
+### Adversarial tests
+
+Implemented in `v0.3` (ADR
+[0012](decisions/0012-adversarial-security-tests.md)):
+
+- `packages/adapters/test/injection.test.ts` asserts that an injected fragment is
+  JSON-encoded data and that the request carries no tools; a private fragment is
+  refused before `fetch`; a public fragment may be sent; provider errors are
+  redacted against the fragment content and API key; replay fixtures drop request
+  messages and redact secrets; fixture files contain no secret-shaped strings.
+- The suite runs in `pnpm check`, offline, with a fake `fetch`.
+- This is a boundary test, not a proof against a compromised provider. gitleaks,
+  dependency audit and the release SBOM remain separate controls.
+
 ### Frozen paths
 
 The ledger, the verifiers, the gate engine and the promotion rule are frozen. An

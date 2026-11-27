@@ -128,6 +128,14 @@ export interface RecordModelFixtureInput {
   redact?: string[];
 }
 
+function redactText(value: string, secrets: string[]): string {
+  let out = value;
+  for (const secret of secrets) {
+    if (secret.length > 0) out = out.split(secret).join("[redacted]");
+  }
+  return out;
+}
+
 function redactValue(value: unknown, secrets: string[]): unknown {
   if (typeof value === "string") {
     let out = value;
@@ -458,28 +466,42 @@ export class ModelReconstructor implements Reconstructor {
       );
     }
     const prompt = buildPrompt(input);
+    const secrets = [input.fragment.content, this.#apiKey];
     let lastError: unknown = null;
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const content = await this.#call(
-        attempt === 0
-          ? prompt
-          : `${prompt}\n\nYour previous response was invalid: ${
-              lastError instanceof Error ? lastError.message : String(lastError)
-            }\nReturn valid JSON only.`,
-      );
-      try {
-        return parseContent(content);
-      } catch (error) {
-        lastError = error;
+    try {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const content = await this.#call(
+          attempt === 0
+            ? prompt
+            : `${prompt}\n\nYour previous response was invalid: ${
+                lastError instanceof Error ? lastError.message : String(lastError)
+              }\nReturn valid JSON only.`,
+        );
+        try {
+          return parseContent(content);
+        } catch (error) {
+          lastError = error;
+        }
       }
+    } catch (error) {
+      if (error instanceof ModelReconstructionError) {
+        throw new ModelReconstructionError(
+          error.code,
+          redactText(error.message, secrets),
+        );
+      }
+      throw error;
     }
 
     throw new ModelReconstructionError(
       "MODEL_INVALID_OUTPUT",
-      lastError instanceof Error
-        ? lastError.message
-        : "the model did not return a valid reconstruction",
+      redactText(
+        lastError instanceof Error
+          ? lastError.message
+          : "the model did not return a valid reconstruction",
+        secrets,
+      ),
     );
   }
 
