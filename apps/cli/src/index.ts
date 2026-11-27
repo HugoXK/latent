@@ -19,6 +19,7 @@ import {
   decideGate,
   develop,
   developEdges,
+  diffConstraintStates,
   findQuestion,
   questionKind,
   newId,
@@ -31,11 +32,13 @@ import {
   runReplayCase,
   outcomeEdge,
   transition,
+  undoConstraint,
   validateReplayCase,
   verifyEvidence,
 } from "@latent/core";
 import type {
   AssumptionStatus,
+  ConstraintState,
   Fragment,
   GateStatus,
   Claim,
@@ -255,6 +258,8 @@ Usage:
   latent ask <idea-id>                        the next highest-information question
   latent answer <idea-id> <var> <value>       answer one constraint (human)
   latent constraints <idea-id>                show the constraint state
+  latent constraints undo <idea-id>           undo the last answer as a new version
+  latent constraints diff <idea-id>           show the last answer's variable diff
   latent confirm <idea-id> <assumption-id>    confirm one assumption (human)
   latent confirm <idea-id> --all [--refute]   confirm/refute every assumption (human)
   latent decide <idea-id> --all <status>      decide every gate (human)
@@ -284,8 +289,9 @@ Environment:
 async function main(): Promise<number> {
   const [command, ...rest] = process.argv.slice(2);
   const { positionals, flags } = parseArgs(rest);
+  const effectiveCommand = command === "constraint" ? "constraints" : command;
   JSON_OUTPUT = flags.json === true;
-  CURRENT_COMMAND = command ?? "help";
+  CURRENT_COMMAND = effectiveCommand ?? "help";
   const out = (data: unknown) => emit(flags, CURRENT_COMMAND, data);
 
   if (!command || command === "help" || flags.help) {
@@ -301,7 +307,7 @@ async function main(): Promise<number> {
   const reconstructor = reconstructorFromEnv();
 
   try {
-    switch (command) {
+    switch (effectiveCommand) {
       case "capture": {
         const content = positionals.join(" ").trim();
         if (!content) throw new CliError("usage: latent capture <text>", 1);
@@ -475,7 +481,14 @@ async function main(): Promise<number> {
         const value = parseAnswerValues(question, raws);
         const updated = answerConstraint(state, igem.questions, variable, value, 1);
         store.putConstraintState(idea.id, updated);
-        store.appendEvent("constraint.answered", idea.id, { variable });
+        store.appendEvent("constraint.answered", idea.id, {
+          variable,
+          value,
+          version_before: state.version,
+          version_after: updated.version,
+          before: state,
+          after: updated,
+        });
         out({
           idea_id: idea.id,
           variable,
@@ -489,10 +502,63 @@ async function main(): Promise<number> {
       }
 
       case "constraints": {
-        const idea = requireIdea(store, positionals[0]);
+        const sub = positionals[0];
+        const action = sub === "undo" || sub === "diff" ? sub : null;
+        const idea = requireIdea(store, action ? positionals[1] : sub);
         const state =
           store.getConstraintState(idea.id) ??
           createConstraintState(idea.vertical ?? "igem", igem.questions);
+        const answers = store
+          .listEvents(idea.id)
+          .filter((event) => event.type === "constraint.answered");
+        const last = answers[answers.length - 1];
+
+        if (action === "undo") {
+          if (!last) throw new CliError("no constraint answer to undo", 1);
+          const payload = last.data as { before?: ConstraintState };
+          if (!payload.before) {
+            throw new CliError(
+              "the last constraint answer has no state snapshot",
+              1,
+            );
+          }
+          const restored = undoConstraint(state, payload.before, igem.questions);
+          store.putConstraintState(idea.id, restored);
+          store.appendEvent("constraint.undone", idea.id, {
+            event_id: last.id,
+            before: state,
+            after: restored,
+          });
+          out({
+            idea_id: idea.id,
+            undone_event: last.id,
+            state: restored,
+            blocking: restored.blocking_unknowns,
+            next_question: nextQuestion(restored, igem.questions),
+          });
+          return 0;
+        }
+
+        if (action === "diff") {
+          if (!last) throw new CliError("no constraint answer to diff", 1);
+          const payload = last.data as {
+            before?: ConstraintState;
+            after?: ConstraintState;
+            variable?: string;
+          };
+          const changes =
+            payload.before && payload.after
+              ? diffConstraintStates(payload.before, payload.after)
+              : [];
+          out({
+            idea_id: idea.id,
+            event_id: last.id,
+            variable: payload.variable ?? null,
+            changes,
+          });
+          return 0;
+        }
+
         out({
           idea_id: idea.id,
           state,

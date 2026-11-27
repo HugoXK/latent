@@ -27,6 +27,7 @@ import {
   outcomeEdge,
   questionKind,
   transition,
+  undoConstraint,
 } from "@latent/core";
 import type {
   AssumptionStatus,
@@ -452,13 +453,68 @@ export function buildServer(options: ServerOptions): FastifyInstance {
       confidence,
     );
     store.putConstraintState(id, updated);
-    store.appendEvent("constraint.answered", id, { variable: body.variable });
+    store.appendEvent("constraint.answered", id, {
+      variable: body.variable,
+      value,
+      version_before: state.version,
+      version_after: updated.version,
+      before: state,
+      after: updated,
+    });
     return {
       constraint: updated,
       blocking: blockingQuestions(updated, igem.questions).map(
         (q) => q.variable,
       ),
       next_question: nextQuestion(updated, igem.questions),
+    };
+  });
+
+  app.post("/v1/ideas/:id/constraints/undo", { preHandler: scope("ideas:write") }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const idea = store.getIdea(id);
+    if (!idea) {
+      return reply
+        .code(404)
+        .send({ error: { code: "NOT_FOUND", message: `idea not found: ${id}` } });
+    }
+    const state =
+      store.getConstraintState(id) ??
+      createConstraintState(idea.vertical ?? igem.id, igem.questions);
+    const answers = store
+      .listEvents(id)
+      .filter((event) => event.type === "constraint.answered");
+    const last = answers[answers.length - 1];
+    if (!last) {
+      return reply.code(409).send({
+        error: {
+          code: "NOTHING_TO_UNDO",
+          message: "no constraint answer to undo",
+        },
+      });
+    }
+    const payload = last.data as { before?: typeof state };
+    if (!payload.before) {
+      return reply.code(409).send({
+        error: {
+          code: "NO_SNAPSHOT",
+          message: "the last constraint answer has no state snapshot",
+        },
+      });
+    }
+    const restored = undoConstraint(state, payload.before, igem.questions);
+    store.putConstraintState(id, restored);
+    store.appendEvent("constraint.undone", id, {
+      event_id: last.id,
+      before: state,
+      after: restored,
+    });
+    return {
+      constraint: restored,
+      blocking: blockingQuestions(restored, igem.questions).map(
+        (question) => question.variable,
+      ),
+      next_question: nextQuestion(restored, igem.questions),
     };
   });
 

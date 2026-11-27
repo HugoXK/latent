@@ -179,6 +179,7 @@ pnpm latent develop <fragment-id>
 pnpm latent ask <idea-id>                    # 下一个期望信息增益最高的问题
 pnpm latent answer <idea-id> lab.bsl 1       # 回答一个 blocking 约束
 pnpm latent constraints <idea-id>            # 还有哪些未知或 blocking
+pnpm latent constraints undo <idea-id>       # 把上一次回答撤销为一个新版本
 pnpm latent confirm <idea-id> --all          # 人的决定，写入审计
 pnpm latent decide <idea-id> --all pass --reason "设计伙伴试点"
 pnpm latent brief <idea-id>                  # 约束/闸门/假设未过时拒绝编译

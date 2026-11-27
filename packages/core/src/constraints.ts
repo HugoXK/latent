@@ -291,3 +291,49 @@ export function constraintSummary(state: ConstraintState): {
     blocking: state.blocking_unknowns,
   };
 }
+
+export interface ConstraintDiffEntry {
+  variable: string;
+  before: unknown;
+  after: unknown;
+}
+
+/**
+ * Restore the values from a previous snapshot as a new version. The version
+ * never moves backwards: the audit log keeps both the old and the new state.
+ */
+export function undoConstraint(
+  current: ConstraintState,
+  previous: ConstraintState,
+  questions: QuestionDefinition[],
+  now = new Date().toISOString(),
+): ConstraintState {
+  return {
+    ...previous,
+    version: current.version + 1,
+    updated_at: now,
+    blocking_unknowns: blockingQuestions(previous, questions).map(
+      (question) => question.variable,
+    ),
+  };
+}
+
+/** A deterministic variable-level diff between two constraint snapshots. */
+export function diffConstraintStates(
+  before: ConstraintState,
+  after: ConstraintState,
+): ConstraintDiffEntry[] {
+  const variables = new Set([
+    ...Object.keys(before.variables),
+    ...Object.keys(after.variables),
+  ]);
+  const changes: ConstraintDiffEntry[] = [];
+  for (const variable of [...variables].sort()) {
+    const previous = before.variables[variable]?.value ?? null;
+    const next = after.variables[variable]?.value ?? null;
+    if (JSON.stringify(previous) !== JSON.stringify(next)) {
+      changes.push({ variable, before: previous, after: next });
+    }
+  }
+  return changes;
+}

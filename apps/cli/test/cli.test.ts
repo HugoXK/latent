@@ -334,3 +334,61 @@ test("every command has a parseable --json envelope and stable exit codes", () =
     cleanup();
   }
 });
+
+test("constraint answers keep history and undo restores the blocking set", () => {
+  cleanup();
+  try {
+    const fragmentId = String(
+      jsonData(run(["capture", "history idea", "--json"])).id,
+    );
+    const ideaId = String(jsonData(run(["develop", fragmentId, "--json"])).id);
+
+    const before = jsonData(run(["constraints", ideaId, "--json"])) as {
+      blocking: string[];
+      next_question: {
+        variable: string;
+        options?: Array<{ value: unknown }>;
+      } | null;
+    };
+    assert.ok(before.blocking.length > 0);
+    const question = before.next_question;
+    assert.ok(question);
+    assert.ok(before.blocking.includes(question.variable));
+    const value = question.options?.[0]?.value ?? "test";
+
+    const answer = run([
+      "answer",
+      ideaId,
+      question.variable,
+      String(value),
+      "--json",
+    ]);
+    assert.equal(answer.status, 0, answer.stderr);
+    const after = jsonData(answer) as { blocking: string[] };
+    assert.ok(!after.blocking.includes(question.variable));
+
+    const diff = jsonData(
+      run(["constraints", "diff", ideaId, "--json"]),
+    ) as { changes: Array<{ variable: string; before: unknown; after: unknown }> };
+    assert.equal(diff.changes.length, 1);
+    assert.equal(diff.changes[0]?.variable, question.variable);
+    assert.deepEqual(diff.changes[0]?.after, value);
+
+    const undo = jsonData(run(["constraints", "undo", ideaId, "--json"])) as {
+      state: { variables: Record<string, unknown>; version: number };
+      blocking: string[];
+    };
+    assert.equal(undo.state.variables[question.variable], undefined);
+    assert.ok(undo.blocking.includes(question.variable));
+    assert.ok(undo.state.version >= 1);
+
+    const alias = run(["constraint", "diff", ideaId, "--json"]);
+    assert.equal(alias.status, 0, alias.stderr);
+    assert.equal(
+      (jsonData(alias) as { changes: unknown[] }).changes.length,
+      1,
+    );
+  } finally {
+    cleanup();
+  }
+});

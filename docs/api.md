@@ -163,6 +163,18 @@ The response returns the updated state, the remaining blocking variables and the
 next question. A string value that matches an option value or label is normalised
 to the option's typed value.
 
+### Undo the last answer
+
+```http
+POST /v1/ideas/{id}/constraints/undo
+```
+
+The response is the restored constraint state, the recomputed `blocking` set and
+the next question. Undo is a new version: the audit log keeps the `answered` event
+with its `before`/`after` snapshots and the `undone` event, so neither state is
+lost. `GET /v1/ideas/{id}/constraints` returns the current state; the CLI
+`constraints diff` shows the last answer's variable-level diff.
+
 ### Run gates
 
 ```http
@@ -285,6 +297,7 @@ latent develop <fragment-id>
 latent ask <idea-id>                        # highest-information-gain question
 latent answer <idea-id> <variable> <value>  # answer a blocking constraint
 latent constraints <idea-id>                # state, blocking set, next question
+latent constraints undo|diff <idea-id>      # undo the last answer / show its diff
 latent confirm <idea-id> <assumption-id> | --all [--refute]
 latent decide <idea-id> <gate-id>|--all <pass|fail|unknown|waive> [--reason "..."]
 latent brief <idea-id> [--format md|json|html] [--verify]
