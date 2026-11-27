@@ -139,7 +139,10 @@ The `v0.2` implementation is deliberately transparent:
 - a blocking question gets a 3× weight, so a constraint that can stop the project
   is asked before a merely informative one;
 - `answerConstraint` writes the variable, removes it from `unknowns`, and
-  recomputes `blocking_unknowns`;
+  recomputes `blocking_unknowns`; every answer appends a `constraint.answered`
+  event with the before/after snapshots. `undoConstraint` restores the previous
+  values as a new version and recomputes the blocking set; the audit log keeps
+  both versions;
 - `isReadyForVerification` is true only when every blocking question has a
   confident answer.
 

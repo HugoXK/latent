@@ -635,10 +635,10 @@ export class Store {
   }> {
     const rows = (subject
       ? this.#db
-          .prepare("SELECT id, at, type, subject, data FROM events WHERE subject = ? ORDER BY at")
+          .prepare("SELECT id, at, type, subject, data FROM events WHERE subject = ? ORDER BY at, rowid")
           .all(subject)
       : this.#db
-          .prepare("SELECT id, at, type, subject, data FROM events ORDER BY at")
+          .prepare("SELECT id, at, type, subject, data FROM events ORDER BY at, rowid")
           .all()) as Array<{
       id: string;
       at: string;
