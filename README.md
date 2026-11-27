@@ -228,6 +228,8 @@ pnpm latent decide <idea-id> --all pass --reason "design partner pilot"
 pnpm latent brief <idea-id>                  # refuses if a constraint, gate or assumption blocks
 pnpm latent memory search "biosensor"        # find fragments and ideas
 pnpm latent novelty <idea-id> --input prior-art.json  # collision report with claim/source links
+pnpm latent ingest corpus.json                 # snapshots + local index
+pnpm latent retrieve "arsenic biosensor"       # BM25 + vector hits with provenance
 pnpm latent memory connect <fragment-id> <idea-id>  # explain the path
 pnpm latent memory export                    # open JSON graph; delete blocks on references
 pnpm latent outcome <idea-id> tested --success --confidence 0.62  # realised result (human)

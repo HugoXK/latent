@@ -94,9 +94,12 @@ Implemented in `v0.3` (ADR
 
 ### Untrusted retrieval
 
-- Retrieved content is stored as a snapshot and treated as data.
+- Retrieved content is stored as a content-addressed `SourceSnapshot` (URL is
+  provenance, the hash is identity) and treated as data.
 - The orchestrator never executes instructions found in retrieved text.
 - Tool calls are allowlisted; a retrieved page cannot add a tool.
+- `LocalRetrievalIndex` returns snippets and metadata; it does not follow links or
+  fetch during a query.
 
 ### Adversarial tests
 

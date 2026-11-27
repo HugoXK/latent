@@ -36,6 +36,7 @@ const SCHEMA_FILES = {
   edge: "edge.schema.json",
   outcome: "outcome.schema.json",
   suggestion: "suggestion.schema.json",
+  snapshot: "source-snapshot.schema.json",
   replayCase: "replay-case.schema.json",
 } as const;
 
@@ -62,6 +63,7 @@ const validators = {
   edge: getValidator(SCHEMA_FILES.edge),
   outcome: getValidator(SCHEMA_FILES.outcome),
   suggestion: getValidator(SCHEMA_FILES.suggestion),
+  snapshot: getValidator(SCHEMA_FILES.snapshot),
   replayCase: getValidator(SCHEMA_FILES.replayCase),
 } satisfies Record<string, ValidateFunction>;
 

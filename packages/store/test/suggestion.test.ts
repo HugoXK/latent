@@ -32,7 +32,7 @@ function suggestion(
 test("the store migrates to the incubation schema version", () => {
   const store = new Store(":memory:");
   try {
-    assert.equal(store.schemaVersion(), 4);
+    assert.equal(store.schemaVersion(), 5);
   } finally {
     store.close();
   }

@@ -3,6 +3,7 @@ import {
   assertValid,
   buildDigest as buildDigestView,
   calibrationReport as buildCalibrationReport,
+  createSnapshot,
   decideSuggestion as applySuggestionDecision,
   explainConnection,
   newId,
@@ -12,6 +13,7 @@ import type {
   CalibrationReport,
   Claim,
   ConstraintState,
+  ContentSnapshot,
   Digest,
   Fragment,
   Gate,
@@ -142,11 +144,34 @@ CREATE INDEX IF NOT EXISTS idx_suggestions_owner_status ON suggestions(owner_id,
 CREATE INDEX IF NOT EXISTS idx_suggestions_job ON suggestions(job_id);
 `;
 
+const EVIDENCE_SCHEMA = `
+CREATE TABLE IF NOT EXISTS snapshots (
+  hash TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  title TEXT,
+  fetched_at TEXT NOT NULL,
+  content TEXT NOT NULL,
+  data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_snapshots_url ON snapshots(url);
+CREATE TABLE IF NOT EXISTS retrieval_documents (
+  id TEXT PRIMARY KEY,
+  snapshot_hash TEXT,
+  title TEXT NOT NULL,
+  url TEXT NOT NULL,
+  text TEXT NOT NULL,
+  metadata TEXT NOT NULL,
+  data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_retrieval_snapshot ON retrieval_documents(snapshot_hash);
+`;
+
 const MIGRATIONS: readonly string[] = [
   BASE_SCHEMA,
   MEMORY_SCHEMA,
   OUTCOME_SCHEMA,
   INCUBATION_SCHEMA,
+  EVIDENCE_SCHEMA,
 ];
 
 type Row = { data: string };
@@ -196,6 +221,40 @@ export interface ListSuggestionOptions {
   ownerId?: string;
   status?: SuggestionStatus;
   jobId?: string;
+}
+
+export interface StoredRetrievalDocument {
+  id: string;
+  title: string;
+  url: string;
+  text: string;
+  metadata: Record<string, string | number | boolean | undefined>;
+  snapshot_hash?: string | null;
+}
+
+export interface IngestDocumentInput {
+  id: string;
+  title: string;
+  url: string;
+  text: string;
+  metadata?: Record<string, string | number | boolean | undefined>;
+  fetched_at?: string;
+}
+
+export interface IngestResult {
+  documents: number;
+  snapshots_added: number;
+  snapshots_cached: number;
+}
+
+export class EvidenceError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "EvidenceError";
+    this.code = code;
+  }
 }
 
 export class JobError extends Error {
@@ -881,6 +940,140 @@ export class Store {
     });
   }
 
+  // --- source snapshots and retrieval -------------------------------------
+
+  putSnapshot(snapshot: ContentSnapshot): void {
+    assertValid("snapshot", snapshot);
+    this.#db
+      .prepare(
+        `INSERT INTO snapshots (hash, url, title, fetched_at, content, data)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(hash) DO NOTHING`,
+      )
+      .run(
+        snapshot.hash,
+        snapshot.url,
+        snapshot.title ?? null,
+        snapshot.fetched_at,
+        snapshot.content,
+        JSON.stringify(snapshot),
+      );
+  }
+
+  hasSnapshot(hash: string): boolean {
+    const row = this.#db
+      .prepare("SELECT 1 AS present FROM snapshots WHERE hash = ?")
+      .get(hash) as { present: number } | undefined;
+    return row !== undefined;
+  }
+
+  getSnapshot(hash: string): ContentSnapshot | null {
+    const row = this.#db
+      .prepare("SELECT data FROM snapshots WHERE hash = ?")
+      .get(hash) as Row | undefined;
+    return parse<ContentSnapshot>(row);
+  }
+
+  listSnapshots(): ContentSnapshot[] {
+    const rows = this.#db
+      .prepare("SELECT data FROM snapshots ORDER BY hash")
+      .all() as Row[];
+    return rows.map((row) => JSON.parse(row.data) as ContentSnapshot);
+  }
+
+  putRetrievalDocument(document: StoredRetrievalDocument): void {
+    this.#db
+      .prepare(
+        `INSERT INTO retrieval_documents
+           (id, snapshot_hash, title, url, text, metadata, data)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           snapshot_hash = excluded.snapshot_hash,
+           title = excluded.title,
+           url = excluded.url,
+           text = excluded.text,
+           metadata = excluded.metadata,
+           data = excluded.data`,
+      )
+      .run(
+        document.id,
+        document.snapshot_hash ?? null,
+        document.title,
+        document.url,
+        document.text,
+        JSON.stringify(document.metadata),
+        JSON.stringify(document),
+      );
+  }
+
+  getRetrievalDocument(id: string): StoredRetrievalDocument | null {
+    const row = this.#db
+      .prepare("SELECT data FROM retrieval_documents WHERE id = ?")
+      .get(id) as Row | undefined;
+    return parse<StoredRetrievalDocument>(row);
+  }
+
+  listRetrievalDocuments(): StoredRetrievalDocument[] {
+    const rows = this.#db
+      .prepare("SELECT data FROM retrieval_documents ORDER BY id")
+      .all() as Row[];
+    return rows.map((row) => JSON.parse(row.data) as StoredRetrievalDocument);
+  }
+
+  ingestDocuments(documents: readonly IngestDocumentInput[]): IngestResult {
+    if (documents.length === 0) {
+      throw new EvidenceError("EMPTY_CORPUS", "the corpus is empty");
+    }
+    const seen = new Set<string>();
+    let snapshotsAdded = 0;
+    let snapshotsCached = 0;
+    for (const document of documents) {
+      if (
+        document.id.trim() === "" ||
+        document.title.trim() === "" ||
+        document.url.trim() === "" ||
+        document.text.trim() === ""
+      ) {
+        throw new EvidenceError(
+          "INVALID_DOCUMENT",
+          "a document needs a non-empty id, title, url and text",
+        );
+      }
+      if (seen.has(document.id)) {
+        throw new EvidenceError(
+          "DUPLICATE_DOCUMENT",
+          `duplicate document id ${document.id}`,
+        );
+      }
+      seen.add(document.id);
+      const snapshot = createSnapshot({
+        content: document.text,
+        url: document.url,
+        title: document.title,
+        fetched_at: document.fetched_at,
+      });
+      if (this.hasSnapshot(snapshot.hash)) {
+        snapshotsCached += 1;
+      } else {
+        this.putSnapshot(snapshot);
+        snapshotsAdded += 1;
+      }
+      this.putRetrievalDocument({
+        id: document.id,
+        title: document.title,
+        url: document.url,
+        text: document.text,
+        metadata: document.metadata ?? {},
+        snapshot_hash: snapshot.hash,
+      });
+    }
+    return {
+      documents: documents.length,
+      snapshots_added: snapshotsAdded,
+      snapshots_cached: snapshotsCached,
+    };
+  }
+
   // --- events --------------------------------------------------------------
 
   appendEvent(
@@ -926,6 +1119,8 @@ export class Store {
     gates: number;
     briefs: number;
     constraints: number;
+    snapshots: number;
+    documents: number;
   } {
     const one = (sql: string): number => {
       const row = this.#db.prepare(sql).get() as { n: number } | undefined;
@@ -938,6 +1133,8 @@ export class Store {
       gates: one("SELECT COUNT(*) AS n FROM gates"),
       briefs: one("SELECT COUNT(*) AS n FROM briefs"),
       constraints: one("SELECT COUNT(*) AS n FROM constraint_states"),
+      snapshots: one("SELECT COUNT(*) AS n FROM snapshots"),
+      documents: one("SELECT COUNT(*) AS n FROM retrieval_documents"),
     };
   }
 }

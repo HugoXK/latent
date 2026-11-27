@@ -200,9 +200,13 @@ local scorer without changing the suggestion contract.
 ### Retrieval
 
 A hybrid retrieval layer over the vertical's corpus and the user's memory:
-keyword (BM25) + dense + reranker, with metadata filters. Every retrieved item is
-stored with a snapshot (URL, title, fetched time, content hash, span). Retrieved
-content is **untrusted**: it is data, never instructions.
+keyword (BM25) + hashing embeddings + reciprocal-rank fusion, with exact metadata
+filters. Every ingested item is stored with a content-addressed `SourceSnapshot`
+(URL is provenance; the hash is identity). `LocalRetrievalIndex` is rebuilt from
+the stored documents on demand and is offline and deterministic. Retrieved content
+is **untrusted**: it is data, never instructions. Network Registry/wiki/paper
+sources implement the `CorpusSource` port; the local JSON ingest is the first
+implementation.
 
 ### Ledger and verifiers
 
@@ -310,6 +314,7 @@ Canonical JSON Schema 2020-12 in [`../data/schemas/`](../data/schemas/):
 | `brief.schema.json` | `Brief` | `one_liner`, `problem`, `approach`, `evidence`, `risks`, `unknowns` |
 | `edge.schema.json` | `MemoryEdge` | `owner_id`, `from`, `to`, `relation`, `provenance`, `deleted_at` |
 | `outcome.schema.json` | `Outcome` | `idea_id`, `decision`, `realised_success`, `predicted_confidence`, `decided_by` |
+| `source-snapshot.schema.json` | `SourceSnapshot` | `hash`, `url`, `title`, `fetched_at`, `content` |
 | `replay-case.schema.json` | `ReplayCase` | `metadata`, `constraints`, `fragment`, `prior_art`, `expected_candidates`, `collisions`, `gate_labels`, `outcome` |
 
 The schemas are the source of truth. Every store write is validated against
@@ -321,8 +326,8 @@ task. A change to a schema requires an ADR and a migration note.
 
 - **SQLite** (`node:sqlite`) as the single-writer store: users, fragments, ideas,
   constraint states, claims, gates, briefs, memory edges, schedules, outcomes,
-  audit events. Shape changes run through ordered migrations tracked by
-  `PRAGMA user_version`.
+  source snapshots, retrieval documents and audit events. Shape changes run through
+  ordered migrations tracked by `PRAGMA user_version`.
 - **Object store** for blobs: audio, images, retrieved snapshots, compiled files.
   On a single machine this is a content-addressed directory (hash → file).
 - **Append-only event log** for audit: `event_id`, `at`, `actor`, `type`,

@@ -46,9 +46,11 @@ import {
   existenceProviderFromEnv,
   reconstructorFromEnv,
 } from "@latent/adapters";
-import { Store } from "@latent/store";
+import { EvidenceError, Store } from "@latent/store";
+import type { IngestDocumentInput } from "@latent/store";
 import { compileIgemBrief } from "@latent/vertical-igem";
 import { verticalById } from "@latent/verticals";
+import { LocalRetrievalIndex } from "@latent/retrieval";
 import type { Reconstructor } from "@latent/core";
 
 export const SCOPES = [
@@ -857,6 +859,65 @@ export function buildServer(options: ServerOptions): FastifyInstance {
       min_samples: DEFAULT_MIN_SAMPLES,
       questions: questionPriors(pack.questions, observations),
     };
+  });
+
+  app.post("/v1/corpus", { preHandler: scope("ideas:write") }, async (req, reply) => {
+    const body = req.body as { documents?: IngestDocumentInput[] } | null;
+    if (!Array.isArray(body?.documents) || body.documents.length === 0) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_CORPUS",
+          message: "documents must be a non-empty array",
+        },
+      });
+    }
+    try {
+      return reply.code(201).send(store.ingestDocuments(body.documents));
+    } catch (error) {
+      if (error instanceof EvidenceError) {
+        return reply.code(400).send({
+          error: { code: error.code, message: error.message },
+        });
+      }
+      throw error;
+    }
+  });
+
+  app.post("/v1/retrieval", { preHandler: scope("memory:read") }, async (req, reply) => {
+    const body = req.body as
+      | {
+          query?: string;
+          limit?: number;
+          filters?: Record<string, string | number | boolean>;
+        }
+      | null;
+    if (!body?.query || body.query.trim() === "") {
+      return reply.code(400).send({
+        error: { code: "INVALID_QUERY", message: "query is required" },
+      });
+    }
+    const documents = store.listRetrievalDocuments();
+    if (documents.length === 0) {
+      return reply.code(409).send({
+        error: {
+          code: "NO_CORPUS",
+          message: "no documents indexed; ingest a corpus first",
+        },
+      });
+    }
+    const limit = Math.max(1, Math.min(50, Math.trunc(body.limit ?? 10)));
+    const index = await LocalRetrievalIndex.build(
+      documents.map((document) => ({
+        ...document,
+        snapshot_hash: document.snapshot_hash ?? undefined,
+      })),
+    );
+    const hits = await index.searchDetailed({
+      text: body.query,
+      filters: body.filters ?? {},
+      limit,
+    });
+    return { query: body.query, filters: body.filters ?? {}, hits };
   });
 
   app.setErrorHandler((error, _req, reply) => {

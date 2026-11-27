@@ -264,6 +264,16 @@ export interface ReplayCasePriorArt {
   source_grade: "A" | "B" | "C";
 }
 
+export interface SourceSnapshot {
+  hash: string;
+  url: string;
+  title?: string | null;
+  fetched_at: string;
+  content: string;
+  content_type?: string | null;
+  schema_version?: "1.0.0";
+}
+
 export interface Suggestion {
   id: string;
   owner_id: string;

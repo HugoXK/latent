@@ -15,6 +15,7 @@ types are generated from them. A change needs an ADR (see
 | [`edge.schema.json`](edge.schema.json) | MemoryEdge | Memory graph |
 | [`outcome.schema.json`](outcome.schema.json) | Outcome | Calibration loop |
 | [`suggestion.schema.json`](suggestion.schema.json) | Suggestion | Incubator, digest |
+| [`source-snapshot.schema.json`](source-snapshot.schema.json) | SourceSnapshot | Retrieval provenance |
 | [`replay-case.schema.json`](replay-case.schema.json) | ReplayCase | Replay harness |
 
 `replay-case.schema.json` refers to `constraint-state.schema.json` and
@@ -27,9 +28,9 @@ compiles a validator, so the references resolve.
 committed. `pnpm schema:types:check` fails when the file is stale, and `pnpm check`
 runs it. A schema change without a regenerated file is a CI failure.
 
-The core consumes the generated `MemoryEdge`, `MemoryEdgeNode` and `Outcome`
-types (and derives `MemoryNodeType`, `MemoryRelation`, `OutcomeDecision` and
-`OutcomeDecider` from them). `Fragment`, `Claim`, `Idea`, `Gate`, `Brief`,
+The core consumes the generated `MemoryEdge`, `MemoryEdgeNode`, `Outcome` and
+`SourceSnapshot` types (and derives `MemoryNodeType`, `MemoryRelation`,
+`OutcomeDecision` and `OutcomeDecider` from them). `Fragment`, `Claim`, `Idea`, `Gate`, `Brief`,
 `ConstraintState` and `ReplayCase` remain hand-written exceptions: they carry domain
 invariants and are used in function signatures. A type-level test in
 `packages/core/test/generated-types.test.ts` keeps them assignable to the generated

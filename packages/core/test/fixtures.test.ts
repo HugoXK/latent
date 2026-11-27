@@ -37,6 +37,7 @@ const NAMES: Record<string, string> = {
   edge: "edge",
   outcome: "outcome",
   suggestion: "suggestion",
+  "source-snapshot": "snapshot",
   "replay-case": "replayCase",
 };
 
