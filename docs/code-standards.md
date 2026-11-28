@@ -105,7 +105,9 @@ A review states:
 - Both READMEs and any user-facing copy stay in step (Chinese and English).
 - A claim in a doc about "what exists" links to the file or the source.
 - The status line is honest: spec, alpha, beta, stable.
-- Every ADR has Status, Date, Owner, Context, Decision, Consequences.
+- Every ADR has Status, Date, Owner, Context, Decision, Consequences; the page
+  template and the evidence rule live in
+  [`docs/decisions/README.md`](decisions/README.md).
 - Any claim that one or more reviews reproduced, confirmed or independently
   found X must name the reviews it rests on (PR number + verdict timestamp +
   head SHA), or the claim is removed. "Review found…" without a citation is

@@ -24,6 +24,12 @@ What we decided, stated so a later change can argue against it.
 
 What else we considered and why we rejected it.
 
+## Consequences
+
+What this decision makes harder or impossible, and how to roll it back. Every ADR
+in this repository carries it, so a template without it produced pages that fail
+our own checklist.
+
 ## Risk and rollback
 
 What the change can break, and the exact way back.
