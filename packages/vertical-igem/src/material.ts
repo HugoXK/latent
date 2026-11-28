@@ -26,6 +26,28 @@ export interface MaterialBalanceResult {
  * The result is the mandatory first check before FBA (a project can die on
  * substrate supply, not on flux).
  */
+export class MaterialBalanceError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "MaterialBalanceError";
+    this.code = code;
+  }
+}
+
+/** A substrate name from user-supplied JSON must not hit an object setter. */
+const UNSAFE_SUBSTANCE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function assertSafeSubstance(name: string): void {
+  if (UNSAFE_SUBSTANCE_KEYS.has(name)) {
+    throw new MaterialBalanceError(
+      "MATERIAL_UNSAFE_SUBSTANCE",
+      `unsafe substance name: ${name}`,
+    );
+  }
+}
+
 export function materialBalance(
   input: MaterialBalanceInput,
 ): MaterialBalanceResult {
@@ -52,6 +74,7 @@ export function materialBalance(
   const stack = new Set<string>();
 
   const visit = (substance: string, amount: number): void => {
+    assertSafeSubstance(substance);
     if (stack.has(substance)) {
       notes.push(`cycle involving ${substance}; the balance stops there`);
       return;
