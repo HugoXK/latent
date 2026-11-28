@@ -147,6 +147,12 @@ export function runtimeFromEnv(
   if (kind === "" && baseUrl === "" && token === "") {
     return new NoopAgentRuntime();
   }
+  if (kind !== "" && kind !== "flybot") {
+    throw new RuntimeError(
+      "RUNTIME_CONFIG_INCOMPLETE",
+      `unknown LATENT_RUNTIME value: ${kind}; use flybot, none, local or an empty kind with a URL pair`,
+    );
+  }
   if (baseUrl === "" || token === "") {
     throw new RuntimeError(
       "RUNTIME_CONFIG_INCOMPLETE",
@@ -157,6 +163,7 @@ export function runtimeFromEnv(
     baseUrl,
     token,
     callbackUrl: env.LATENT_CALLBACK_URL?.trim() || undefined,
+    keyId: env.LATENT_RUNTIME_KEY_ID?.trim() || undefined,
   });
 }
 

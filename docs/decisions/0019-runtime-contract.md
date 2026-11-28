@@ -1,6 +1,6 @@
 # 0019 — HTTP runtime contract, runtime-scoped token and signed callbacks
 
-- Status: proposed (T2)
+- Status: accepted (T3; owner approval recorded 2026-11-28; Security re-assessment at the fix head is the gate)
 - Date: 2026-11-27
 - Owner: HugoXK
 - Issue: #55
@@ -23,16 +23,34 @@ be attributable to one job and resist replay.
    runtime. The adapter never receives a model/provider key. The payload is the
    job descriptor (`seed`, `budget`, `since`, `callback`), not the user's private
    fragment text.
-3. **Configuration is fail-closed.** `runtimeFromEnv` returns the in-process
-   no-op only when `LATENT_RUNTIME` is empty/`none`/`local`; `flybot` (or a URL
-   pair) without both URL and token throws `RUNTIME_CONFIG_INCOMPLETE`. A
-   configured runtime that fails marks the job `failed`; the CLI does not silently
-   fall back to a local success.
-4. **Callbacks are job-scoped.** The root secret is shared out of band. The job
-   secret is `HMAC-SHA256(root, "latent-callback:" + job_id)`; the signature is
-   `HMAC-SHA256(job_secret, job_id + "." + timestamp + "." + raw_body)`. The
-   verifier rejects a bad signature, a different job id, and a timestamp older
-   than 300 seconds (configurable). It compares in constant time.
+3. **Configuration is fail-closed.** `runtimeFromEnv` accepts only the empty kind
+   with a URL pair, `flybot`, `none` and `local`; any other value (a typo such as
+   `htpp`) throws `RUNTIME_CONFIG_INCOMPLETE` and never falls through to HTTP.
+   `flybot` (or a URL pair) without both URL and token also throws. A configured
+   runtime that fails marks the job `failed`; the CLI does not silently fall back
+   to a local success.
+4. **Transport is TLS-only.** The base URL must be `https:`, except loopback
+   (`localhost`, `127.0.0.1`, `::1`) or an explicit test-only
+   `allowInsecureHttp`; userinfo is rejected, and every request uses
+   `redirect: "error"` so the Bearer token cannot follow a redirect.
+5. **Callbacks are job-scoped, canonical and replay-safe.** The root secret is
+   shared out of band and must be at least 16 characters. The key id is part of
+   the signed data: the job secret is
+   `HMAC-SHA256(root, "latent-callback:" + key_id + ":" + job_id)`. The signature
+   covers a domain separator plus length-prefixed `key_id`, `job_id`, `timestamp`,
+   `nonce` and raw body, so different field pairs cannot collide. The verifier
+   rejects a bad signature, another job, a missing/oversized nonce, a timestamp
+   more than 5 s in the future, and one older than 300 s. When a caller supplies a
+   seen-nonce set the check-and-add is synchronous; a callback route persists the
+   nonce set or `callbackSignatureHash` for durability. It compares in constant
+   time.
+6. **The payload is a descriptor, not a data channel.** `schedule()` accepts only
+   `seed {type,id}`, `budget` and `since`, rejects unknown fields (notably private
+   fragment text) and caps the serialized payload at 64 KiB. The callback object is
+   added by the adapter, not the caller.
+7. **Key rotation is by key id.** A new root secret gets a new `key_id`; callbacks
+   signed with an old key id fail verification. The callback route should accept a
+   configured set of active key ids during a rotation window.
 5. **The callback URL is explicit.** `LATENT_CALLBACK_URL` is placed in the job
    payload as `callback: { url, job_id }`. The HTTP callback route itself is a
    follow-up; the signing/verification utilities ship now.
@@ -68,7 +86,11 @@ None. No schema or stored-format change. New environment variables:
 ## Risks
 
 - The shared callback root secret must be rotated and stored like any secret.
-- A clock skew larger than the tolerance rejects a valid callback; the tolerance
-  is configurable.
+- A clock skew larger than the 5 s future allowance rejects a valid callback.
+- Replay rejection is only durable if the callback route persists the nonce or
+  signature hash; the adapter's in-process set is a guard, not a distributed
+  store.
+- Rotating the root secret invalidates outstanding callbacks signed with the old
+  key id; that is deliberate.
 - A runtime can still run a job without calling back; the job lease/expiry policy
   is a later piece.

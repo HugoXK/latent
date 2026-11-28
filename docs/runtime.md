@@ -80,14 +80,24 @@ const ok = verifyJobCallback({
 });
 ```
 
-A wrong job id, a tampered body and a timestamp older than 300 seconds are
-rejected. The comparison is constant-time. The HTTP callback route is a follow-up;
-the signing and verification functions ship now.
+A wrong job id, a tampered body, a missing nonce, a timestamp more than 5 seconds
+in the future and one older than 300 seconds are rejected; the signature covers a
+length-prefixed canonical form, so dot-collision pairs cannot substitute a body.
+The verifier takes a seen-nonce set (or a callback route persists
+`callbackSignatureHash`) so a captured callback cannot be replayed. The comparison
+is constant-time.
+
+The base URL must be `https:` (loopback is the only exception), userinfo is
+rejected and requests use `redirect: "error"`, so the runtime token cannot be
+carried over clear text or a redirect. `LATENT_RUNTIME` accepts only an empty kind
+with a URL pair, `flybot`, `none` or `local`; anything else fails closed.
 
 ## Boundary
 
 - The runtime receives the runtime-scoped token and a job descriptor.
-- The model key, private fragment text and user token never enter the adapter.
+- The descriptor is allowlisted (`seed {type,id}`, `budget`, `since`), rejects
+  unknown fields and is capped at 64 KiB, so private fragment text cannot reach
+  the sent body. The model key and user token never enter the adapter.
 - A runtime failure marks the job `failed` and records a `job.failed` event.
 - CI uses a fake fetch and the recorded fixture
   `data/fixtures/runtime/flybot-contract.json`; it does not call a live FlyBot.

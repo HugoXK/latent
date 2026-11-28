@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { AgentRuntime } from "@latent/core";
 
 export interface RuntimeResponse {
@@ -15,8 +15,16 @@ export type RuntimeFetch = (
     headers: Record<string, string>;
     body?: string;
     signal: AbortSignal;
+    redirect?: "error";
   },
 ) => Promise<RuntimeResponse>;
+
+const CALLBACK_TOLERANCE_SECONDS = 300;
+const MAX_FUTURE_SKEW_MS = 5_000;
+const MIN_ROOT_SECRET_LENGTH = 16;
+const MAX_PAYLOAD_BYTES = 64 * 1024;
+const DEFAULT_KEY_ID = "v1";
+const PAYLOAD_FIELDS = new Set(["seed", "budget", "since"]);
 
 export interface HttpAgentRuntimeOptions {
   baseUrl: string;
@@ -26,6 +34,10 @@ export interface HttpAgentRuntimeOptions {
   timeoutMs?: number;
   callbackUrl?: string;
   idempotencyHeader?: string;
+  /** The callback key id; rotating the root secret means a new id. */
+  keyId?: string;
+  /** Test-only escape hatch for `http://`; production must use https. */
+  allowInsecureHttp?: boolean;
 }
 
 export class RuntimeError extends Error {
@@ -42,6 +54,70 @@ export class RuntimeError extends Error {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A job payload is a descriptor, not a data channel. Seed id, budget and since
+ * are the only fields; anything else (notably private fragment text) is refused
+ * before a request is built, and the serialized descriptor is size-capped.
+ */
+function validateJobPayload(payload: unknown): Record<string, unknown> {
+  if (!isRecord(payload)) {
+    throw new RuntimeError("INVALID_JOB_PAYLOAD", "payload must be an object");
+  }
+  for (const key of Object.keys(payload)) {
+    if (!PAYLOAD_FIELDS.has(key)) {
+      throw new RuntimeError(
+        "INVALID_JOB_PAYLOAD",
+        `unexpected payload field: ${key}`,
+      );
+    }
+  }
+  const serialized = JSON.stringify(payload);
+  if (Buffer.byteLength(serialized, "utf8") > MAX_PAYLOAD_BYTES) {
+    throw new RuntimeError(
+      "INVALID_JOB_PAYLOAD",
+      `payload exceeds ${MAX_PAYLOAD_BYTES} bytes`,
+    );
+  }
+  if ("seed" in payload) {
+    const seed = payload.seed;
+    if (!isRecord(seed)) {
+      throw new RuntimeError("INVALID_JOB_PAYLOAD", "seed must be an object");
+    }
+    for (const key of Object.keys(seed)) {
+      if (key !== "type" && key !== "id") {
+        throw new RuntimeError(
+          "INVALID_JOB_PAYLOAD",
+          `unexpected seed field: ${key}`,
+        );
+      }
+    }
+    if (typeof seed.type !== "string" || typeof seed.id !== "string") {
+      throw new RuntimeError(
+        "INVALID_JOB_PAYLOAD",
+        "seed needs string type and id",
+      );
+    }
+  }
+  if ("budget" in payload) {
+    if (
+      typeof payload.budget !== "number" ||
+      !Number.isFinite(payload.budget) ||
+      payload.budget < 0
+    ) {
+      throw new RuntimeError(
+        "INVALID_JOB_PAYLOAD",
+        "budget must be a non-negative finite number",
+      );
+    }
+  }
+  if ("since" in payload) {
+    if (typeof payload.since !== "string" || !Number.isFinite(Date.parse(payload.since))) {
+      throw new RuntimeError("INVALID_JOB_PAYLOAD", "since must be an ISO timestamp");
+    }
+  }
+  return payload;
 }
 
 /**
@@ -72,10 +148,26 @@ export class HttpAgentRuntime implements AgentRuntime {
   readonly #timeoutMs: number;
   readonly #callbackUrl: string | null;
   readonly #idempotencyHeader: string;
+  readonly #keyId: string;
 
   constructor(options: HttpAgentRuntimeOptions) {
     if (!options.baseUrl.trim()) throw new RuntimeError("RUNTIME_CONFIG", "baseUrl is required");
     if (!options.token.trim()) throw new RuntimeError("RUNTIME_CONFIG", "token is required");
+    const parsed = new URL(options.baseUrl);
+    if (parsed.username || parsed.password) {
+      throw new RuntimeError("RUNTIME_CONFIG", "baseUrl must not contain userinfo");
+    }
+    const loopback =
+      parsed.hostname === "localhost" ||
+      parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "::1" ||
+      parsed.hostname === "[::1]";
+    if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && (loopback || options.allowInsecureHttp))) {
+      throw new RuntimeError(
+        "RUNTIME_CONFIG",
+        "baseUrl must use https (http is allowed only for loopback or tests)",
+      );
+    }
     const timeoutMs = options.timeoutMs ?? 10_000;
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
       throw new RuntimeError(
@@ -89,6 +181,7 @@ export class HttpAgentRuntime implements AgentRuntime {
     this.#timeoutMs = timeoutMs;
     this.#callbackUrl = options.callbackUrl?.trim() ? options.callbackUrl.trim() : null;
     this.#idempotencyHeader = options.idempotencyHeader ?? "Idempotency-Key";
+    this.#keyId = options.keyId?.trim() || DEFAULT_KEY_ID;
   }
 
   async #request(
@@ -110,6 +203,7 @@ export class HttpAgentRuntime implements AgentRuntime {
         },
         ...(body === undefined ? {} : { body }),
         signal: controller.signal,
+        redirect: "error",
       });
       if (!response.ok) {
         throw new RuntimeError(
@@ -140,12 +234,13 @@ export class HttpAgentRuntime implements AgentRuntime {
     kind: string;
     payload: unknown;
   }): Promise<{ ref: string }> {
+    const descriptor = validateJobPayload(job.payload);
     const payload = this.#callbackUrl
       ? {
-          ...(isRecord(job.payload) ? job.payload : { data: job.payload }),
+          ...descriptor,
           callback: { url: this.#callbackUrl, job_id: job.id },
         }
-      : job.payload;
+      : descriptor;
     const body = JSON.stringify({ id: job.id, kind: job.kind, payload });
     const response = await this.#request("POST", "/v1/jobs", body, {
       [this.#idempotencyHeader]: job.id,
@@ -183,49 +278,109 @@ export class HttpAgentRuntime implements AgentRuntime {
   }
 }
 
-export function deriveJobSecret(rootSecret: string, jobId: string): string {
-  if (rootSecret.trim() === "") {
-    throw new RuntimeError("RUNTIME_CONFIG", "a callback root secret is required");
+function assertRootSecret(rootSecret: string): void {
+  if (rootSecret.length < MIN_ROOT_SECRET_LENGTH) {
+    throw new RuntimeError(
+      "RUNTIME_CONFIG",
+      `a callback root secret of at least ${MIN_ROOT_SECRET_LENGTH} characters is required`,
+    );
   }
+}
+
+export function deriveJobSecret(
+  rootSecret: string,
+  jobId: string,
+  keyId = DEFAULT_KEY_ID,
+): string {
+  assertRootSecret(rootSecret);
   return createHmac("sha256", rootSecret)
-    .update(`latent-callback:${jobId}`)
+    .update(`latent-callback:${keyId}:${jobId}`)
     .digest("hex");
+}
+
+/** Length-prefixed, domain-separated canonical form; no separator ambiguity. */
+function canonicalCallback(
+  keyId: string,
+  jobId: string,
+  timestamp: string,
+  nonce: string,
+  body: string,
+): string {
+  return [
+    "latent-runtime-callback-v1",
+    keyId,
+    jobId,
+    timestamp,
+    nonce,
+    body,
+  ]
+    .map((field) => `${Buffer.byteLength(field, "utf8")}:${field}`)
+    .join("");
 }
 
 export interface CallbackInput {
   secret: string;
   jobId: string;
   timestamp: string;
+  nonce: string;
   body: string;
+  keyId?: string;
 }
 
 export function signJobCallback(input: CallbackInput): string {
-  const jobSecret = deriveJobSecret(input.secret, input.jobId);
+  const keyId = input.keyId ?? DEFAULT_KEY_ID;
+  const jobSecret = deriveJobSecret(input.secret, input.jobId, keyId);
   return createHmac("sha256", jobSecret)
-    .update(`${input.jobId}.${input.timestamp}.${input.body}`)
+    .update(
+      canonicalCallback(
+        keyId,
+        input.jobId,
+        input.timestamp,
+        input.nonce,
+        input.body,
+      ),
+    )
     .digest("hex");
+}
+
+/** A stable hash a callback route can persist to reject a replayed signature. */
+export function callbackSignatureHash(signature: string): string {
+  return createHash("sha256").update(signature).digest("hex");
 }
 
 export interface VerifyCallbackInput extends CallbackInput {
   signature: string;
   toleranceSeconds?: number;
   now?: number;
+  /** Nonces already accepted; the caller persists them atomically. */
+  seenNonces?: Set<string>;
 }
 
 /**
- * Verify a job-scoped callback. The signature covers the job id, timestamp and
- * raw body; a stale timestamp is rejected to prevent a replay. The job secret is
- * derived from a shared root, so a leaked signature cannot be reused for another
- * job.
+ * Verify a job-scoped callback. The signature covers key id, job id, timestamp,
+ * a nonce and the raw body with length prefixes, so different field pairs cannot
+ * collide. A future timestamp or one older than the tolerance is rejected. When
+ * `seenNonces` is supplied, the check-and-add is synchronous, so a replayed
+ * signature fails even inside one process; a callback route persists the same
+ * set (or `callbackSignatureHash`) for durability.
  */
 export function verifyJobCallback(input: VerifyCallbackInput): boolean {
   const timestamp = Date.parse(input.timestamp);
   if (!Number.isFinite(timestamp)) return false;
+  if (input.nonce.trim() === "" || input.nonce.length > 128) return false;
   const now = input.now ?? Date.now();
-  const tolerance = (input.toleranceSeconds ?? 300) * 1000;
-  if (Math.abs(now - timestamp) > tolerance) return false;
+  const tolerance = (input.toleranceSeconds ?? CALLBACK_TOLERANCE_SECONDS) * 1000;
+  if (timestamp - now > MAX_FUTURE_SKEW_MS) return false;
+  if (now - timestamp > tolerance) return false;
   const expected = signJobCallback(input);
   const left = Buffer.from(expected);
   const right = Buffer.from(input.signature);
-  return left.length === right.length && timingSafeEqual(left, right);
+  if (left.length !== right.length || !timingSafeEqual(left, right)) {
+    return false;
+  }
+  if (input.seenNonces) {
+    if (input.seenNonces.has(input.nonce)) return false;
+    input.seenNonces.add(input.nonce);
+  }
+  return true;
 }
