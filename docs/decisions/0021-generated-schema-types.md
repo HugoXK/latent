@@ -15,12 +15,19 @@ path happened to exercise the difference.
 
 ## Decision
 
-1. **One generator, no new dependency.** `scripts/generate-schema-types.ts` reads
-   every `data/schemas/*.schema.json` (resolving `$defs`, `$ref`, `enum`, `oneOf`,
-   `additionalProperties` and nullable `type` arrays) and writes
-   `packages/core/src/generated/schemas.ts`. The output is deterministic: schema
+1. **One generator, no new dependency, inside the typecheck.** `scripts/generate-schema-types.ts`
+   reads every `data/schemas/*.schema.json` and writes
+   `packages/core/src/generated/schemas.ts`. Supported constructs: `$defs`, `$ref`,
+   `enum`, `const`, `type` arrays including `null`, objects, arrays, and the
+   property-less-object fallback to `Record<string, unknown>`. **Unsupported on
+   purpose:** `oneOf`, `anyOf`, `allOf`, `if` and `then` are not resolved — the
+   generator throws rather than guesses, and the file to extend when one arrives is
+   `scripts/generate-schema-types.ts`. **`additionalProperties` is not modelled**
+   beyond the property-less-object fallback; a schema that closes an object relies
+   on its `properties` being the full shape. The output is deterministic: schema
    files are sorted, property order follows the schema, and a re-run is
-   byte-identical.
+   byte-identical. `tsconfig.json` includes `scripts/**/*.ts`, so the generator is
+   checked by `pnpm typecheck`.
 2. **The generated file is committed build output.** `pnpm schema:types` writes it;
    `pnpm schema:types:check` regenerates in memory and exits non-zero with the first
    stale line when the committed file differs.
@@ -31,7 +38,10 @@ path happened to exercise the difference.
    this repository: ~2.0s wall clock (pnpm + tsx startup included).
 4. **Consume where practical.** `packages/core/src/index.ts` re-exports
    `GeneratedSchemas`, and `types.ts` aliases the three shapes that are exactly 1:1
-   today: `Fragment`, `Claim`, `MemoryEdge`. `packages/core/test/schema-types.test.ts`
+   today: `Fragment`, `Claim`, `MemoryEdge`. The enum unions are derived from those
+   generated types — `Privacy`, `FragmentKind`, `ClaimStatus`, `ConfidenceBasis`,
+   `SourceKind`, `MemoryRelation` — so a schema enum change widens the union at the
+   use sites, not only inside the generated file. `packages/core/test/schema-types.test.ts`
    also asserts equality for `Idea` and `Brief` (equal today, kept hand-written in
    this PR to keep the diff to three aliases); a schema change that makes any pair
    differ fails `tsc --noEmit`.

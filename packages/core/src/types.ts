@@ -1,25 +1,15 @@
 import type * as GeneratedSchemas from "./generated/schemas.js";
 
-export type Privacy = "private" | "team" | "public";
-export type FragmentKind = "text" | "voice" | "image" | "link" | "sketch";
+// Derived from the generated schema types: a schema enum change widens these
+// unions too, so code that types a value with them cannot silently disagree.
+export type Privacy = GeneratedSchemas.Fragment["privacy"];
+export type FragmentKind = GeneratedSchemas.Fragment["kind"];
 
 export type Fragment = GeneratedSchemas.Fragment;
 
-export type ConfidenceBasis = "A" | "B" | "C" | "expert";
-export type ClaimStatus =
-  | "verified"
-  | "inferred"
-  | "unsupported"
-  | "unknown"
-  | "contradicted";
-export type SourceKind =
-  | "paper"
-  | "registry"
-  | "wiki"
-  | "dataset"
-  | "web"
-  | "expert"
-  | "experiment";
+export type ConfidenceBasis = GeneratedSchemas.Claim["confidence_basis"];
+export type ClaimStatus = GeneratedSchemas.Claim["status"];
+export type SourceKind = GeneratedSchemas.ClaimSource["kind"];
 
 export interface Source {
   kind: SourceKind;
@@ -186,15 +176,7 @@ export interface Brief {
 
 export type MemoryNodeType = "fragment" | "idea" | "claim" | "gate" | "outcome";
 
-export type MemoryRelation =
-  | "derived_from"
-  | "references"
-  | "supports"
-  | "contradicts"
-  | "supersedes"
-  | "duplicates"
-  | "collided_with"
-  | "outcome_of";
+export type MemoryRelation = GeneratedSchemas.MemoryEdge["relation"];
 
 export interface MemoryNodeRef {
   type: MemoryNodeType;

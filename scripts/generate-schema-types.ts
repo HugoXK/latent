@@ -99,7 +99,7 @@ function tsType(schema: JsonSchema, ctx: Context, depth = 0): string {
   if (types.includes("null")) {
     const rest = types.filter((type) => type !== "null");
     if (rest.length === 0) return "null";
-    return `${union(rest.map((type) => primitive(type, schema, ctx)))} | null`;
+    return `${union(rest.map((type) => primitive(type, schema, ctx, depth)))} | null`;
   }
   if (types.length > 1) {
     return union(types.map((type) => primitive(type, schema, ctx, depth)));
