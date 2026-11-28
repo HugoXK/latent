@@ -93,10 +93,24 @@ consent. The core never executes user code.
 
 ### Biosafety
 
-Science verticals carry a biosafety and dual-use classifier. A direction that
-involves a select agent, pathogen enhancement, toxin production or deliberate
-harm is refused, not softened. The iGEM vertical additionally enforces BSL-aware
-gates: a team without BSL-2 clearance cannot be routed to a BSL-2 host.
+The biosafety and dual-use classifier runs on the shared reconstruction path,
+before `reconstruct()`, for every vertical. There is no per-pack opt-in or
+opt-out: a pack cannot switch the screen off, and a model cannot override it. The
+screen reads the fragment text and any string constraint values; a match for a
+select agent, toxin, pathogen enhancement or deliberate harm is refused, not
+softened, with a typed `BiosafetyError` whose code is `BIOSAFETY_BLOCKED`.
+
+- **CLI**: the command exits `1` and prints the refusal reason.
+- **API**: `422` with `BIOSAFETY_BLOCKED` and `details: {category, bsl}`
+  (see [api.md](api.md)).
+- **Audit**: a content-free `biosafety.refused` event records `{category, bsl}`.
+  The matched term and the fragment text are never written to the event.
+- **Human review, not a waiver**: a refusal stops the reconstruction; a person can
+  change the direction, but no path turns the screen off. BSL-aware gates remain a
+  vertical rule — for iGEM, a team without BSL-2 clearance cannot be routed to a
+  BSL-2 host.
+
+See [ADR 0020](decisions/0020-biosafety-before-reconstruction.md).
 
 ### Supply chain
 

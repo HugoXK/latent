@@ -177,6 +177,20 @@ or epoxy kills real projects; compare it to the current absence of the workflow.
 - Judges score 1–6 on engineering principles, standard parts, whether it was built,
   whether the data supports the conclusion, and impact.
 
+## Biosafety
+
+The pack does not own the biosafety screen. The shared reconstruction path runs
+the classifier over the fragment and string constraints before any reconstructor
+sees them, for every vertical; there is no `biosafety: true` flag to set or omit.
+For iGEM this shows up in the work in two ways:
+
+- Gate 2 (host and operation) uses the team's `lab.bsl` answer: a BSL-2 host needs
+  BSL-2 clearance, and a direction that matches a select agent, toxin or
+  enhancement term is refused before the interview proceeds.
+- A refusal is a hard stop: CLI exit `1`, API `422 BIOSAFETY_BLOCKED` with
+  `{category, bsl}`, and a content-free `biosafety.refused` event. A person can
+  change the direction; nobody can switch the screen off (ADR 0020).
+
 ## Anti-patterns
 
 - "Use synthetic biology to detect X" but no sampling site, buyer or price.

@@ -135,6 +135,27 @@ GET /v1/ideas/{id}/constraints
 }
 ```
 
+A direction that matches the biosafety screen is refused before reconstruction:
+
+```http
+POST /v1/ideas
+{ "fragment_id": "frg_01h...", "vertical": "igem" }
+```
+
+```json
+{
+  "error": {
+    "code": "BIOSAFETY_BLOCKED",
+    "message": "select agent or BSL-3/4 pathogen; a biosafety review is required",
+    "details": { "category": "select_agent", "bsl": 3 }
+  }
+}
+```
+
+HTTP status `422`. `category` is the matched class (`select_agent`, `toxin`,
+`enhancement` or `pathogen`) and `bsl` is the BSL level the direction requires.
+The matching text is not echoed.
+
 ### Answer the next question
 
 ```http

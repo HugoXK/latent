@@ -169,6 +169,14 @@ source; a `verified` claim is rejected and repaired once. There is no silent
 fallback to the template. See
 [decisions/0006-model-adapter.md](decisions/0006-model-adapter.md).
 
+Before `reconstruct()` runs, `develop()` passes the fragment text and string
+constraint values through the biosafety classifier on the shared path. Every
+vertical goes through it — there is no pack flag — and a refusal raises a typed
+`BiosafetyError` (`BIOSAFETY_BLOCKED`) before the reconstructor is called, so a
+model never sees the direction. The refusal is recorded as a content-free
+`biosafety.refused` event and surfaced as CLI exit `1` / API `422`; no model or
+automatic path can override it (ADR 0020).
+
 ### Incubator
 
 A scheduled, background process. It connects a fragment or idea to:
