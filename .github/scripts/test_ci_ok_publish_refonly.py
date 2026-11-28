@@ -414,6 +414,22 @@ class RefOnlyPinTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("differs beyond a ref-only pin", detail)
 
+    def test_a_uses_line_inside_a_run_block_is_not_a_pin(self) -> None:
+        base = (
+            "jobs:\n"
+            "  spec:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: |\n"
+            "          echo hello\n"
+            "          uses: actions/checkout@v7\n"
+        )
+        head = base.replace("actions/checkout@v7", "actions/checkout@" + "a" * 40)
+        self.assertNotEqual(base, head)
+        ok, detail = ci_ok_publish.evaluate_ref_only(base, head)
+        self.assertFalse(ok)
+        self.assertIn("differs beyond a ref-only pin", detail)
+
     def test_a_sha_to_sha_change_still_fails(self) -> None:
         changed = HEAD_CI.replace(
             "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",

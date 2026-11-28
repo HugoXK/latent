@@ -77,6 +77,30 @@ def evaluate_jobs(jobs: list[dict[str, Any]]) -> tuple[bool, str]:
 
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+USES_RE = re.compile(r"^(\s*)(-\s*)?uses:\s*(\S+)\s*(?:#.*)?$")
+BLOCK_HEADER_RE = re.compile(r"[|>](?:[+-]?\d*|\d*[+-]?)\s*(?:#.*)?$")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _inside_block_scalar(lines: list[str], index: int) -> bool:
+    """True when the line is body text of a `|`/`>` block scalar.
+
+    A `uses:`-shaped line inside a `run: |` block is shell text, not an action
+    reference. The nearest preceding non-blank line with a smaller indent is the
+    block header; if it ends in `|` or `>` (with optional chomping/indent
+    indicators), the current line belongs to that scalar.
+    """
+    indent = _indent(lines[index].rstrip())
+    for above in range(index - 1, -1, -1):
+        candidate = lines[above]
+        if not candidate.strip():
+            continue
+        if _indent(candidate.rstrip()) < indent:
+            return bool(BLOCK_HEADER_RE.search(candidate.strip()))
+    return False
 
 
 def ci_tokens(text: str) -> list[tuple[str, str, str]]:
@@ -85,15 +109,17 @@ def ci_tokens(text: str) -> list[tuple[str, str, str]]:
     A `uses:` line becomes ("uses", indent, "owner/repo/path@kind"), where kind is
     "sha" for a 40-hex ref and "tag" for anything else. Every other line keeps its
     raw content, so any trigger, permission, job, step or command change is a
-    token difference.
+    token difference. A `uses:`-shaped line inside a `|`/`>` block scalar is body
+    text (for example a `run: |` command), not an action reference.
     """
     tokens: list[tuple[str, str, str]] = []
-    for raw in text.splitlines():
+    lines = text.splitlines()
+    for index, raw in enumerate(lines):
         line = raw.rstrip()
-        match = re.match(
-            r"^(\s*)(-\s*)?uses:\s*(\S+)\s*(?:#.*)?$",
-            line,
-        )
+        if _inside_block_scalar(lines, index):
+            tokens.append(("line", "", line))
+            continue
+        match = USES_RE.match(line)
         if match:
             indent = match.group(1)
             ref = match.group(3)
@@ -112,6 +138,11 @@ def evaluate_ref_only(base_text: str, head_text: str) -> tuple[bool, str]:
     because a moving tag is a supply-chain risk while its immutable commit is not.
     Every other difference keeps the bootstrap rejection, and an unprovable diff
     fails closed.
+
+    Limitation: it cannot tell a pin to the commit the current tag points at from
+    an older commit of the same action. A 40-hex ref is accepted on shape alone,
+    so the reviewer still verifies the tag -> SHA mapping (the API check in #117);
+    the offline parser sees only the text.
     """
     base_tokens = ci_tokens(base_text)
     head_tokens = ci_tokens(head_text)
