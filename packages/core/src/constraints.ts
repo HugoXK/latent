@@ -162,6 +162,36 @@ export function createConstraintState(
   return state;
 }
 
+const VARIABLE_SEGMENT = /^[A-Za-z][A-Za-z0-9_-]*$/;
+const RESERVED_VARIABLE_NAMES = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
+/**
+ * Constraint state is a plain object keyed by a caller-provided variable name.
+ * Reject anything outside the documented shape so `__proto__`, `constructor`
+ * and other prototype keys can never be written (CodeQL
+ * js/remote-property-injection).
+ */
+function assertVariableName(variable: string): void {
+  const segments = variable.split(".");
+  const valid =
+    segments.length > 0 &&
+    segments.every((segment) => VARIABLE_SEGMENT.test(segment)) &&
+    !RESERVED_VARIABLE_NAMES.has(variable.toLowerCase()) &&
+    segments.every(
+      (segment) => !RESERVED_VARIABLE_NAMES.has(segment.toLowerCase()),
+    );
+  if (!valid) {
+    throw new ConstraintAnswerError(
+      variable,
+      `${variable} is not a valid constraint variable name`,
+    );
+  }
+}
+
 export function setConstraintVariable(
   state: ConstraintState,
   variable: string,
@@ -170,6 +200,7 @@ export function setConstraintVariable(
   confidence = 1,
   now = new Date().toISOString(),
 ): ConstraintState {
+  assertVariableName(variable);
   if (confidence < 0 || confidence > 1) {
     throw new Error("confidence must be between 0 and 1");
   }

@@ -426,6 +426,19 @@ function buildPrompt(input: ReconstructInput): string {
   ].join("\n");
 }
 
+/**
+ * Strip trailing slashes with a linear scan. The previous /\/+$/ regex was
+ * quadratic on a long slash run that is not at the end of the string
+ * (CodeQL js/polynomial-redos), and baseUrl is caller-supplied.
+ */
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
+}
+
 export class ModelReconstructor implements Reconstructor {
   readonly #baseUrl: string;
   readonly #apiKey: string;
@@ -440,7 +453,7 @@ export class ModelReconstructor implements Reconstructor {
     if (!options.baseUrl.trim()) throw new Error("baseUrl is required");
     if (!options.apiKey.trim()) throw new Error("apiKey is required");
     if (!options.model.trim()) throw new Error("model is required");
-    this.#baseUrl = options.baseUrl.replace(/\/+$/, "");
+    this.#baseUrl = trimTrailingSlashes(options.baseUrl);
     this.#apiKey = options.apiKey;
     this.#model = options.model;
     this.#temperature = options.temperature ?? 0;
