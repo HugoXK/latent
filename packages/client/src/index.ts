@@ -135,6 +135,16 @@ export const CLIENT_OPERATIONS: readonly ClientOperation[] = [
   { operationId: "questionPriors", method: "get", path: "/v1/priors" },
 ];
 
+/**
+ * Strip trailing slashes with a single linear scan. The base URL is library
+ * input, so a `/+$` regexp is a CodeQL ReDoS finding here.
+ */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+  return value.slice(0, end);
+}
+
 export class LatentClient {
   readonly #baseUrl: string;
   readonly #token: string;
@@ -142,7 +152,7 @@ export class LatentClient {
 
   constructor(options: LatentClientOptions) {
     if (options.token.trim() === "") throw new Error("token is required");
-    this.#baseUrl = (options.baseUrl ?? "http://127.0.0.1:4310").replace(/\/+$/, "");
+    this.#baseUrl = stripTrailingSlashes(options.baseUrl ?? "http://127.0.0.1:4310");
     this.#token = options.token;
     this.#fetch = options.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
   }

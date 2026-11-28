@@ -143,3 +143,60 @@ test("observations come only from ideas with an outcome and a state", () => {
     ["q.a:1:true", "q.a:2:false"],
   );
 });
+
+test("option values are keyed by type so null and NaN cannot merge", () => {
+  const question: QuestionDefinition = {
+    id: "q.edge",
+    variable: "edge",
+    prompt: "Edge?",
+    blocking: true,
+    options: [
+      { value: null, label: "null" },
+      { value: Number.NaN, label: "nan" },
+    ],
+  };
+  const edge = (value: unknown): PriorObservation => ({
+    question_id: "q.edge",
+    variable: "edge",
+    value,
+    success: true,
+  });
+  const priors = questionPriors(
+    [question],
+    [edge(null), edge(null), edge(null), edge(null), edge(null)],
+  )[0];
+  assert.ok(priors);
+  assert.equal(priors.source, "empirical");
+  assert.equal(priors.options[0]?.samples, 5);
+  assert.equal(priors.options[1]?.samples, 0);
+});
+
+test("a prototype-named variable is not an observation", () => {
+  const question: QuestionDefinition = {
+    id: "q.proto",
+    variable: "__proto__",
+    prompt: "Proto?",
+    blocking: true,
+    options: [],
+  };
+  const state = createConstraintState("test", questions, NOW);
+  const outcome = createOutcome(
+    {
+      id: "out_proto",
+      idea_id: "idea_proto",
+      idea_version: 1,
+      owner_id: "local",
+      decision: "tested",
+      realised_success: true,
+      predicted_confidence: 0.5,
+      decided_by: "human",
+    },
+    NOW,
+  );
+  const observations = observationsFromOutcomes(
+    [outcome],
+    new Map([["idea_proto", state]]),
+    [question],
+  );
+  assert.deepEqual(observations, []);
+});

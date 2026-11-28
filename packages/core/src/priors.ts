@@ -26,8 +26,37 @@ export interface QuestionPrior {
 
 export const DEFAULT_MIN_SAMPLES = 5;
 
+/**
+ * A canonical, type-tagged key. `JSON.stringify` alone maps `undefined` to the
+ * string "undefined", `NaN`/`Infinity` to "null", and object key order to a
+ * different key, so two distinct option values could merge their samples.
+ */
 function valueKey(value: unknown): string {
-  return JSON.stringify(value) ?? "undefined";
+  return canonicalValue(value);
+}
+
+function canonicalValue(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (typeof value === "number") {
+    if (Number.isNaN(value)) return "number:NaN";
+    if (value === Infinity) return "number:Infinity";
+    if (value === -Infinity) return "number:-Infinity";
+    return `number:${value}`;
+  }
+  if (typeof value === "string") return `string:${JSON.stringify(value)}`;
+  if (typeof value === "boolean") return `boolean:${String(value)}`;
+  if (Array.isArray(value)) {
+    return `array:[${value.map(canonicalValue).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    return `object:{${keys
+      .map((key) => `${JSON.stringify(key)}:${canonicalValue(record[key])}`)
+      .join(",")}}`;
+  }
+  return `${typeof value}:${String(value)}`;
 }
 
 /**
@@ -44,6 +73,9 @@ export function observationsFromOutcomes(
     const state = states.get(outcome.idea_id);
     if (!state) continue;
     for (const question of questions) {
+      // Own-property check: a question variable named __proto__ or constructor
+      // must not read Object.prototype and become an observation.
+      if (!Object.hasOwn(state.variables, question.variable)) continue;
       const variable = state.variables[question.variable];
       if (!variable) continue;
       observations.push({

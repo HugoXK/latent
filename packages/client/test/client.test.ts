@@ -100,3 +100,17 @@ test("the client operation manifest matches the OpenAPI spec", () => {
     }
   }
 });
+
+test("a base URL with many trailing slashes is normalized without backtracking", async () => {
+  const urls: string[] = [];
+  const client = new LatentClient({
+    baseUrl: `http://127.0.0.1:4310${"/".repeat(10_000)}`,
+    token: "t",
+    fetchImpl: async (input) => {
+      urls.push(String(input));
+      return jsonResponse({ ok: true });
+    },
+  });
+  await client.health();
+  assert.deepEqual(urls, ["http://127.0.0.1:4310/healthz"]);
+});
