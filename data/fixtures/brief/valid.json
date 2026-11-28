@@ -55,5 +55,22 @@
       "detail": "v0.2"
     }
   ],
-  "schema_version": "1.0.0"
+  "schema_version": "1.0.0",
+  "collisions": [
+    {
+      "kind": "mechanism",
+      "prior_id": "pa_fixture",
+      "prior_label": "A prior arsenic biosensor",
+      "severity": "medium",
+      "note": "same mechanism; the readout differs",
+      "claim_ids": [
+        "clm_fixture"
+      ],
+      "source_url": "https://example.org/pa_fixture"
+    }
+  ],
+  "collision_check": {
+    "status": "checked",
+    "note": "The novelty check ran over the supplied prior-art list."
+  }
 }
