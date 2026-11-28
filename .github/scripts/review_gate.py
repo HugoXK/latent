@@ -36,8 +36,12 @@ REPO = os.environ.get("GITHUB_REPOSITORY", "")
 TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
 REVIEWER_FALLBACK = os.environ.get("REVIEWER_LOGIN", "HugoXK-bot")
 CHECK_NAME = "review-gate"
-VERDICT_RE = re.compile(
-    r"(?:^|\n)\s*(?:Verdict\s*:\s*|##\s*Review\s*[—-]\s*)(PASS|REQUEST_CHANGES)\b",
+VERDICT_LINE_RE = re.compile(
+    r"^(?:Verdict\s*:\s*|##\s*Review\s*[—-]\s*)(PASS|REQUEST_CHANGES)\b",
+    re.IGNORECASE,
+)
+WITHDRAW_RE = re.compile(
+    r"\b(withdraw|withdrawn|retract|retracted|supersede|superseded|void)\b",
     re.IGNORECASE,
 )
 
@@ -86,8 +90,37 @@ def reviewer_login(policy: dict[str, Any] | None = None) -> str:
 
 
 def parse_verdict(body: str) -> str | None:
-    match = VERDICT_RE.search(body or "")
-    return match.group(1).upper() if match else None
+    """Read a verdict only from a verdict line that starts a line.
+
+    A withdrawal comment often quotes the verdict it retracts inside a blockquote
+    or a fenced block; scanning the whole body turned "I withdraw my earlier
+    approval ... Verdict: PASS at abc1234 ..." into a PASS. Only an unquoted,
+    unfenced line beginning with the verdict marker counts, and a withdrawal
+    marker before that line makes the comment score nothing.
+    """
+    lines = (body or "").splitlines()
+    in_fence = False
+    verdict: str | None = None
+    verdict_index = -1
+    for index, raw in enumerate(lines):
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if raw.lstrip().startswith(">"):
+            continue
+        match = VERDICT_LINE_RE.match(stripped)
+        if match and verdict is None:
+            verdict = match.group(1).upper()
+            verdict_index = index
+    if verdict is None:
+        return None
+    for raw in lines[: verdict_index + 1]:
+        if WITHDRAW_RE.search(raw):
+            return None
+    return verdict
 
 
 def references_head(body: str, head: str) -> bool:
@@ -121,11 +154,15 @@ def pull_numbers(payload: dict[str, Any]) -> list[int]:
         if not sha:
             return []
         pulls = api(f"/commits/{sha}/pulls?per_page=100")
-        return [
+        open_pulls = [
             int(pull["number"])
             for pull in pulls
             if str(pull.get("state", "")) == "open"
         ]
+        # One commit can sit at the head of several open PRs (stacked branches).
+        # Scoring it for all of them would let one verdict cover several PRs, so
+        # refuse to attribute it at all.
+        return open_pulls if len(open_pulls) == 1 else []
     explicit = os.environ.get("PR") or payload.get("inputs", {}).get("pr")
     if explicit:
         return [int(explicit)]

@@ -1,4 +1,4 @@
-# 0015 — Prompt commit-comment verdicts and a default-branch ci-ok publisher
+# 0015 — Prompt commit-comment verdicts and a default-branch ci-ok-published publisher
 
 - Status: accepted (T3; owner approval recorded by Lead)
 - Date: 2026-11-27
@@ -27,7 +27,7 @@ A third, smaller gap: when the conclusion stayed `failure` but the reason change
 2. **The summary is refreshed at an unchanged conclusion.** `publish_check`
    PATCHes the existing check run when the conclusion is the same and the summary
    differs; an identical summary is a no-op.
-3. **`ci-ok` is published from the default branch** by `ci-ok-publish.yml` on the
+3. **`ci-ok-published` is published from the default branch** by `ci-ok-publish.yml` on the
    `workflow_run` completion of `ci`. It reads the triggering run's jobs and
    requires exactly `spec`, `node` and `gate-tests`, each `success`. It also
    verifies the run: path `.github/workflows/ci.yml`, workflow id equal to the
@@ -35,9 +35,9 @@ A third, smaller gap: when the conclusion stayed `failure` but the reason change
    equal to the published SHA, an open pull request whose base is the default
    branch, and an unchanged `ci.yml` blob at the head SHA. A pull request that
    edits `ci.yml` (or adds another workflow called `ci`) therefore cannot obtain
-   a green `ci-ok`; the check is published red with the reason.
+   a green `ci-ok-published`; the check is published red with the reason.
 4. **The publisher checks out the default branch**, never the pull request head.
-   It updates the existing `ci-ok` check run when one is present, so the context is
+   It updates the existing `ci-ok-published` check run when one is present, so the context is
    not duplicated; it creates one when the pull request removed the aggregate.
 5. **The in-workflow aggregate is bootstrap only.** It keeps the name `ci-ok` so
    the required context exists before the publisher lands on the default branch.

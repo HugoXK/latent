@@ -59,6 +59,23 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(review_gate.parse_verdict("## Review — PASS"), "PASS")
         self.assertIsNone(review_gate.parse_verdict("looks good to me"))
 
+    def test_a_withdrawal_that_quotes_the_old_verdict_parses_none(self) -> None:
+        body = (
+            "I withdraw my earlier approval. The text was:\n\n"
+            f"Verdict: PASS at {HEAD}\n\n"
+            "Ignore it."
+        )
+        self.assertIsNone(review_gate.parse_verdict(body))
+
+    def test_a_quoted_verdict_in_a_blockquote_is_ignored(self) -> None:
+        self.assertIsNone(review_gate.parse_verdict(f"> Verdict: PASS at {HEAD}"))
+
+    def test_a_verdict_line_on_its_own_still_parses(self) -> None:
+        self.assertEqual(
+            review_gate.parse_verdict(f"Verdict: PASS at {HEAD}\n\nRan: pnpm check"),
+            "PASS",
+        )
+
 
 class EvaluateTests(unittest.TestCase):
     def test_code_without_a_verdict_blocks(self) -> None:
@@ -205,3 +222,18 @@ class StrangerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class PullNumberTests(unittest.TestCase):
+    def test_one_sha_on_several_open_prs_is_refused(self) -> None:
+        pulls = [{"number": 1, "state": "open"}, {"number": 2, "state": "open"}]
+        payload = {"comment": {"commit_id": HEAD}}
+        with patch.dict(os.environ, {"GITHUB_EVENT_NAME": "commit_comment"}):
+            with patch.object(review_gate, "api", lambda path, method="GET", data=None: pulls):
+                self.assertEqual(review_gate.pull_numbers(payload), [])
+
+    def test_one_sha_on_exactly_one_open_pr_is_attributed(self) -> None:
+        pulls = [{"number": 7, "state": "open"}]
+        payload = {"comment": {"commit_id": HEAD}}
+        with patch.dict(os.environ, {"GITHUB_EVENT_NAME": "commit_comment"}):
+            with patch.object(review_gate, "api", lambda path, method="GET", data=None: pulls):
+                self.assertEqual(review_gate.pull_numbers(payload), [7])
