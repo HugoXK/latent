@@ -211,3 +211,15 @@ agrees on the rubric.
 
 The vertical is a **pack**: variables, evidence scale, gates, compiler template and
 corpus adapters. It contains no model-specific logic.
+
+## Runtime modules
+
+- [Components](../packages/vertical-igem/src/components.ts) — A/B/C to
+  reuse/re-characterise/build, with weeks and cost.
+- [Material and FBA](../packages/vertical-igem/src/material.ts) — reverse
+  stoichiometry first, then an optional COBRApy sidecar
+  ([cobra_fba.py](../packages/vertical-igem/python/cobra_fba.py)).
+- [Timeline](../packages/vertical-igem/src/timeline.ts) — seeded Monte Carlo over
+  tasks, dependencies and the term/summer calendar; `timelineGate` feeds gate 4.
+- [Worked example](examples/igem-brief.md) — a full one-page brief with
+  components, timeline, material balance and explicit unknowns.

@@ -225,6 +225,9 @@ pnpm latent constraints <idea-id>            # what is still unknown or blocking
 pnpm latent confirm <idea-id> --all          # a human decision, recorded
 pnpm latent decide <idea-id> --all pass --reason "design partner pilot"
 pnpm latent brief <idea-id>                  # refuses if a constraint, gate or assumption blocks
+pnpm latent memory search "biosensor"        # find fragments and ideas
+pnpm latent memory connect <fragment-id> <idea-id>  # explain the path
+pnpm latent memory export                    # open JSON graph; delete blocks on references
 ```
 
 The CLI contract is specified in [docs/api.md](docs/api.md). The default

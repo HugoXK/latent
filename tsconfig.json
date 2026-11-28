@@ -6,7 +6,9 @@
       "@latent/core": ["packages/core/src/index.ts"],
       "@latent/store": ["packages/store/src/index.ts"],
       "@latent/adapters": ["packages/adapters/src/index.ts"],
-      "@latent/vertical-igem": ["packages/vertical-igem/src/index.ts"]
+      "@latent/vertical-igem": ["packages/vertical-igem/src/index.ts"],
+      "@latent/retrieval": ["packages/retrieval/src/index.ts"],
+      "@latent/novelty": ["packages/novelty/src/index.ts"]
     }
   },
   "include": [

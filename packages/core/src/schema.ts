@@ -33,6 +33,7 @@ const SCHEMA_FILES = {
   idea: "idea.schema.json",
   gate: "gate.schema.json",
   brief: "brief.schema.json",
+  edge: "edge.schema.json",
   replayCase: "replay-case.schema.json",
 } as const;
 
@@ -56,6 +57,7 @@ const validators = {
   idea: getValidator(SCHEMA_FILES.idea),
   gate: getValidator(SCHEMA_FILES.gate),
   brief: getValidator(SCHEMA_FILES.brief),
+  edge: getValidator(SCHEMA_FILES.edge),
   replayCase: getValidator(SCHEMA_FILES.replayCase),
 } satisfies Record<string, ValidateFunction>;
 

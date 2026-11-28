@@ -145,3 +145,22 @@ test("an open high-risk assumption blocks compilation", () => {
       e.issues.some((i) => i.startsWith("BLOCKING_ASSUMPTIONS")),
   );
 });
+
+test("collisions are compiled into the brief", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    collisions: [
+      {
+        kind: "interface",
+        prior_id: "pa_x",
+        prior_label: "Prior project",
+        severity: "medium",
+        note: "mechanism collides; the interface differs",
+      },
+    ],
+  });
+  assert.equal(brief.collisions?.length, 1);
+  assert.match(renderBriefMarkdown(brief), /Novelty and collisions/);
+});
