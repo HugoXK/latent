@@ -61,7 +61,7 @@ jobs:
           ref: ${{ steps.green.outputs.sha }}
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         with:
           version: 11.1.2
 
@@ -165,7 +165,7 @@ jobs:
         with:
           node-version: "22"
 
-      - uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         with:
           version: 11.1.2
 
@@ -224,7 +224,7 @@ jobs:
         with:
           name: release-archive
 
-      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: latent-${{ inputs.version }}.tar.gz
 

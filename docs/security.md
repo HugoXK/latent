@@ -116,6 +116,9 @@ See [ADR 0020](decisions/0020-biosafety-before-reconstruction.md).
 
 - Locked dependencies; a dependency audit in CI.
 - GitHub Actions pinned to a commit SHA where practical.
+- The `ci-ok-published` publisher accepts a pull request that only replaces a
+  `uses:` ref with a commit SHA; a change to a job, trigger, permission,
+  environment or command is still rejected.
 - A release carries an SBOM.
 - No secrets in build logs.
 
