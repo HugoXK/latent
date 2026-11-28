@@ -106,6 +106,10 @@ A review states:
 - A claim in a doc about "what exists" links to the file or the source.
 - The status line is honest: spec, alpha, beta, stable.
 - Every ADR has Status, Date, Owner, Context, Decision, Consequences.
+- Any claim that one or more reviews reproduced, confirmed or independently
+  found X must name the reviews it rests on (PR number + verdict timestamp +
+  head SHA), or the claim is removed. "Review found…" without a citation is
+  not evidence.
 
 ## 12. Definition of done
 
