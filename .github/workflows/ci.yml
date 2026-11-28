@@ -125,10 +125,24 @@ jobs:
       - name: Test
         run: pnpm test
 
-  ci-ok:
-    name: ci-ok
+  gate-tests:
+    name: gate-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Unit-test the review gate and the ci-ok publisher
+        run: python3 -m unittest discover -s .github/scripts -p "test_*.py"
+
+  # Aggregate only. The trusted `ci-ok` context is published by
+  # ci-ok-publish.yml from the default branch, so a pull request cannot write it.
+  ci-aggregate:
+    name: ci-aggregate
     if: always()
-    needs: [spec, node]
+    needs: [spec, node, gate-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -136,6 +150,7 @@ jobs:
         env:
           SPEC: ${{ needs.spec.result }}
           NODE: ${{ needs.node.result }}
+          GATE_TESTS: ${{ needs.gate-tests.result }}
         run: |
-          echo "spec=$SPEC node=$NODE"
-          [ "$SPEC" = success ] && [ "$NODE" = success ]
+          echo "spec=$SPEC node=$NODE gate-tests=$GATE_TESTS"
+          [ "$SPEC" = success ] && [ "$NODE" = success ] && [ "$GATE_TESTS" = success ]

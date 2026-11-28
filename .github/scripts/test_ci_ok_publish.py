@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 
+import os
+
 import ci_ok_publish
+
+CI_YML = os.path.join(os.path.dirname(__file__), "..", "workflows", "ci.yml")
 
 
 class EvaluateTests(unittest.TestCase):
@@ -132,3 +137,10 @@ class EvaluateRunTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_required_jobs_exist_in_ci_yml(self) -> None:
+        with open(CI_YML, encoding="utf-8") as fh:
+            text = fh.read()
+        jobs = set(re.findall(r"^  ([a-z0-9-]+):$", text, re.M))
+        for job in ci_ok_publish.REQUIRED_JOBS:
+            self.assertIn(job, jobs, f"{job} is required but not defined in ci.yml")

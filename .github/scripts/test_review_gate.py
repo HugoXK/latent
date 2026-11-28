@@ -18,7 +18,9 @@ class FakeApi:
         issue_comments: list[dict] | None = None,
         commit_comments: list[dict] | None = None,
         files: list[dict] | None = None,
+        head_author: str = "HugoXK",
     ) -> None:
+        self.head_author = head_author
         self.reviews = reviews or []
         self.issue_comments = issue_comments or []
         self.commit_comments = commit_comments or []
@@ -33,6 +35,8 @@ class FakeApi:
             return self.issue_comments
         if "/commits/" in path and "/comments" in path:
             return self.commit_comments
+        if "/commits/" in path:
+            return {"author": {"login": self.head_author}}
         raise AssertionError(f"unexpected API path: {path}")
 
 
@@ -103,6 +107,23 @@ class EvaluateTests(unittest.TestCase):
             ok, detail = review_gate.evaluate(pull(author="HugoXK-bot"), "HugoXK-bot")
         self.assertFalse(ok)
         self.assertIn("identities must be separate", detail)
+
+    def test_reviewer_authored_head_commit_blocks(self) -> None:
+        fake = FakeApi(
+            files=[{"filename": "packages/core/src/state.ts"}],
+            head_author="HugoXK-bot",
+        )
+        with patch.object(review_gate, "api", fake):
+            ok, detail = review_gate.evaluate(pull(), "HugoXK-bot")
+        self.assertFalse(ok)
+        self.assertIn("head commit", detail)
+
+    def test_docs_only_without_verdict_blocks(self) -> None:
+        fake = FakeApi(files=[{"filename": "docs/review.md"}])
+        with patch.object(review_gate, "api", fake):
+            ok, detail = review_gate.evaluate(pull(), "HugoXK-bot")
+        self.assertFalse(ok)
+        self.assertIn("no verdict", detail)
 
 
 class EventTests(unittest.TestCase):

@@ -41,18 +41,6 @@ VERDICT_RE = re.compile(
     re.IGNORECASE,
 )
 
-DOC_FILES = {
-    "README.md",
-    "README.zh.md",
-    "CHANGELOG.md",
-    "LICENSE",
-    "CONTRIBUTING.md",
-    "SECURITY.md",
-    "CODE_OF_CONDUCT.md",
-    "AGENTS.md",
-    "LESSONS.md",
-}
-DOC_PREFIXES = ("docs/", "changelog.d/")
 
 
 def api(path: str, method: str = "GET", data: dict[str, Any] | None = None) -> Any:
@@ -153,6 +141,13 @@ def newest_verdict(pull: dict[str, Any], reviewer: str) -> tuple[bool | None, st
         return (
             False,
             f"{reviewer} is the pull request author; identities must be separate",
+        )
+    head_commit = api(f"/commits/{head}")
+    head_author = str(((head_commit or {}).get("author") or {}).get("login") or "")
+    if head_author == reviewer:
+        return (
+            False,
+            f"{reviewer} authored the head commit {head[:7]}; identities must be separate",
         )
 
     verdicts: list[tuple[str, str, str]] = []
