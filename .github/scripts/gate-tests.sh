@@ -14,6 +14,10 @@ trap 'rm -rf "$TMP"' EXIT
 
 bash "$DIR/test-integrity.sh" "$BASE" "$DIR"
 
+# Tests that read a repository file (release.yml, data/schemas/*) must not resolve
+# it relative to __file__: in base mode they run from a flat temp dir.
+export REPO_ROOT="$(pwd)"
+
 # The drift assertions read the workflow this PR ships. Anti-weakening lives in
 # the base copies of the tests and in test-integrity.sh, not in which ci.yml the
 # assertions read; feeding them the base workflow made them tautological.
