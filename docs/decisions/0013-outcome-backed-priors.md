@@ -1,6 +1,6 @@
 # 0013 — Outcome-backed interviewer priors
 
-- Status: proposed (T2)
+- Status: accepted (T2; owner approval recorded 2026-11-28; review at the fix head is the gate)
 - Date: 2026-11-28
 - Owner: HugoXK
 - Issue: #28
@@ -45,6 +45,16 @@ are follow-ups, not part of this change.
 7. **Own-property read only.** The constraint state is read with an own-property
    check, so a question variable named `__proto__` or `constructor` cannot read
    through the prototype chain and become an observation.
+8. **One observation per idea and question.** A correction is a newer outcome:
+   the newest `decided_at` wins for that idea, ties and undated records fall back
+   to the last input entry. An idea cannot contribute the same question twice, so
+   a corrected outcome does not double its weight.
+9. **Duplicate option values are deduplicated, first declaration wins.** A
+   declared list with two entries for the same value would otherwise receive the
+   same count twice and push the distribution above 1; the value is a single
+   option in the distribution and in the smoothing denominator.
+10. **`minSamples` must be finite.** A non-finite or non-numeric override is a
+    `PriorsError` (`INVALID_MIN_SAMPLES`), not a silently uniform prior.
 
 ## Migration note
 
@@ -55,7 +65,8 @@ structural; the canonical `Outcome` type will satisfy it without a data change.
 ## Consequences
 
 - A prior moves only when outcome-backed evidence crosses the threshold, and the
-  sample count is visible next to it.
+  sample count is visible next to it; corrected outcomes replace, they do not
+  accumulate, and duplicate option values cannot make a distribution exceed 1.
 - The prior describes how this user answers, not whether an idea succeeds; success
   calibration is a separate surface.
 - Five is a heuristic. A high-variance vertical may need more; the `minSamples`
@@ -81,4 +92,8 @@ structural; the canonical `Outcome` type will satisfy it without a data change.
 - The mapping assumes the constraint state belongs to the same idea version; a
   stale state is a data-quality issue.
 - The structural outcome shape is deliberately narrow; a future outcome primitive
-  must keep `idea_id` and `realised_success` to stay compatible.
+  must keep `idea_id` and `realised_success` (and `decided_at` for correction
+  ordering) to stay compatible.
+- Deduplicating by first declaration means a deliberate repeated option label is
+  dropped silently; a config that wants two labels for one value must model one
+  option with two labels at the UI layer.

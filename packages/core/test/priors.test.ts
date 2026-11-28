@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { answerConstraint, createConstraintState } from "../src/index.js";
-import { observationsFromOutcomes, questionPriors } from "../src/priors.js";
+import {
+  PriorsError,
+  observationsFromOutcomes,
+  questionPriors,
+} from "../src/priors.js";
 import type { ConstraintState, QuestionDefinition } from "../src/index.js";
 import type { PriorObservation, PriorOutcome } from "../src/priors.js";
 
@@ -221,4 +225,65 @@ test("undefined and the string undefined are distinct option values", () => {
   assert.ok(priors);
   assert.equal(priors.options[0]?.samples, 5);
   assert.equal(priors.options[1]?.samples, 0);
+});
+
+test("duplicate option values are deduplicated before normalising", () => {
+  const question: QuestionDefinition = {
+    id: "q.dup",
+    variable: "dup",
+    prompt: "Dup?",
+    blocking: true,
+    options: [
+      { value: 0.75, label: "a" },
+      { value: 0.75, label: "b" },
+      { value: 0.125, label: "c" },
+    ],
+  };
+  const observation = (value: number): PriorObservation => ({
+    question_id: "q.dup",
+    variable: "dup",
+    value,
+    success: true,
+  });
+  const priors = questionPriors(
+    [question],
+    [
+      observation(0.75),
+      observation(0.75),
+      observation(0.75),
+      observation(0.75),
+      observation(0.125),
+    ],
+  )[0];
+  assert.ok(priors);
+  assert.equal(priors.options.length, 2);
+  assert.equal(priors.options[0]?.samples, 4);
+  assert.equal(priors.options[1]?.samples, 1);
+  const total = priors.options.reduce((sum, option) => sum + option.prior, 0);
+  assert.ok(Math.abs(total - 1) < 1e-12, `priors must sum to 1, got ${total}`);
+});
+
+test("an idea contributes one observation per question, newest outcome wins", () => {
+  const state = createConstraintState("test", questions, NOW);
+  const answered = answerConstraint(state, questions, "a", 1, 1, NOW);
+  const states = new Map<string, ConstraintState>([["idea_a", answered]]);
+  const outcomes: PriorOutcome[] = [
+    { idea_id: "idea_a", realised_success: false, decided_at: "2026-11-20T00:00:00Z" },
+    { idea_id: "idea_a", realised_success: true, decided_at: "2026-11-27T00:00:00Z" },
+  ];
+  const observations = observationsFromOutcomes(
+    outcomes,
+    states,
+    [questions[0] as QuestionDefinition],
+  );
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0]?.success, true);
+});
+
+test("a non-finite minSamples is rejected", () => {
+  assert.throws(
+    () => questionPriors(questions, [], { minSamples: Number.NaN }),
+    (error: unknown) =>
+      error instanceof PriorsError && error.code === "INVALID_MIN_SAMPLES",
+  );
 });

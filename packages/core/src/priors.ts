@@ -9,6 +9,8 @@ import type { ConstraintState, QuestionDefinition } from "./constraints.js";
 export interface PriorOutcome {
   idea_id: string;
   realised_success: boolean;
+  /** Optional ordering for corrections; the newest outcome wins. */
+  decided_at?: string | null;
 }
 
 export interface PriorObservation {
@@ -34,6 +36,16 @@ export interface QuestionPrior {
 }
 
 export const DEFAULT_MIN_SAMPLES = 5;
+
+export class PriorsError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "PriorsError";
+    this.code = code;
+  }
+}
 
 /**
  * A canonical, type-tagged key. `JSON.stringify` alone maps `undefined` to the
@@ -71,14 +83,33 @@ function canonicalValue(value: unknown): string {
 /**
  * Read the answered variables of ideas that have a realised outcome. Only
  * decided ideas contribute; an idea without an outcome is not evidence.
+ *
+ * An idea contributes at most one observation per question. A correction is a
+ * newer outcome: the newest `decided_at` wins, ties and undated records fall
+ * back to the last input entry, so the caller's order is the correction order.
  */
 export function observationsFromOutcomes(
   outcomes: readonly PriorOutcome[],
   states: ReadonlyMap<string, ConstraintState>,
   questions: readonly QuestionDefinition[],
 ): PriorObservation[] {
-  const observations: PriorObservation[] = [];
+  const latest = new Map<string, PriorOutcome>();
   for (const outcome of outcomes) {
+    const existing = latest.get(outcome.idea_id);
+    if (!existing) {
+      latest.set(outcome.idea_id, outcome);
+      continue;
+    }
+    const existingAt = Date.parse(existing.decided_at ?? "");
+    const nextAt = Date.parse(outcome.decided_at ?? "");
+    const takeNext = Number.isFinite(nextAt)
+      ? !Number.isFinite(existingAt) || nextAt >= existingAt
+      : !Number.isFinite(existingAt);
+    if (takeNext) latest.set(outcome.idea_id, outcome);
+  }
+
+  const observations: PriorObservation[] = [];
+  for (const outcome of latest.values()) {
     const state = states.get(outcome.idea_id);
     if (!state) continue;
     for (const question of questions) {
@@ -113,10 +144,14 @@ export function questionPriors(
   observations: readonly PriorObservation[],
   options: { minSamples?: number } = {},
 ): QuestionPrior[] {
-  const minSamples = Math.max(
-    1,
-    Math.trunc(options.minSamples ?? DEFAULT_MIN_SAMPLES),
-  );
+  const requested = options.minSamples ?? DEFAULT_MIN_SAMPLES;
+  if (!Number.isFinite(requested)) {
+    throw new PriorsError(
+      "INVALID_MIN_SAMPLES",
+      "minSamples must be a finite number",
+    );
+  }
+  const minSamples = Math.max(1, Math.trunc(requested));
   const grouped = new Map<string, PriorObservation[]>();
   for (const observation of observations) {
     const list = grouped.get(observation.question_id);
@@ -128,16 +163,17 @@ export function questionPriors(
     const declared = new Map(
       question.options.map((option) => [valueKey(option.value), option]),
     );
+    const uniqueOptions = [...declared.values()];
     const relevant = (grouped.get(question.id) ?? []).filter((observation) =>
       declared.has(valueKey(observation.value)),
     );
     const sampleCount = relevant.length;
     const uniform =
-      question.options.length === 0 ||
+      uniqueOptions.length === 0 ||
       questionKind(question) === "text" ||
       sampleCount < minSamples;
 
-    if (question.options.length === 0) {
+    if (uniqueOptions.length === 0) {
       return {
         id: question.id,
         variable: question.variable,
@@ -154,8 +190,8 @@ export function questionPriors(
     }
 
     const smoothing = 1;
-    const denominator = sampleCount + question.options.length * smoothing;
-    const optionPriors: OptionPrior[] = question.options.map((option) => {
+    const denominator = sampleCount + uniqueOptions.length * smoothing;
+    const optionPriors: OptionPrior[] = uniqueOptions.map((option) => {
       const key = valueKey(option.value);
       const count = counts.get(key) ?? 0;
       return {
@@ -163,7 +199,7 @@ export function questionPriors(
         label: option.label,
         samples: count,
         prior: uniform
-          ? 1 / question.options.length
+          ? 1 / uniqueOptions.length
           : (count + smoothing) / denominator,
       };
     });
