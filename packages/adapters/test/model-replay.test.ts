@@ -23,6 +23,11 @@ const fragment: Fragment = {
   privacy: "private",
 };
 
+// Replay is offline, but a private fragment still needs the explicit
+// LATENT_MODEL_SEND_PRIVATE opt-in. This case records and replays public
+// content, which is what a committed fixture may contain.
+const publicFragment: Fragment = { ...fragment, privacy: "public" };
+
 const reconstruction = {
   title: "synthetic",
   one_liner: "synthetic",
@@ -131,6 +136,7 @@ test("a recorded fixture is redacted and replayed", async () => {
       requestBody: body,
       response,
       redact: ["secret"],
+      privacy: "public",
     });
     const raw = readFileSync(path, "utf8");
     assert.ok(!raw.includes("secret"));
@@ -170,14 +176,17 @@ test("LATENT_MODEL_REPLAY replays the adapter without a network", async () => {
       model: "test-model",
       temperature: 0,
       jsonMode: true,
-      allowPrivate: true,
       fetchImpl: capture,
     });
-    const first = await source.reconstruct({ fragment, verticalId: "igem" });
+    const first = await source.reconstruct({
+      fragment: publicFragment,
+      verticalId: "igem",
+    });
     writeModelReplayFixture({
       dir,
       requestBody: captured,
       response: envelope,
+      privacy: "public",
     });
 
     const replay = reconstructorFromEnv({
@@ -188,34 +197,39 @@ test("LATENT_MODEL_REPLAY replays the adapter without a network", async () => {
       LATENT_MODEL_TEMPERATURE: "0",
       LATENT_MODEL_JSON_MODE: "true",
     });
-    const second = await replay.reconstruct({ fragment, verticalId: "igem" });
+    const second = await replay.reconstruct({
+      fragment: publicFragment,
+      verticalId: "igem",
+    });
     assert.equal(second.title, first.title);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("the committed sample fixture replays", async () => {
+test("no fixture is committed under data/model-replay", async () => {
+  // The recorder refuses private content and unredacted writes here, so a
+  // fixture only appears in a scratch dir the caller passes explicitly. A
+  // missing sample is the typed error, never a silent network fallback.
   const dir = fileURLToPath(
     new URL("../../../data/model-replay/", import.meta.url),
   );
   const body = JSON.stringify({
     model: "replay-model",
     temperature: 0,
-    messages: [
-      { role: "system", content: "latent replay sample" },
-      { role: "user", content: "hello" },
-    ],
+    messages: [{ role: "user", content: "hello" }],
   });
   const fetchImpl = createReplayFetch({ dir });
-  const result = await fetchImpl("https://replay.invalid", {
-    method: "POST",
-    headers: {},
-    body,
-    signal: new AbortController().signal,
-  });
-  const json = (await result.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
-  assert.equal(json.choices[0]?.message.content, "sample");
+  await assert.rejects(
+    () =>
+      fetchImpl("https://replay.invalid", {
+        method: "POST",
+        headers: {},
+        body,
+        signal: new AbortController().signal,
+      }),
+    (error: unknown) =>
+      error instanceof ModelReplayError &&
+      error.code === "REPLAY_FIXTURE_MISSING",
+  );
 });

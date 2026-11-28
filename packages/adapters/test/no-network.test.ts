@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   ModelReconstructionError,
   ModelReconstructor,
+  ModelReplayError,
   TemplateReconstructor,
   createReplayFetch,
 } from "../src/index.js";
@@ -118,21 +119,22 @@ test("no adapter escapes to the network", async () => {
     const sampleBody = JSON.stringify({
       model: "replay-model",
       temperature: 0,
-      messages: [
-        { role: "system", content: "latent replay sample" },
-        { role: "user", content: "hello" },
-      ],
+      messages: [{ role: "user", content: "hello" }],
     });
-    const replayResponse = await replay("https://replay.invalid", {
-      method: "POST",
-      headers: {},
-      body: sampleBody,
-      signal: new AbortController().signal,
-    });
-    const replayJson = (await replayResponse.json()) as {
-      choices: Array<{ message: { content: string } }>;
-    };
-    assert.equal(replayJson.choices[0]?.message.content, "sample");
+    // No fixture is committed: the recorder refuses private and unredacted
+    // writes under data/. A miss is the typed error, not a network fallback.
+    await assert.rejects(
+      () =>
+        replay("https://replay.invalid", {
+          method: "POST",
+          headers: {},
+          body: sampleBody,
+          signal: new AbortController().signal,
+        }),
+      (error: unknown) =>
+        error instanceof ModelReplayError &&
+        error.code === "REPLAY_FIXTURE_MISSING",
+    );
 
     await assert.rejects(
       () =>
