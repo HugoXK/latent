@@ -95,3 +95,22 @@ test("assertBiosafety throws BiosafetyError", () => {
     (error: unknown) => error instanceof BiosafetyError,
   );
 });
+
+test("spaced non-ASCII select-agent, toxin and enhancement terms are refused", () => {
+  const forms = ["炭 疽", "鼠 疫", "天 花", "埃 博 拉", "功 能 获 得", "蓖 麻 毒 素", "炭\u3000疽"];
+  for (const text of forms) {
+    const verdict = classifier.classify(text);
+    assert.equal(verdict.allowed, false, text);
+    assert.ok(
+      ["select_agent", "toxin", "enhancement"].includes(verdict.category),
+      text,
+    );
+  }
+  assert.equal(classifier.classify("炭疽").category, "select_agent");
+  assert.equal(classifier.classify("功能获得").category, "enhancement");
+});
+
+test("a benign spaced Chinese sentence still passes", () => {
+  const verdict = classifier.classify("合成生物学 课程 设计");
+  assert.equal(verdict.allowed, true);
+});

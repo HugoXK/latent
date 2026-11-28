@@ -54,10 +54,12 @@ record should not read as if Security approved a screen with a known bypass.
    claim of completeness) and collapses punctuation to one space. **The term
    lists are normalised by the same function at module init**, so a hyphenated
    term such as `sars-cov-2` cannot go dead. A compact form (spaces removed) is
-   matched in addition to the spaced form, only for terms whose compact form is
-   at least 5 characters — so `an thrax` matches `anthrax`, while the short `gof`
-   keeps spaced matching only (the false-positive consequence is recorded under
-   Risks). Empty text is benign and passes; it cannot carry a term.
+   matched in addition to the spaced form. Compact matching is enabled for terms
+   whose compact form is at least 5 characters **or that contain a non-ASCII
+   letter** — so `an thrax` matches `anthrax`, `gof` stays spaced-only, and a
+   spaced CJK term such as `炭 疽` still matches `炭疽`. The non-ASCII arm exists
+   because the false-positive argument behind the length gate is Latin cross-word
+   matching; a term with no ASCII space is not exposed to it. Empty text is benign and passes; it cannot carry a term.
 5. **The input is the fragment plus string-valued constraints.** The classifier
    never sees a model prompt or a provider key. It is a lexical first-line screen,
    not a biosafety officer.
@@ -109,9 +111,10 @@ misread.
 
 ## Risks
 
-- Compact matching is limited to terms of at least 5 characters. The `gof` term
-  therefore matches only as a spaced word; a `gof` substring inside another token
-  is not matched. This is accepted rather than solved here.
+- Spaced matching is substring-based, so `gof` can fire inside a token
+  (`a gofer for the lab` matches `gof`). This is an accepted false positive for
+  this version, not a hidden guarantee. Compact matching is limited to terms of at
+  least 5 characters or containing a non-ASCII letter.
 - There is no CLI-level biosafety test in this PR (the server and core paths are
   covered); a CLI e2e is a follow-up.
 - The #17 replay fixtures and plan in the diff are inherited from the stack; they

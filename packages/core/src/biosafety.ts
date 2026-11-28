@@ -165,10 +165,14 @@ function matches(text: string, terms: string[]): string[] {
   return terms.filter((term) => {
     if (text.includes(term)) return true;
     const termCompact = compact(term);
-    // Compact matching is limited to terms >= 5 characters so short terms
-    // (`gof`, 3) cannot match across word boundaries; the consequence is
-    // recorded in ADR 0020.
-    return termCompact.length >= 5 && textCompact.includes(termCompact);
+    // Compact matching is gated for short ASCII terms (`gof`, 3) so they cannot
+    // match across Latin word boundaries. A term with a non-ASCII letter is
+    // eligible regardless of length: the gate's false-positive argument is Latin
+    // cross-word matching, and `炭疽`/`鼠疫` would otherwise be defeated by one
+    // inserted space.
+    const compactEligible =
+      termCompact.length >= 5 || /[^\x00-\x7f]/u.test(term);
+    return compactEligible && textCompact.includes(termCompact);
   });
 }
 

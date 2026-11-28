@@ -338,3 +338,29 @@ test("lab.bsl is the fallback when team_bsl is absent", async () => {
       error instanceof BiosafetyError && error.verdict.category === "pathogen",
   );
 });
+
+test("spaced Chinese danger terms are refused before the reconstructor", async () => {
+  const forms = ["炭 疽 杆菌研究", "鼠 疫 研究", "蓖 麻 毒 素 检测", "功 能 获 得 实验"];
+  for (const text of forms) {
+    const calls = { count: 0 };
+    await assert.rejects(
+      () =>
+        develop({
+          fragment: fragment(text),
+          vertical: pack,
+          reconstructor: fakeReconstructor(calls),
+        }),
+      (error: unknown) => error instanceof BiosafetyError,
+      text,
+    );
+    assert.equal(calls.count, 0, text);
+  }
+  const benign = { count: 0 };
+  const result = await develop({
+    fragment: fragment("合成生物学 课程 设计"),
+    vertical: pack,
+    reconstructor: fakeReconstructor(benign),
+  });
+  assert.equal(benign.count, 1);
+  assert.equal(result.idea.status, "developed");
+});
