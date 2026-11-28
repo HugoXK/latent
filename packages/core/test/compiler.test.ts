@@ -164,3 +164,102 @@ test("collisions are compiled into the brief", () => {
   assert.equal(brief.collisions?.length, 1);
   assert.match(renderBriefMarkdown(brief), /Novelty and collisions/);
 });
+
+test("collision cells escape a backslash before a pipe", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    collisions: [
+      {
+        kind: "interface",
+        prior_id: "pa_escape",
+        prior_label: "c\\|d",
+        severity: "medium",
+        note: "a\\|b",
+        claim_ids: ["clm_1"],
+        source_url: "https://example.org/a\\|b",
+      },
+    ],
+  });
+  const markdown = renderBriefMarkdown(brief);
+  const row = markdown
+    .split("\n")
+    .find((line) => line.startsWith("| interface |"));
+  assert.ok(row, markdown);
+  assert.ok(
+    row.includes("a\\\\\\|b"),
+    `the note must stay in its cell: ${row}`,
+  );
+  assert.ok(
+    row.includes("https://example.org/a\\\\\\|b"),
+    `the source must stay in its cell: ${row}`,
+  );
+});
+
+test("collision cells collapse raw newlines and carriage returns", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    collisions: [
+      {
+        kind: "mechanism",
+        prior_id: "pa_newline",
+        prior_label: "prior\nlabel",
+        severity: "high",
+        note: "first line\nsecond line\rthird",
+      },
+    ],
+  });
+  const markdown = renderBriefMarkdown(brief);
+  const row = markdown
+    .split("\n")
+    .find((line) => line.startsWith("| mechanism |"));
+  assert.ok(row, markdown);
+  assert.ok(
+    row.includes("first line second line third"),
+    `a raw newline must not break the row: ${row}`,
+  );
+  assert.equal(row.includes("\r"), false);
+});
+
+test("a brief without a collision check says so", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+  });
+  assert.equal(brief.collision_check?.status, "not_checked");
+  const markdown = renderBriefMarkdown(brief);
+  assert.match(markdown, /Status: \*\*not_checked\*\*/);
+  assert.match(markdown, /not a clean result/);
+});
+
+test("an explicit collision list is checked, including an empty one", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    collisions: [],
+  });
+  assert.equal(brief.collision_check?.status, "checked");
+  const markdown = renderBriefMarkdown(brief);
+  assert.match(markdown, /Status: \*\*checked\*\*/);
+});
+
+test("risk cells escape a pipe and collapse a raw newline", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    extraRisks: [
+      { risk: "a|b", trigger: "t\nx", fallback: "reduce_scope" },
+    ],
+  });
+  const markdown = renderBriefMarkdown(brief);
+  const row = markdown.split("\n").find((line) => line.includes("a\\|b"));
+  assert.ok(row, `the risk row must stay on one line:\n${markdown}`);
+  assert.match(row, /a\\\|b/);
+  assert.ok(row.includes("t x"), `the trigger must collapse its newline: ${row}`);
+});

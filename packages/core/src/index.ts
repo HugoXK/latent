@@ -22,3 +22,4 @@ export * from "./exporters.js";
 export * from "./spec.js";
 export * from "./develop.js";
 export * from "./memory.js";
+export * from "./priors.js";

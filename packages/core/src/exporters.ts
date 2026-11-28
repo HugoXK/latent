@@ -32,10 +32,14 @@ export function exportBriefHtml(brief: Brief): string {
         `<tr><td>${escapeHtml(risk.risk)}</td><td>${escapeHtml(risk.trigger)}</td><td>${escapeHtml(risk.fallback)}</td></tr>`,
     )
     .join("");
+  const collisionCheck = brief.collision_check ?? {
+    status: "not_checked" as const,
+    note: "The novelty check did not run; this is not a clean result.",
+  };
   const collisions = (brief.collisions ?? [])
     .map(
       (collision) =>
-        `<tr><td>${escapeHtml(collision.kind)}</td><td>${escapeHtml(collision.prior_label)}</td><td>${escapeHtml(collision.severity)}</td><td>${escapeHtml(collision.note)}</td></tr>`,
+        `<tr><td>${escapeHtml(collision.kind)}</td><td>${escapeHtml(collision.prior_label)}</td><td>${escapeHtml(collision.severity)}</td><td>${escapeHtml(collision.note)}</td><td>${escapeHtml((collision.claim_ids ?? []).join(", ") || "—")}</td><td>${escapeHtml(collision.source_url ?? "—")}</td></tr>`,
     )
     .join("");
   const nextSteps = brief.next_steps
@@ -61,9 +65,10 @@ export function exportBriefHtml(brief: Brief): string {
     sections,
     `  <h2>Evidence</h2><ul>${evidence}</ul>`,
     `  <h2>Risks</h2><table><thead><tr><th>Risk</th><th>Trigger</th><th>Fallback</th></tr></thead><tbody>${risks}</tbody></table>`,
+    `  <h2>Novelty and collisions</h2><p>Status: <strong>${escapeHtml(collisionCheck.status)}</strong> — ${escapeHtml(collisionCheck.note)}</p>`,
     ...(collisions
       ? [
-          `  <h2>Novelty and collisions</h2><table><thead><tr><th>Kind</th><th>Prior</th><th>Severity</th><th>Note</th></tr></thead><tbody>${collisions}</tbody></table>`,
+          `  <table><thead><tr><th>Kind</th><th>Prior</th><th>Severity</th><th>Note</th><th>Claims</th><th>Source</th></tr></thead><tbody>${collisions}</tbody></table>`,
         ]
       : []),
     `  <h2>Next steps</h2><ol>${nextSteps}</ol>`,
