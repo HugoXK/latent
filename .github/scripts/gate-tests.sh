@@ -29,17 +29,20 @@ for path in "$DIR"/*.py "$DIR"/*.sh; do
   cp "$path" "$TMP/"
 done
 
-# The drift test asserts that REQUIRED_JOBS and the aggregate's needs match the
-# workflow this PR ships, so it must read the HEAD working-tree ci.yml, not the
-# base copy: base has no gate-tests job yet on bootstrap, and a base copy would
-# make the assertion unpassable before merge. Weakening ci.yml is caught by the
-# publisher's blob-equality check, not here.
-export CI_YML_PATH="$PWD/.github/workflows/ci.yml"
-
 if [ "$found" -eq 1 ]; then
+  # Base tests, base ci.yml: that is the anti-weakening property. A PR that
+  # deletes the gate-tests job must fail a base-branch assertion, so feeding it
+  # the head's ci.yml here would delete the control.
+  if git cat-file -e "$BASE:.github/workflows/ci.yml" 2>/dev/null; then
+    git show "$BASE:.github/workflows/ci.yml" > "$TMP/ci.yml"
+    export CI_YML_PATH="$TMP/ci.yml"
+  fi
   echo "running base-branch gate tests against head scripts"
   (cd "$TMP" && python3 -m unittest discover -s . -p "test_*.py")
 else
+  # Bootstrap: no base tests exist, so run head tests in place against head's
+  # ci.yml via the default relative path. Exporting a base ci.yml here is what
+  # made the first post-this-merge PR unpassable.
   echo "no gate tests on $BASE yet; running head tests (bootstrap)"
   python3 -m unittest discover -s "$DIR" -p "test_*.py"
 fi
