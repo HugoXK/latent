@@ -2,6 +2,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
+  BiosafetyError,
   BriefValidationError,
   ConstraintAnswerError,
   ConstraintError,
@@ -255,7 +256,30 @@ async function main(): Promise<number> {
         if (!fragmentId) throw new CliError("usage: latent develop <fragment-id>", 1);
         const fragment = store.getFragment(fragmentId);
         if (!fragment) throw new CliError(`fragment not found: ${fragmentId}`, 2);
-        const result = await develop({ fragment, vertical: igem, reconstructor });
+        let teamBsl: number | undefined;
+        if (flags.bsl !== undefined) {
+          teamBsl = Number(flags.bsl);
+          if (!Number.isInteger(teamBsl) || teamBsl < 1 || teamBsl > 4) {
+            throw new CliError("--bsl must be an integer from 1 to 4", 1);
+          }
+        }
+        let result;
+        try {
+          result = await develop({
+            fragment,
+            vertical: igem,
+            reconstructor,
+            team_bsl: teamBsl,
+          });
+        } catch (error) {
+          if (error instanceof BiosafetyError) {
+            store.appendEvent("biosafety.refused", fragment.id, {
+              category: error.verdict.category,
+              bsl: error.verdict.bsl,
+            });
+          }
+          throw error;
+        }
         store.putIdea(result.idea);
         store.putClaims(result.idea.id, result.claims);
         store.putGates(result.idea.id, result.gates);

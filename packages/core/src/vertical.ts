@@ -10,9 +10,17 @@ export interface GateDefinition {
   hard: boolean;
 }
 
+export interface VerticalRules {
+  version: string;
+  checked_at: string;
+}
+
 export interface VerticalPack {
   id: string;
   name: string;
+  description?: string;
+  evidenceScale?: string[];
+  rules?: VerticalRules;
   variables: string[];
   questions: QuestionDefinition[];
   gates: GateDefinition[];

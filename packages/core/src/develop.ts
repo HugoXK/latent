@@ -1,3 +1,8 @@
+import {
+  BiosafetyError,
+  RuleBasedBiosafetyClassifier,
+  checkBiosafety,
+} from "./biosafety.js";
 import { createConstraintState } from "./constraints.js";
 import type { ConstraintState } from "./constraints.js";
 import { newId } from "./ids.js";
@@ -17,6 +22,8 @@ export interface DevelopInput {
   vertical: VerticalPack;
   reconstructor: Reconstructor;
   constraint?: ConstraintState;
+  /** The team's declared BSL level; defaults to the constraint answer, then 1. */
+  team_bsl?: number;
   now?: string;
 }
 
@@ -25,6 +32,27 @@ export async function develop(input: DevelopInput): Promise<DevelopResult> {
   const constraint =
     input.constraint ??
     createConstraintState(input.vertical.id, input.vertical.questions, now);
+
+  // Pack-independent: every reconstruction passes the same screen. Opting a
+  // pack out would be a bypass (the research pack is selectable); an opt-out
+  // would need an ADR, owner approval and an audit trail.
+  const text = [
+    input.fragment.content,
+    ...Object.values(constraint.variables)
+      .map((variable) => variable.value)
+      .filter((value): value is string => typeof value === "string"),
+  ].join("\n");
+  const answeredBsl = constraint.variables["lab.bsl"]?.value;
+  const teamBsl =
+    input.team_bsl ??
+    (typeof answeredBsl === "number" ? answeredBsl : 1);
+  const result = checkBiosafety({
+    text,
+    team_bsl: teamBsl,
+    classifier: new RuleBasedBiosafetyClassifier(),
+  });
+  if (!result.pass) throw new BiosafetyError(result.verdict);
+
   const output = await input.reconstructor.reconstruct({
     fragment: input.fragment,
     verticalId: input.vertical.id,
