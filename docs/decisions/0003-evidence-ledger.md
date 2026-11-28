@@ -102,8 +102,10 @@ and owner approval.
 
 ## Amendment — 2026-11-28: what counts as span support
 
-- Context: review found `supports()` marking a span as support on a two-token
-  overlap, including cases where the span stated the **opposite polarity**
+- Context: #93 verdicts at `75310c46` (APPROVED 2026-11-28T01:38:19Z and
+  2026-11-28T01:39:43Z) found `supports()` marking a span as support on a
+  two-token overlap, including cases where the span stated the **opposite
+  polarity**
   ("does not respond" vs "responds") or named a **different chassis**
   ("in B. subtilis" supporting a claim "in E. coli"). Both are fabricated
   evidence under AGENTS.md rule 2, not a tuning preference.
