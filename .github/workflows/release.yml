@@ -1,0 +1,150 @@
+name: release
+
+# Manual, two-phase release. `prepare` opens a mechanical release PR; after it
+# merges, `publish` tags the verified green main commit, attaches an SBOM and a
+# source archive, and records provenance. Never release from a red main.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "prepare a release PR or publish a tagged release"
+        required: true
+        type: choice
+        options: [prepare, publish]
+        default: prepare
+      version:
+        description: "semantic version, e.g. 0.3.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require a green main
+        id: green
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          SHA=$(gh run list --branch main --workflow ci --limit 1 --json headSha,conclusion --jq '.[0].headSha // empty')
+          CONCLUSION=$(gh run list --branch main --workflow ci --limit 1 --json conclusion --jq '.[0].conclusion // empty')
+          echo "main head $SHA: $CONCLUSION"
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "release refused: main is not green"
+            exit 1
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.green.outputs.sha }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Verify the workspace
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm check
+          python3 -m unittest discover -s .github/scripts -p "test_*.py"
+
+      - name: Prepare the release pull request
+        if: inputs.mode == 'prepare'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          python3 .github/scripts/release.py --version "$VERSION" --write
+          git config user.name "HugoXK-bot"
+          git config user.email "87640074+HugoXK@users.noreply.github.com"
+          git checkout -b "release/v$VERSION"
+          git add -A
+          git commit -m "chore(release): v$VERSION"
+          git push origin "HEAD:release/v$VERSION"
+          gh pr create \
+            --base main \
+            --head "release/v$VERSION" \
+            --title "chore(release): v$VERSION" \
+            --body "No-issue: release v$VERSION
+
+          ## What and why
+
+          Mechanical release: fold \`changelog.d/\` into \`CHANGELOG.md\` and bump the
+          workspace versions to $VERSION.
+
+          ## Evidence
+
+          Ran: \`python3 .github/scripts/release.py --version $VERSION --write\` and
+          \`pnpm check\` in the release workflow.
+          Not run: the tag/publish step; dispatch \`release\` with mode=publish after
+          this pull request merges.
+
+          ## Risk tier
+
+          - [x] T2
+
+          Changelog-not-needed: the release folds the existing fragments."
+
+      - name: Publish the tagged release
+        if: inputs.mode == 'publish'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          EXTRA=$(find changelog.d -maxdepth 1 -name '*.md' ! -name README.md -print)
+          if [ -n "$EXTRA" ]; then
+            echo "release refused: changelog fragments remain: $EXTRA"
+            exit 1
+          fi
+          python3 .github/scripts/release.py --version "$VERSION" --notes > /tmp/notes.md
+          python3 - <<'PY'
+          import json, os, sys
+          version = os.environ["VERSION"]
+          current = json.load(open("package.json", encoding="utf-8"))["version"]
+          if current != version:
+              print(f"release refused: package.json is {current}, expected {version}")
+              sys.exit(1)
+          PY
+          pnpm list --json --depth Infinity > /tmp/pnpm-list.json
+          python3 .github/scripts/sbom.py \
+            --input /tmp/pnpm-list.json \
+            --output sbom.json \
+            --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git archive --format=tar.gz --prefix="latent-$VERSION/" \
+            -o "latent-$VERSION.tar.gz" "${{ steps.green.outputs.sha }}"
+          gh release create "v$VERSION" \
+            --target "${{ steps.green.outputs.sha }}" \
+            --title "v$VERSION" \
+            --notes-file /tmp/notes.md
+          gh release upload "v$VERSION" sbom.json "latent-$VERSION.tar.gz"
+
+      - name: Attest the source archive
+        if: inputs.mode == 'publish'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: latent-${{ inputs.version }}.tar.gz
