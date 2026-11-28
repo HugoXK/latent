@@ -23,9 +23,11 @@ auto-pass a gate bypass rather than an optimisation:
 - an executable or a security-relevant ops document would reach `main` with
   `review-gate: success` and no human or bot reviewer having read it.
 
-A gate whose waiver can be triggered by choosing a filename is not a gate. Two
-reviews (Review Lead; Reviewer 1) reproduced the bypass independently, and Chief
-withdrew the T3 approval that had been granted for the stack.
+A gate whose waiver can be triggered by choosing a filename is not a gate.
+Review Lead reproduced all three evasions at #8's head `2b2e9182` (verdict
+2026-11-27T09:27:27Z): `docs/deploy.sh` (mode 100755), `docs/page.html`
+containing a `<script>`, and a `src/x.ts → docs/x.md` rename all classified as
+documentation. Chief withdrew the T3 approval for the stack on that basis.
 
 ## Alternatives
 
