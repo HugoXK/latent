@@ -6,6 +6,107 @@ All notable changes to this project are documented here. The format follows
 
 Fragments for the next release live in [`changelog.d/`](changelog.d/).
 
+## [0.2.0-alpha.1] - 2026-11-28
+
+### Added
+
+- **#15** — replay: add the ReplayCase schema, validator and illustrative fixtures
+
+  The blind replay format is defined in `data/schemas/replay-case.schema.json`, with
+  temporal-cutoff and seed-leak checks, exactly one required seed candidate and five
+  invalid fixtures. `latent eval validate <file>` checks a case.
+
+- **#18** — model: add request-keyed replay fixtures
+
+  `LATENT_MODEL_REPLAY=1` reads a recorded response keyed by model, temperature,
+  messages and response_format. A missing fixture is a typed error and no network
+  call is made; the record helper redacts private strings before writing.
+
+- **#20** — Generate the TypeScript schema types from `data/schemas/` and fail CI when the
+  committed types are stale (`pnpm schema:types` / `pnpm schema:types:check`); no
+  runtime behaviour changes.
+
+- **#21** — schema: add a valid and an invalid fixture for every schema
+
+  `packages/core/test/fixtures.test.ts` iterates `data/schemas/*.schema.json` and
+  fails when a schema lacks a fixture. The store rejects an invalid write for every
+  primitive, and date-time and numeric bounds are tested.
+
+- **#29** — interviewer: free-text, multi-select and other answers
+
+  `QuestionDefinition` gains `kind` and `allowOther`; `answerConstraint` validates
+  the answer shape; the CLI and API normalize multi and text answers.
+
+- **#32** — vertical pack: validator and authoring guide
+
+  `validateVerticalPack` checks variables, questions, dependencies, options and
+  gates; `assertValidPack` is exercised by the iGEM pack and documented in
+  `docs/vertical-pack.md`.
+
+- **#35** — novelty: add the typed novelty graph
+
+  `NoveltyGraph` stores project, part, mechanism, host, readout, substrate,
+  evidence and idea nodes with typed edges and neighbor queries.
+
+- **#36** — novelty: canonicalize mechanism, interface, host and readout
+
+  `canonicalize` normalizes the collision tuple and maps a small, explicit set of
+  mechanism aliases.
+
+- **#38** — brief: render the collision report
+
+  `collisionReport` distinguishes mechanism, interface and sequence collisions;
+  the brief carries them in `collisions` and renders a "Novelty and collisions"
+  section.
+
+- **#44** — safety: enforce the BSL and dual-use classifier before any reconstruction
+
+  Every pack now passes the same pre-reconstruction screen (no opt-in bypass). Select
+  agents, toxins and enhancement language are refused after NFKC/lowercase/
+  homoglyph/punctuation normalisation and an explicit abbreviation and multilingual
+  table; a BSL-2 pathogen requires `team_bsl >= 2` from the API/CLI, defaulting to 1.
+  The refusal is a typed error (CLI exit 1, API 422) and the audit event records
+  category/bsl only.
+
+- **#46** — spec: add an implementation-facing spec compiler
+
+  `compileSpec` emits assumptions, interfaces, data contracts, gate-derived tests,
+  milestones and unknowns; it blocks unsupported claims, unknown hard gates and
+  open high-risk assumptions. `latent spec` renders Markdown or JSON.
+
+### Changed
+
+- **#38** — Render collision evidence (claims, source and a checked / not_checked status) in
+  compiled briefs, and escape Markdown table cells so a pipe or line break cannot
+  break or inject a row.
+
+- **#118** — Document the shipped pack-independent biosafety model: the screen runs before
+  `reconstruct` for every vertical, has no per-pack opt-in and no automatic
+  override, and surfaces as CLI exit 1 / API `422 BIOSAFETY_BLOCKED` with a
+  content-free `biosafety.refused` event.
+
+### Fixed
+
+- **#61** — Fix the replay fixture leak: give the illustrative case a neutral `metadata.title`
+  and add a regression test that no visible field can recover the hidden seed title.
+  Add ADR 0007 for the ReplayCase schema, its migration note and its anti-leakage
+  fixture policy.
+
+### Security
+
+- **#94** — security: keep the default gitleaks ruleset active during secret scans
+
+  The repository-root `.gitleaks.toml` now sets `[extend] useDefault = true`, so it can no longer turn `secret-scan` into a no-op; the one exemption is scoped to `generic-api-key` for a single historical replay-fixture path, with its removal condition documented. The scan is pinned to gitleaks 8.30.1 with a checksum, and a regression script proves the exemption does not widen.
+
+- **#95** — Refuse to record a private fragment or an unredacted fixture under the committed
+  `data/model-replay/` tree, and keep the replay constructor on the default-deny
+  `LATENT_MODEL_SEND_PRIVATE` gate. Remove the committed sample fixture and the
+  allowlist-only `.gitleaks.toml`, which disabled the default secret ruleset.
+
+- **#99** — Reject prototype-polluting constraint variable names and replace the quadratic
+  baseUrl trailing-slash regex with a linear scan, closing two CodeQL alerts on
+  main (remote property injection and polynomial ReDoS).
+
 ## [Unreleased]
 
 ### Added
