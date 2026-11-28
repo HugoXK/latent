@@ -1,0 +1,24 @@
+# Secret scanning config for this repository.
+#
+# gitleaks treats a repository-root .gitleaks.toml as the complete configuration:
+# without [extend] useDefault the default ruleset is not loaded at all, and the
+# scan silently becomes allowlist-only. Keep useDefault = true so every default
+# rule stays active.
+#
+# The single exception below is scoped to one rule and one historical path. A
+# synthetic replay fixture deleted from the tree is still reachable in git history
+# at 868fbc3 on the open feat/model-replay branch (#63); its 64-hex file name is a
+# request key, not a credential. The exemption covers only generic-api-key for
+# files matching that pattern: every other rule still fires on those files, and
+# generic-api-key still fires on every other path. Removal condition: once #63
+# merges and its branch is deleted, 868fbc3 becomes unreachable; delete this
+# block in a follow-up.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Historical replay fixture at 868fbc3: the 64-hex name is a request key, not a credential. Scoped to generic-api-key and this path pattern only."
+targetRules = ["generic-api-key"]
+paths = [
+  '''data/model-replay/[0-9a-f]{64}\.json''',
+]
