@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LocalRetrievalIndex } from "../src/index.js";
-import type { RetrievalDocument } from "../src/index.js";
+import {
+  HttpEmbeddingProvider,
+  LocalRetrievalIndex,
+} from "../src/index.js";
+import type {
+  EmbeddingFetch,
+  RetrievalDocument,
+} from "../src/index.js";
 
 const documents: RetrievalDocument[] = [
   {
@@ -101,4 +107,58 @@ test("the index is deterministic", async () => {
     a.map((hit) => hit.id),
     b.map((hit) => hit.id),
   );
+});
+
+test("the index is deterministic across corpus order", async () => {
+  const forward = await LocalRetrievalIndex.build(documents);
+  const backward = await LocalRetrievalIndex.build([...documents].reverse());
+  for (const text of [
+    "arsenic biosensor",
+    "unrelated query about economics",
+    "pathogen detection",
+  ]) {
+    const a = await forward.searchDetailed({ text, limit: 5 });
+    const b = await backward.searchDetailed({ text, limit: 5 });
+    assert.deepEqual(
+      a.map((hit) => hit.id),
+      b.map((hit) => hit.id),
+      `different order for query: ${text}`,
+    );
+  }
+});
+
+test("a zero-cosine document never enters the semantic ranking", async () => {
+  const hits = await index.searchDetailed({
+    text: "unrelated economics query",
+    limit: 5,
+  });
+  for (const hit of hits) {
+    assert.ok(hit.vector > 0, `${hit.id} was ranked with a zero semantic score`);
+  }
+});
+
+test("a private document is refused before an HTTP embedding call", async () => {
+  let calls = 0;
+  const fetchImpl: EmbeddingFetch = async () => {
+    calls += 1;
+    return {
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => ({ data: documents.map(() => ({ embedding: [1, 0] })) }),
+    };
+  };
+  const provider = new HttpEmbeddingProvider({
+    baseUrl: "https://example.test/v1",
+    apiKey: "k",
+    model: "m",
+    fetchImpl,
+  });
+  const privateDocument = { ...documents[0], privacy: "private" } as RetrievalDocument;
+  await assert.rejects(
+    () => LocalRetrievalIndex.build([privateDocument], { embedding: provider }),
+    (error: unknown) =>
+      (error as { code?: string }).code === "EMBEDDING_PRIVATE_REFUSED",
+  );
+  assert.equal(calls, 0, "a private document must not reach the provider");
 });

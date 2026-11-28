@@ -74,3 +74,48 @@ test("the HTTP provider surfaces an HTTP error", async () => {
   });
   await assert.rejects(() => provider.embed(["a"]), /HTTP 500/);
 });
+
+test("the HTTP provider refuses private text unless consent is explicit", async () => {
+  let calls = 0;
+  const fetchImpl: EmbeddingFetch = async () => {
+    calls += 1;
+    return {
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => ({ data: [{ embedding: [1, 0] }] }),
+    };
+  };
+  const embedPrivate = (
+    provider: HttpEmbeddingProvider,
+  ): Promise<number[][]> =>
+    (
+      provider.embed as unknown as (
+        texts: string[],
+        context: { private?: boolean },
+      ) => Promise<number[][]>
+    )(["a private idea"], { private: true });
+
+  const provider = new HttpEmbeddingProvider({
+    baseUrl: "https://example.test/v1",
+    apiKey: "k",
+    model: "m",
+    fetchImpl,
+  });
+  await assert.rejects(
+    () => embedPrivate(provider),
+    (error: unknown) =>
+      (error as { code?: string }).code === "EMBEDDING_PRIVATE_REFUSED",
+  );
+  assert.equal(calls, 0, "no request may leave the machine without consent");
+
+  const allowed = new HttpEmbeddingProvider({
+    baseUrl: "https://example.test/v1",
+    apiKey: "k",
+    model: "m",
+    fetchImpl,
+    allowPrivate: true,
+  } as unknown as ConstructorParameters<typeof HttpEmbeddingProvider>[0]);
+  assert.equal((await embedPrivate(allowed))[0]?.length, 2);
+  assert.equal(calls, 1);
+});

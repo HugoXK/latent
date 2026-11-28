@@ -5,8 +5,10 @@
 - Owner: HugoXK
 
 The first retrieval layer is a **local hybrid index**: BM25, an embedding provider
-and reciprocal rank fusion. It is deterministic and offline by default, and it
-implements the `SearchProvider` port from the core.
+and reciprocal rank fusion. It is deterministic — ranking is independent of the
+ingestion order, because every sort breaks ties by document id and a document
+with a zero cosine score is not ranked — and offline by default. It implements
+the `SearchProvider` port from the core.
 
 ## Components
 
@@ -25,6 +27,18 @@ The default `HashingEmbeddingProvider` is a feature-hashing vector: it is
 deterministic and offline, but it is **lexical, not semantic**. It exists so the
 index can be built and tested without a provider. Pass `HttpEmbeddingProvider`
 for a real embedding model; the tests inject `fetchImpl` and make no network call.
+
+## Privacy and egress
+
+`HashingEmbeddingProvider` never leaves the machine. `HttpEmbeddingProvider` posts
+the title and text of every ingested document, and the query text, to
+`${baseUrl}/embeddings`. Consent is per provider and off by default: a document or
+query marked `privacy: "private"` is refused with `EmbeddingConsentError` before
+any request, unless the provider was built with `allowPrivate: true`. The query is
+the user's idea text, so it is treated the same way. This mirrors the model path's
+`LATENT_MODEL_SEND_PRIVATE` consent; see `docs/security.md` (data classification,
+"never sent to a provider without per-provider consent"). A hanging provider is
+aborted after `timeoutMs` (30s default), and large corpora are sent in batches.
 
 ## Filters
 

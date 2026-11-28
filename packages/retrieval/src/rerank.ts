@@ -1,7 +1,11 @@
+function compareIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function ranks(scores: Map<string, number>): Map<string, number> {
   return new Map(
     [...scores.entries()]
-      .sort((left, right) => right[1] - left[1])
+      .sort((left, right) => right[1] - left[1] || compareIds(left[0], right[0]))
       .map(([id], index) => [id, index + 1]),
   );
 }

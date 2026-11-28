@@ -23,12 +23,19 @@ export interface RetrievalDocument {
   url: string;
   metadata: RetrievalMetadata;
   snapshot_hash?: string;
+  /**
+   * Mark a document built from a private fragment. The index refuses to hand it
+   * to an embedding provider without per-provider consent.
+   */
+  privacy?: "public" | "private";
 }
 
 export interface RetrievalQuery {
   text: string;
   filters?: Record<string, string | number | boolean>;
   limit?: number;
+  /** Mark a query built from a private idea; the same consent gate applies. */
+  privacy?: "public" | "private";
 }
 
 export interface RetrievalHit {
@@ -48,6 +55,10 @@ export interface LocalRetrievalIndexOptions {
   bm25?: Bm25Options;
   /** Maximum candidates from each ranking before fusion. */
   candidateLimit?: number;
+}
+
+function compareIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function snippet(text: string, tokens: string[], maxLength = 200): string {
@@ -119,10 +130,14 @@ export class LocalRetrievalIndex implements SearchProvider {
     );
 
     const embedding = options.embedding ?? new HashingEmbeddingProvider();
+    const anyPrivate = [...unique.values()].some(
+      (document) => document.privacy === "private",
+    );
     const values = await embedding.embed(
       [...unique.values()].map(
         (document) => `${document.title}\n${document.text}`,
       ),
+      { private: anyPrivate },
     );
     if (values.length !== unique.size) {
       throw new Error("embedding provider returned the wrong number of vectors");
@@ -166,30 +181,38 @@ export class LocalRetrievalIndex implements SearchProvider {
     const lexical = new Map(
       [...this.#bm25.score(tokens)]
         .filter(([id]) => allowed.has(id))
-        .sort((left, right) => right[1] - left[1])
+        .sort((left, right) => right[1] - left[1] || compareIds(left[0], right[0]))
         .slice(0, this.#candidateLimit),
     );
-    const queryVector = (await this.#embedding.embed([query.text]))[0];
+    const queryVector = (
+      await this.#embedding.embed([query.text], {
+        private: query.privacy === "private",
+      })
+    )[0];
     if (!queryVector) {
       throw new Error("embedding provider returned no query vector");
     }
     const vector = new Map<string, number>();
     for (const id of allowed) {
       const documentVector = this.#vectors.get(id);
-      if (documentVector) {
-        vector.set(id, cosine(queryVector, documentVector));
-      }
+      if (!documentVector) continue;
+      const score = cosine(queryVector, documentVector);
+      // A zero-cosine document has no shared feature with the query. Ranking it
+      // would contribute an arbitrary 1/(k+rank) to the fused score.
+      if (score !== 0) vector.set(id, score);
     }
     const semantic = new Map(
       [...vector.entries()]
-        .sort((left, right) => right[1] - left[1])
+        .sort((left, right) => right[1] - left[1] || compareIds(left[0], right[0]))
         .slice(0, this.#candidateLimit),
     );
     const fused = fuseRanks(lexical, semantic);
     const limit = query.limit ?? 10;
     const ids = [...fused.keys()]
       .sort(
-        (left, right) => (fused.get(right) ?? 0) - (fused.get(left) ?? 0),
+        (left, right) =>
+          (fused.get(right) ?? 0) - (fused.get(left) ?? 0) ||
+          compareIds(left, right),
       )
       .slice(0, limit);
 
