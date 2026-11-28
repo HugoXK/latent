@@ -1,2 +1,13 @@
-# Every change needs the owner until a second maintainer is added.
-* @HugoXK
+# Code owners for the review-gate trust surface.
+#
+# GitHub only enforces `require_code_owner_reviews` when this file exists, and a
+# pull request could otherwise add a workflow or job that manufactures the
+# `ci-ok` / `review-gate` check names. Owning `.github/**` means a workflow edit
+# needs the reviewer identity's approval, not just a green check.
+#
+# Frozen paths are deliberately NOT listed: the only code owner available is the
+# reviewer identity itself, so listing `verifier.ts`/`ledger.ts`/`gates.ts` here
+# would add a second approval gate on PRs that already require that identity's
+# verdict, without adding a distinct reviewer. Revisit if a second reviewer
+# identity exists.
+.github/** @HugoXK-bot
