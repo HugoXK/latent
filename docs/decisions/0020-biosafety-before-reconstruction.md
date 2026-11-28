@@ -32,6 +32,11 @@ record should not read as if Security approved a screen with a known bypass.
    pack before `reconstructor.reconstruct`. There is no opt-out; an opt-out would
    need its own ADR, owner approval and an audit trail. The iGEM and research packs
    both pass through the same screen.
+
+   `checkBiosafety`'s `classifier` parameter is a testability seam only;
+   `develop()` is the sole enforcement point and always constructs the
+   rule-based classifier. Any pipeline that calls `checkBiosafety` directly with a
+   permissive classifier is bypassing the gate by choice and is out of contract.
 2. **Refusal is hard.** A select agent, toxin or enhancement term is refused
    regardless of the team's BSL. A BSL-2 pathogen is allowed only when the team's
    BSL is at least the required level.
