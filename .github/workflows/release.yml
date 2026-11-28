@@ -145,7 +145,7 @@ jobs:
   publish:
     name: publish
     needs: [verify, prepare]
-    if: always() && inputs.mode == 'publish'
+    if: inputs.mode == 'publish' && needs.verify.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -205,7 +205,7 @@ jobs:
   attest:
     name: attest
     needs: [verify, publish]
-    if: inputs.mode == 'publish'
+    if: inputs.mode == 'publish' && needs.verify.result == 'success' && needs.publish.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
