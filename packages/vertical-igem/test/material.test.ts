@@ -4,6 +4,7 @@ import {
   CobraFbaRunner,
   FbaError,
   FixtureFbaRunner,
+  MaterialBalanceError,
   materialBalance,
 } from "../src/index.js";
 import type { ProcessRunner, Reaction } from "../src/index.js";
@@ -95,4 +96,34 @@ test("the fixture FBA runner returns its result", async () => {
     objective_value: 1,
   }).run();
   assert.equal(fba.feasible, true);
+});
+
+test("an unsafe substance name is rejected with a typed error", () => {
+  for (const name of ["__proto__", "constructor", "prototype"]) {
+    assert.throws(
+      () =>
+        materialBalance({
+          target: "C",
+          target_amount: 1,
+          reactions: [
+            { id: "r1", substrates: { [name]: 1 }, products: { C: 1 } },
+          ],
+          available: {},
+        }),
+      (error: unknown) =>
+        error instanceof MaterialBalanceError &&
+        error.code === "MATERIAL_UNSAFE_SUBSTANCE",
+      name,
+    );
+  }
+});
+
+test("the required map has no Object.prototype inherited keys", () => {
+  const result = materialBalance({
+    target: "C",
+    target_amount: 1,
+    reactions: [{ id: "r1", substrates: { A: 1 }, products: { C: 1 } }],
+    available: { A: 10 },
+  });
+  assert.equal(Object.getPrototypeOf(result.required), null);
 });

@@ -245,3 +245,33 @@ test("the recorded FlyBot contract matches the request we send", async () => {
   });
   assert.deepEqual(result, { ref: "fly_recorded0001" });
 });
+
+test("a base URL with many trailing slashes is normalized without backtracking", async () => {
+  const urls: string[] = [];
+  const runtime = new HttpAgentRuntime({
+    baseUrl: `https://fly.example${"/".repeat(10_000)}`,
+    token: "t",
+    fetchImpl: async (url) => {
+      urls.push(url);
+      return jsonResponse({ ref: "fly_1" }, 200);
+    },
+  });
+  await runtime.schedule({ id: "job_1", kind: "incubate", payload: {} });
+  assert.deepEqual(urls, ["https://fly.example/v1/jobs"]);
+});
+
+test("a non-positive or non-finite timeout is rejected at construction", () => {
+  for (const timeoutMs of [-1, 0, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(
+      () =>
+        new HttpAgentRuntime({
+          baseUrl: "https://fly.example",
+          token: "t",
+          timeoutMs,
+        }),
+      (error: unknown) =>
+        error instanceof RuntimeError && error.code === "RUNTIME_CONFIG",
+      `timeoutMs=${String(timeoutMs)}`,
+    );
+  }
+});

@@ -1,7 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -722,9 +722,12 @@ test("ingest and retrieve the local evidence corpus", () => {
 
 test("the iGEM brief accepts component, timeline and material inputs", () => {
   cleanup();
-  const componentsPath = join(tmpdir(), `latent-components-${process.pid}.json`);
-  const timelinePath = join(tmpdir(), `latent-timeline-${process.pid}.json`);
-  const materialPath = join(tmpdir(), `latent-material-${process.pid}.json`);
+  // A private directory per test; predictable names in the shared temp dir are
+  // an insecure-temp-file finding because another process can pre-create them.
+  const inputsDir = mkdtempSync(join(tmpdir(), "latent-igem-inputs-"));
+  const componentsPath = join(inputsDir, "components.json");
+  const timelinePath = join(inputsDir, "timeline.json");
+  const materialPath = join(inputsDir, "material.json");
   try {
     const fragmentId = String(
       jsonData(run(["capture", "arsenic soil biosensor", "--json"])).id,
@@ -824,9 +827,7 @@ test("the iGEM brief accepts component, timeline and material inputs", () => {
       ["Components", "Timeline", "Material balance"],
     );
   } finally {
-    rmSync(componentsPath, { force: true });
-    rmSync(timelinePath, { force: true });
-    rmSync(materialPath, { force: true });
+    rmSync(inputsDir, { recursive: true, force: true });
     cleanup();
   }
 });

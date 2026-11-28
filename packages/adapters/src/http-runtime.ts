@@ -45,6 +45,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Strip trailing slashes without a backtracking regular expression. The base URL
+ * is library input (CodeQL flags a `/+$` rewrite as a ReDoS), so this is a single
+ * linear scan.
+ */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+  return value.slice(0, end);
+}
+
+/**
  * The FlyBot-compatible runtime contract:
  *
  *   POST {base}/v1/jobs            { id, kind, payload }  -> { ref } | { id }
@@ -65,10 +76,17 @@ export class HttpAgentRuntime implements AgentRuntime {
   constructor(options: HttpAgentRuntimeOptions) {
     if (!options.baseUrl.trim()) throw new RuntimeError("RUNTIME_CONFIG", "baseUrl is required");
     if (!options.token.trim()) throw new RuntimeError("RUNTIME_CONFIG", "token is required");
-    this.#baseUrl = options.baseUrl.replace(/\/+$/, "");
+    const timeoutMs = options.timeoutMs ?? 10_000;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      throw new RuntimeError(
+        "RUNTIME_CONFIG",
+        "timeoutMs must be a positive finite number",
+      );
+    }
+    this.#baseUrl = stripTrailingSlashes(options.baseUrl);
     this.#token = options.token;
     this.#fetch = options.fetchImpl ?? ((url, init) => globalThis.fetch(url, init));
-    this.#timeoutMs = options.timeoutMs ?? 10_000;
+    this.#timeoutMs = timeoutMs;
     this.#callbackUrl = options.callbackUrl?.trim() ? options.callbackUrl.trim() : null;
     this.#idempotencyHeader = options.idempotencyHeader ?? "Idempotency-Key";
   }
