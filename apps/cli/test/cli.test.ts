@@ -11,6 +11,21 @@ const root = fileURLToPath(new URL("../../..", import.meta.url));
 const cli = join(root, "apps/cli/src/index.ts");
 const dbPath = join(tmpdir(), `latent-cli-${process.pid}-${Date.now()}.sqlite`);
 
+function rowCounts(): { ideas: number; claims: number; gates: number } {
+  const db = new DatabaseSync(dbPath);
+  try {
+    const count = (table: string) =>
+      (
+        db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as {
+          n: number;
+        }
+      ).n;
+    return { ideas: count("ideas"), claims: count("claims"), gates: count("gates") };
+  } finally {
+    db.close();
+  }
+}
+
 function run(args: string[]) {
   return spawnSync(process.execPath, ["--import", "tsx", cli, ...args], {
     cwd: root,
@@ -199,6 +214,7 @@ test("a select-agent direction is refused by the biosafety screen", () => {
     (JSON.parse(captured.stdout) as { id: string }).id,
   );
 
+  const before = rowCounts();
   const refused = run(["develop", fragmentId, "--json"]);
   assert.equal(refused.status, 1, refused.stderr);
   assert.equal(refused.stdout, "", "a refused develop writes nothing to stdout");
@@ -207,6 +223,12 @@ test("a select-agent direction is refused by the biosafety screen", () => {
     /anthracis/i.test(refused.stderr),
     false,
     `the refusal must not echo the matched term: ${refused.stderr}`,
+  );
+
+  assert.deepEqual(
+    rowCounts(),
+    before,
+    "a refused develop persists no idea, claim or gate",
   );
 
   const db = new DatabaseSync(dbPath);
