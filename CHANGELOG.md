@@ -6,6 +6,44 @@ All notable changes to this project are documented here. The format follows
 
 Fragments for the next release live in [`changelog.d/`](changelog.d/).
 
+## [Unreleased]
+
+### Added
+
+- Information-gain interviewer: `ConstraintState`, a 10-question iGEM bank with a
+  blocking set, `nextQuestion` / `blockingQuestions` / `isReadyForVerification`,
+  and a `constraint_states` table in the store.
+- CLI `ask`, `answer` and `constraints`; API
+  `GET /v1/ideas/{id}/constraints` and
+  `POST /v1/ideas/{id}/constraints/answer`.
+- `brief` now refuses to compile while a blocking constraint is unanswered.
+- OpenAI-compatible `ModelReconstructor`: strict JSON, three variants, grade-C
+  only, `inferred`/`unknown` claims, one repair, no silent fallback.
+- `LATENT_RECONSTRUCTOR=model` with `LATENT_MODEL_BASE_URL`,
+  `LATENT_MODEL_API_KEY`, `LATENT_MODEL_NAME` and `LATENT_MODEL_JSON_MODE`; the
+  template remains the default.
+- ADR 0006 (model adapter) and seven adapter tests.
+- Private-fragment consent: the model adapter refuses a private fragment unless
+  `LATENT_MODEL_SEND_PRIVATE=true`; the fragment is JSON-encoded and labelled
+  untrusted, and the default model temperature is `0`.
+- The compiler records real citation/numeric validator results and marks
+  existence/vertical rules as `skipped` instead of stamping them `pass`.
+- Runtime JSON Schema validation (Ajv 2020-12) at the store boundary, with a
+  schema test suite.
+- CI: `ci-ok` aggregate, `pr-lint`, `review-gate`, CodeQL, dependency review and
+  secret scan; branch protection requires `ci-ok`, `pr-lint` and `review-gate`.
+- `HugoXK-bot` invited as a collaborator with write access; the reviewer policy is
+  in `.github/agent/review-policy.json`.
+- The review gate reads PR reviews, PR comments and commit comments; the newest
+  verdict at the head SHA wins, and a new commit voids a PASS.
+- `docs/review.md` and `.github/agent/required-checks.md`.
+
+### Planned
+
+- The iGEM replay benchmark and the expert panel.
+- Ten real fragments through the full loop.
+- Generated types and a schema-drift check.
+
 ## [0.2.0-alpha.1] - 2026-11-28
 
 ### Added
@@ -106,44 +144,6 @@ Fragments for the next release live in [`changelog.d/`](changelog.d/).
 - **#99** — Reject prototype-polluting constraint variable names and replace the quadratic
   baseUrl trailing-slash regex with a linear scan, closing two CodeQL alerts on
   main (remote property injection and polynomial ReDoS).
-
-## [Unreleased]
-
-### Added
-
-- Information-gain interviewer: `ConstraintState`, a 10-question iGEM bank with a
-  blocking set, `nextQuestion` / `blockingQuestions` / `isReadyForVerification`,
-  and a `constraint_states` table in the store.
-- CLI `ask`, `answer` and `constraints`; API
-  `GET /v1/ideas/{id}/constraints` and
-  `POST /v1/ideas/{id}/constraints/answer`.
-- `brief` now refuses to compile while a blocking constraint is unanswered.
-- OpenAI-compatible `ModelReconstructor`: strict JSON, three variants, grade-C
-  only, `inferred`/`unknown` claims, one repair, no silent fallback.
-- `LATENT_RECONSTRUCTOR=model` with `LATENT_MODEL_BASE_URL`,
-  `LATENT_MODEL_API_KEY`, `LATENT_MODEL_NAME` and `LATENT_MODEL_JSON_MODE`; the
-  template remains the default.
-- ADR 0006 (model adapter) and seven adapter tests.
-- Private-fragment consent: the model adapter refuses a private fragment unless
-  `LATENT_MODEL_SEND_PRIVATE=true`; the fragment is JSON-encoded and labelled
-  untrusted, and the default model temperature is `0`.
-- The compiler records real citation/numeric validator results and marks
-  existence/vertical rules as `skipped` instead of stamping them `pass`.
-- Runtime JSON Schema validation (Ajv 2020-12) at the store boundary, with a
-  schema test suite.
-- CI: `ci-ok` aggregate, `pr-lint`, `review-gate`, CodeQL, dependency review and
-  secret scan; branch protection requires `ci-ok`, `pr-lint` and `review-gate`.
-- `HugoXK-bot` invited as a collaborator with write access; the reviewer policy is
-  in `.github/agent/review-policy.json`.
-- The review gate reads PR reviews, PR comments and commit comments; the newest
-  verdict at the head SHA wins, and a new commit voids a PASS.
-- `docs/review.md` and `.github/agent/required-checks.md`.
-
-### Planned
-
-- The iGEM replay benchmark and the expert panel.
-- Ten real fragments through the full loop.
-- Generated types and a schema-drift check.
 
 ## [0.2.0-alpha.0] — 2026-11-25
 

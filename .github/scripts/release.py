@@ -79,6 +79,31 @@ def insert_section(changelog: str, section: str) -> str:
     return changelog[: match.start()] + section + "\n" + changelog[match.start() :]
 
 
+def insert_release_section(changelog: str, section: str) -> str:
+    """Insert a folded release in Keep a Changelog order.
+
+    `## [Unreleased]` stays the first section: the finished release goes directly
+    below it and above every released section, so the unreleased notes are not
+    stranded under a release that already shipped. A file whose first section is a
+    release has nothing unreleased to protect, so the new section still goes first
+    (`insert_section`), keeping the newest release on top.
+    """
+    first = re.search(r"^## \[", changelog, flags=re.MULTILINE)
+    if not first:
+        raise ReleaseError("CHANGELOG.md has no '## [' section")
+    unreleased = re.match(
+        r"^## \[Unreleased\][^\n]*\n(?:.*?)(?=^## \[|\Z)",
+        changelog[first.start() :],
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if not unreleased:
+        return insert_section(changelog, section)
+    start = first.start()
+    end = start + unreleased.end()
+    block = changelog[start:end].rstrip("\n")
+    return changelog[:start] + block + "\n\n" + section + "\n" + changelog[end:].lstrip("\n")
+
+
 def extract_notes(changelog: str, version: str) -> str:
     pattern = re.compile(
         rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)",
@@ -115,7 +140,9 @@ def prepare(root: Path, version: str, date: str) -> tuple[list[dict], str, str]:
         raise ReleaseError("no changelog fragments to release")
     section = fold(fragments, version, date)
     changelog_path = root / "CHANGELOG.md"
-    updated = insert_section(changelog_path.read_text(encoding="utf-8"), section)
+    updated = insert_release_section(
+        changelog_path.read_text(encoding="utf-8"), section
+    )
     return fragments, section, updated
 
 
