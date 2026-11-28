@@ -28,7 +28,7 @@ export class BiosafetyError extends Error {
   }
 }
 
-const SELECT_AGENTS = [
+const SELECT_AGENTS_RAW = [
   "bacillus anthracis",
   "b anthracis",
   "炭疽",
@@ -62,7 +62,7 @@ const SELECT_AGENTS = [
   "类鼻疽",
 ];
 
-const TOXINS = [
+const TOXINS_RAW = [
   "ricin",
   "蓖麻毒素",
   "botulinum toxin",
@@ -74,7 +74,7 @@ const TOXINS = [
   "河豚毒素",
 ];
 
-const ENHANCEMENTS = [
+const ENHANCEMENTS_RAW = [
   "increase transmissibility",
   "enhance transmissibility",
   "enhanced transmissibility",
@@ -96,7 +96,7 @@ const ENHANCEMENTS = [
   "提高传播力",
 ];
 
-const PATHOGENS = [
+const PATHOGENS_RAW = [
   "mycobacterium tuberculosis",
   "salmonella",
   "listeria",
@@ -107,9 +107,11 @@ const PATHOGENS = [
   "hepatitis",
 ];
 
-// Cyrillic lookalikes that survive NFKC. Mapping them keeps a homoglyph from
-// evading a term that is otherwise present.
-const HOMOGLYPHS: Record<string, string> = {
+// Confusables that survive NFKD. This is a codepoint table, not a regex
+// alternation and not a claim of completeness: Cyrillic lookalikes plus the
+// common Greek ones. It is applied to both the input and the term lists.
+const CONFUSABLES: Record<string, string> = {
+  // Cyrillic
   "\u0430": "a",
   "\u0435": "e",
   "\u043e": "o",
@@ -120,20 +122,62 @@ const HOMOGLYPHS: Record<string, string> = {
   "\u0456": "i",
   "\u0455": "s",
   "\u0458": "j",
+  // Greek
+  "\u03bf": "o",
+  "\u03b1": "a",
+  "\u03b5": "e",
+  "\u03b9": "i",
+  "\u03c1": "p",
+  "\u03bd": "v",
+  "\u03ba": "k",
+  "\u03c4": "t",
+  "\u03c5": "u",
+  "\u03c7": "x",
 };
 
-function normalise(text: string): string {
-  return text
-    .normalize("NFKC")
+const INVISIBLES = /[\u00AD\u180E\u200B-\u200F\u2060\uFEFF]/gu;
+
+/**
+ * One skeleton used for both the input and the term lists.
+ *
+ * NFKD + drop combining marks, lowercase, delete the invisible/format class
+ * (never map it to a space: that would split a term and let `ba<ZWSP>billus`
+ * through), map confusables, then collapse punctuation to a single space.
+ */
+function skeleton(text: string): string {
+  const stripped = text
+    .normalize("NFKD")
     .toLowerCase()
-    .replace(/[\u0430\u0435\u043e\u0440\u0441\u0445\u0443\u0456\u0455\u0458]/g, (ch) => HOMOGLYPHS[ch] ?? ch)
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
+    .replace(/\p{Mn}/gu, "")
+    .replace(/\p{Cf}/gu, "")
+    .replace(INVISIBLES, "");
+  const mapped = Array.from(stripped, (ch) => CONFUSABLES[ch] ?? ch).join("");
+  return mapped.replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+/** Remove spaces: the insertion form (`an thrax`) must still match `anthrax`. */
+function compact(text: string): string {
+  return text.split(" ").join("");
 }
 
 function matches(text: string, terms: string[]): string[] {
-  return terms.filter((term) => text.includes(term));
+  const textCompact = compact(text);
+  return terms.filter((term) => {
+    if (text.includes(term)) return true;
+    const termCompact = compact(term);
+    // Compact matching is limited to terms >= 5 characters so short terms
+    // (`gof`, 3) cannot match across word boundaries; the consequence is
+    // recorded in ADR 0020.
+    return termCompact.length >= 5 && textCompact.includes(termCompact);
+  });
 }
+
+// Normalise every term through the same skeleton. This is what keeps a
+// hyphenated term such as `sars-cov-2` alive (`sars cov 2` on both sides).
+const SELECT_AGENTS = SELECT_AGENTS_RAW.map(skeleton);
+const TOXINS = TOXINS_RAW.map(skeleton);
+const ENHANCEMENTS = ENHANCEMENTS_RAW.map(skeleton);
+const PATHOGENS = PATHOGENS_RAW.map(skeleton);
 
 /**
  * A conservative, rule-based first-line screen. It is not a substitute for a
@@ -143,7 +187,7 @@ function matches(text: string, terms: string[]): string[] {
  */
 export class RuleBasedBiosafetyClassifier implements BiosafetyClassifier {
   classify(text: string): BiosafetyVerdict {
-    const lower = normalise(text);
+    const lower = skeleton(text);
     const selectAgents = matches(lower, SELECT_AGENTS);
     if (selectAgents.length > 0) {
       return {

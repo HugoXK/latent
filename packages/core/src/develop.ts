@@ -3,7 +3,6 @@ import {
   RuleBasedBiosafetyClassifier,
   checkBiosafety,
 } from "./biosafety.js";
-import type { BiosafetyClassifier } from "./biosafety.js";
 import { createConstraintState } from "./constraints.js";
 import type { ConstraintState } from "./constraints.js";
 import { newId } from "./ids.js";
@@ -23,7 +22,6 @@ export interface DevelopInput {
   vertical: VerticalPack;
   reconstructor: Reconstructor;
   constraint?: ConstraintState;
-  classifier?: BiosafetyClassifier;
   /** The team's declared BSL level; defaults to the constraint answer, then 1. */
   team_bsl?: number;
   now?: string;
@@ -51,7 +49,7 @@ export async function develop(input: DevelopInput): Promise<DevelopResult> {
   const result = checkBiosafety({
     text,
     team_bsl: teamBsl,
-    classifier: input.classifier ?? new RuleBasedBiosafetyClassifier(),
+    classifier: new RuleBasedBiosafetyClassifier(),
   });
   if (!result.pass) throw new BiosafetyError(result.verdict);
 

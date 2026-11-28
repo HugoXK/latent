@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   BiosafetyError,
+  RuleBasedBiosafetyClassifier,
   answerConstraint,
   createConstraintState,
   develop,
 } from "../src/index.js";
 import type {
+  DevelopInput,
   Fragment,
   Reconstructor,
   VerticalPack,
@@ -15,7 +17,6 @@ import type {
 const pack: VerticalPack = {
   id: "test",
   name: "Test vertical",
-  biosafety: true,
   variables: ["lab.bsl"],
   questions: [
     {
@@ -141,14 +142,14 @@ test("a BSL-2 pathogen fails without BSL-2 clearance and passes with it", async 
   assert.equal(result.idea.status, "developed");
 });
 
-test("a pack without the biosafety flag cannot bypass the classifier", async () => {
+test("no pack can disable the screen, because the field does not exist", async () => {
   const calls = { count: 0 };
-  const { biosafety: _ignored, ...withoutFlag } = pack;
+  assert.equal("biosafety" in pack, false);
   await assert.rejects(
     () =>
       develop({
         fragment: fragment("engineer Bacillus anthracis"),
-        vertical: withoutFlag,
+        vertical: pack,
         reconstructor: fakeReconstructor(calls),
       }),
     (error: unknown) =>
@@ -156,6 +157,30 @@ test("a pack without the biosafety flag cannot bypass the classifier", async () 
       error.verdict.category === "select_agent",
   );
   assert.equal(calls.count, 0);
+});
+
+test("format characters inside a term do not bypass it", async () => {
+  const forms = [
+    "ba\u200Bcillus anthracis",
+    "bacil\u200Blus anthracis",
+    "ba\u00ADcillus anthracis",
+    "bacillus\u2060 anthracis",
+    "\uFEFFbacillus anthracis",
+  ];
+  for (const text of forms) {
+    const calls = { count: 0 };
+    await assert.rejects(
+      () =>
+        develop({
+          fragment: fragment(text),
+          vertical: pack,
+          reconstructor: fakeReconstructor(calls),
+        }),
+      (error: unknown) => error instanceof BiosafetyError,
+      JSON.stringify(text),
+    );
+    assert.equal(calls.count, 0, JSON.stringify(text));
+  }
 });
 
 test("abbreviated, hyphenated, fullwidth and homoglyph forms are refused", async () => {
@@ -179,6 +204,35 @@ test("abbreviated, hyphenated, fullwidth and homoglyph forms are refused", async
     );
     assert.equal(calls.count, 0, text);
   }
+});
+
+test("insertion and Greek-confusable forms do not bypass", async () => {
+  const forms = ["an thrax", "SARS-CoV-2", "sars cov 2", "eb\u03BFla", "smallp\u03BFx"];
+  for (const text of forms) {
+    const calls = { count: 0 };
+    await assert.rejects(
+      () =>
+        develop({
+          fragment: fragment(text),
+          vertical: pack,
+          reconstructor: fakeReconstructor(calls),
+        }),
+      (error: unknown) => error instanceof BiosafetyError,
+      JSON.stringify(text),
+    );
+    assert.equal(calls.count, 0, JSON.stringify(text));
+  }
+});
+
+test("the classifier is not an input a caller can replace", () => {
+  const input: DevelopInput = {
+    fragment: fragment("soil biosensor"),
+    vertical: pack,
+    reconstructor: fakeReconstructor({ count: 0 }),
+    // @ts-expect-error classifier is not part of the public DevelopInput
+    classifier: new RuleBasedBiosafetyClassifier(),
+  };
+  assert.equal(input.vertical.id, "test");
 });
 
 test("non-English select-agent names are refused", async () => {
@@ -209,12 +263,11 @@ test("an empty fragment is benign and still reaches the reconstructor", async ()
   assert.equal(result.idea.status, "developed");
 });
 
-test("an explicit team_bsl lets the research pack do BSL-2 work", async () => {
-  const { biosafety: _ignored, ...withoutFlag } = pack;
+test("an explicit team_bsl lets a pack without lab.bsl do BSL-2 work", async () => {
   const calls = { count: 0 };
   const result = await develop({
     fragment: fragment("detect salmonella in food"),
-    vertical: withoutFlag,
+    vertical: pack,
     team_bsl: 2,
     reconstructor: fakeReconstructor(calls),
   });
@@ -225,8 +278,60 @@ test("an explicit team_bsl lets the research pack do BSL-2 work", async () => {
     () =>
       develop({
         fragment: fragment("detect salmonella in food"),
-        vertical: withoutFlag,
+        vertical: pack,
         team_bsl: 1,
+        reconstructor: fakeReconstructor({ count: 0 }),
+      }),
+    (error: unknown) =>
+      error instanceof BiosafetyError && error.verdict.category === "pathogen",
+  );
+});
+
+test("without team_bsl the default is 1, so a BSL-2 pathogen is refused", async () => {
+  const calls = { count: 0 };
+  await assert.rejects(
+    () =>
+      develop({
+        fragment: fragment("detect salmonella in food"),
+        vertical: pack,
+        reconstructor: fakeReconstructor(calls),
+      }),
+    (error: unknown) =>
+      error instanceof BiosafetyError && error.verdict.category === "pathogen",
+  );
+  assert.equal(calls.count, 0);
+});
+
+test("team_bsl 2 overrides the default and allows BSL-2 pathogen work", async () => {
+  const calls = { count: 0 };
+  const result = await develop({
+    fragment: fragment("detect salmonella in food"),
+    vertical: pack,
+    team_bsl: 2,
+    reconstructor: fakeReconstructor(calls),
+  });
+  assert.equal(calls.count, 1);
+  assert.equal(result.idea.status, "developed");
+});
+
+test("lab.bsl is the fallback when team_bsl is absent", async () => {
+  const initial = createConstraintState(pack.id, pack.questions);
+  const bsl2 = answerConstraint(initial, pack.questions, "lab.bsl", 2);
+  const passed = await develop({
+    fragment: fragment("detect salmonella in food"),
+    vertical: pack,
+    constraint: bsl2,
+    reconstructor: fakeReconstructor({ count: 0 }),
+  });
+  assert.equal(passed.idea.status, "developed");
+
+  const bsl1 = answerConstraint(initial, pack.questions, "lab.bsl", 1);
+  await assert.rejects(
+    () =>
+      develop({
+        fragment: fragment("detect salmonella in food"),
+        vertical: pack,
+        constraint: bsl1,
         reconstructor: fakeReconstructor({ count: 0 }),
       }),
     (error: unknown) =>
