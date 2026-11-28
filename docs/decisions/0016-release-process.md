@@ -1,6 +1,6 @@
 # 0016 — Manual two-phase release with an SBOM and provenance
 
-- Status: proposed (T2)
+- Status: accepted (T3; owner approval recorded 2026-11-28)
 - Date: 2026-11-27
 - Owner: HugoXK
 - Issue: #14

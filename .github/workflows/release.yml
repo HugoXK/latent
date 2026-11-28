@@ -2,7 +2,12 @@ name: release
 
 # Manual, two-phase release. `prepare` opens a mechanical release PR; after it
 # merges, `publish` tags the verified green main commit, attaches an SBOM and a
-# source archive, and records provenance. Never release from a red main.
+# source archive, and `attest` mints provenance. Never release from a red main.
+#
+# Permissions are per job: `verify` is read-only, and the write scopes
+# (contents/id-token/attestations) exist only on the jobs that publish or attest.
+# Every action is pinned to a full commit SHA because these jobs hold write
+# scopes and tag refs resolve to whatever the action repository points at.
 on:
   workflow_dispatch:
     inputs:
@@ -17,22 +22,22 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
-  actions: read
-  pull-requests: write
-  id-token: write
-  attestations: write
+permissions: {}
 
 concurrency:
   group: release-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: release
+  verify:
+    name: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.green.outputs.sha }}
     steps:
       - name: Require a green main
         id: green
@@ -49,21 +54,21 @@ jobs:
           fi
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ steps.green.outputs.sha }}
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
         with:
           version: 11.1.2
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "22"
           cache: pnpm
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.12"
 
@@ -73,10 +78,33 @@ jobs:
           pnpm check
           python3 -m unittest discover -s .github/scripts -p "test_*.py"
 
+  prepare:
+    name: prepare
+    needs: verify
+    if: inputs.mode == 'prepare'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+
+      # A PR opened with GITHUB_TOKEN does not trigger ci/pr-lint, so its release
+      # PR would never get the required checks. Push the branch always; open the
+      # PR only when a token that triggers workflows (RELEASE_PR_TOKEN) exists,
+      # otherwise print the compare URL for a human to open it.
       - name: Prepare the release pull request
-        if: inputs.mode == 'prepare'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          HAS_PR_TOKEN: ${{ secrets.RELEASE_PR_TOKEN != '' }}
           VERSION: ${{ inputs.version }}
         run: |
           python3 .github/scripts/release.py --version "$VERSION" --write
@@ -86,9 +114,13 @@ jobs:
           git add -A
           git commit -m "chore(release): v$VERSION"
           git push origin "HEAD:release/v$VERSION"
-          gh pr create \
-            --base main \
-            --head "release/v$VERSION" \
+          if [ "$HAS_PR_TOKEN" != "true" ]; then
+            echo "no RELEASE_PR_TOKEN: branch pushed, PR not created."
+            echo "open it manually so ci/pr-lint/review-gate run:"
+            echo "https://github.com/${GITHUB_REPOSITORY}/compare/main...release/v$VERSION?expand=1"
+            exit 0
+          fi
+          gh pr create --base main --head "release/v$VERSION" \
             --title "chore(release): v$VERSION" \
             --body "No-issue: release v$VERSION
 
@@ -110,8 +142,30 @@ jobs:
 
           Changelog-not-needed: the release folds the existing fragments."
 
-      - name: Publish the tagged release
-        if: inputs.mode == 'publish'
+  publish:
+    name: publish
+    needs: [verify, prepare]
+    if: always() && inputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22"
+
+      - uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
+        with:
+          version: 11.1.2
+
+      - name: Build the SBOM, archive and release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
@@ -136,15 +190,33 @@ jobs:
             --output sbom.json \
             --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git archive --format=tar.gz --prefix="latent-$VERSION/" \
-            -o "latent-$VERSION.tar.gz" "${{ steps.green.outputs.sha }}"
+            -o "latent-$VERSION.tar.gz" "${{ needs.verify.outputs.sha }}"
           gh release create "v$VERSION" \
-            --target "${{ steps.green.outputs.sha }}" \
+            --target "${{ needs.verify.outputs.sha }}" \
             --title "v$VERSION" \
             --notes-file /tmp/notes.md
           gh release upload "v$VERSION" sbom.json "latent-$VERSION.tar.gz"
 
-      - name: Attest the source archive
-        if: inputs.mode == 'publish'
-        uses: actions/attest-build-provenance@v2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-archive
+          path: latent-${{ inputs.version }}.tar.gz
+
+  attest:
+    name: attest
+    needs: [verify, publish]
+    if: inputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-archive
+
+      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         with:
           subject-path: latent-${{ inputs.version }}.tar.gz

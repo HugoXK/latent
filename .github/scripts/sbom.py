@@ -44,7 +44,7 @@ def walk(node: object, seen: dict[str, dict]) -> None:
                     "type": "library",
                     "name": name,
                     "version": version,
-                    "purl": f"pkg:npm/{name}@{quote(version, safe='')}",
+                    "purl": f"pkg:npm/{quote(name, safe='')}@{quote(version, safe='')}",
                 }
 
     for field in DEP_FIELDS:

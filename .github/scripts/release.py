@@ -24,7 +24,7 @@ HEADINGS = {
 }
 FRAGMENT_RE = re.compile(r"^(\d+)\.(added|changed|fixed|security|removed)\.md$")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DATE_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
 
 
 class ReleaseError(Exception):
