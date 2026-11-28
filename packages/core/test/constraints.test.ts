@@ -9,6 +9,7 @@ import {
   isReadyForVerification,
   nextQuestion,
   questionInformationGain,
+  setConstraintVariable,
 } from "../src/index.js";
 import type { QuestionDefinition } from "../src/index.js";
 
@@ -202,5 +203,52 @@ test("a conditional question is skipped until its dependency is met", () => {
       (question) => question.variable === "lab.flow_model",
     ),
     true,
+  );
+});
+
+test("prototype-dangerous variable names are rejected", () => {
+  const state = createConstraintState("igem", questions);
+  for (const name of [
+    "__proto__",
+    "constructor",
+    "prototype",
+    "lab.__proto__",
+    "lab.constructor",
+    "Constructor",
+  ]) {
+    assert.throws(
+      () => setConstraintVariable(state, name, 1),
+      (error: unknown) =>
+        error instanceof ConstraintAnswerError &&
+        error.code === "INVALID_CONSTRAINT_ANSWER",
+      `expected ${name} to be rejected`,
+    );
+  }
+  assert.equal(Object.getPrototypeOf(state.variables), Object.prototype);
+  assert.equal(({} as Record<string, unknown>).polluted, undefined);
+});
+
+test("variable names outside the documented shape are rejected", () => {
+  const state = createConstraintState("igem", questions);
+  for (const name of [
+    "",
+    ".",
+    "lab..bsl",
+    ".lab",
+    "lab.",
+    "lab bsl",
+    "lab/bsl",
+    "__x",
+    "lab.__cache",
+  ]) {
+    assert.throws(
+      () => setConstraintVariable(state, name, 1),
+      (error: unknown) => error instanceof ConstraintAnswerError,
+      `expected ${JSON.stringify(name)} to be rejected`,
+    );
+  }
+  assert.throws(
+    () => answerConstraint(state, questions, "__proto__", 1),
+    (error: unknown) => error instanceof ConstraintAnswerError,
   );
 });

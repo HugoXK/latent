@@ -238,3 +238,16 @@ test("an HTTP error is surfaced", async () => {
       error.code === "MODEL_HTTP_ERROR",
   );
 });
+
+test("a baseUrl with a long slash run is normalised in linear time", () => {
+  // CodeQL js/polynomial-redos: /\\/+$/ backtracks quadratically on a long slash
+  // run that is not at the end. 80k slashes took ~3s before the fix.
+  const baseUrl = `https://example.test${"/".repeat(80_000)}x`;
+  const started = performance.now();
+  new ModelReconstructor({ baseUrl, apiKey: "test-key", model: "test-model" });
+  const elapsed = performance.now() - started;
+  assert.ok(
+    elapsed < 1000,
+    `baseUrl normalisation took ${elapsed.toFixed(1)}ms; expected a linear pass`,
+  );
+});
