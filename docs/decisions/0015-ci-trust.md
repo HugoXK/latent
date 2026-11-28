@@ -100,3 +100,12 @@ logic. Mitigation is plan A: `main` requires a real non-author approval
 `.github/**`, so the workflow edits that would defeat the harness cannot merge
 without a reviewer. Revisit if a separate runner identity or a GitHub App is
 adopted.
+
+Scope of the drift assertions, stated honestly: they check that `REQUIRED_JOBS`
+exists in the shipped workflow and that `ci-ok.needs` lists every required job.
+They cannot stop a PR that keeps those names while neutering the job's run steps,
+and they cannot run at all if the PR deletes the job — in that case only the
+publisher covers it (default-branch execution plus `ci.yml` blob equality), and
+the publisher's context is not required until the protection flip. So this
+harness removes the self-inflicted red and makes the drift assertions real while
+they run; it does not make the workflow unweakenable.

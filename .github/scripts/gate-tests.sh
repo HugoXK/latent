@@ -14,6 +14,11 @@ trap 'rm -rf "$TMP"' EXIT
 
 bash "$DIR/test-integrity.sh" "$BASE" "$DIR"
 
+# The drift assertions read the workflow this PR ships. Anti-weakening lives in
+# the base copies of the tests and in test-integrity.sh, not in which ci.yml the
+# assertions read; feeding them the base workflow made them tautological.
+export CI_YML_PATH="$(cd "$DIR/.." && pwd)/workflows/ci.yml"
+
 found=0
 while IFS= read -r path; do
   [ -n "$path" ] || continue
@@ -30,19 +35,13 @@ for path in "$DIR"/*.py "$DIR"/*.sh; do
 done
 
 if [ "$found" -eq 1 ]; then
-  # Base tests, base ci.yml: that is the anti-weakening property. A PR that
-  # deletes the gate-tests job must fail a base-branch assertion, so feeding it
-  # the head's ci.yml here would delete the control.
-  if git cat-file -e "$BASE:.github/workflows/ci.yml" 2>/dev/null; then
-    git show "$BASE:.github/workflows/ci.yml" > "$TMP/ci.yml"
-    export CI_YML_PATH="$TMP/ci.yml"
-  fi
+  # Base-branch test code against head scripts. Anti-weakening is the base copy
+  # of the tests plus test-integrity.sh, not which ci.yml they read.
   echo "running base-branch gate tests against head scripts"
   (cd "$TMP" && python3 -m unittest discover -s . -p "test_*.py")
 else
-  # Bootstrap: no base tests exist, so run head tests in place against head's
-  # ci.yml via the default relative path. Exporting a base ci.yml here is what
-  # made the first post-this-merge PR unpassable.
+  # Bootstrap: no base tests exist yet, so run the head tests in place; they read
+  # the head workflow through the same CI_YML_PATH.
   echo "no gate tests on $BASE yet; running head tests (bootstrap)"
   python3 -m unittest discover -s "$DIR" -p "test_*.py"
 fi
