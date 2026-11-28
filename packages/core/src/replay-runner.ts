@@ -1,22 +1,48 @@
 import { develop } from "./develop.js";
 import { blocksBrief } from "./ledger.js";
 import type { Reconstructor } from "./ports.js";
-import type { ReplayCase, ReplayCollision } from "./replay.js";
+import type {
+  ReplayCase,
+  ReplayCollision,
+  ReplayMetadata,
+  ReplayPriorArt,
+} from "./replay.js";
 import type { Claim, Idea } from "./types.js";
 import type { VerticalPack } from "./vertical.js";
 
 export type ReplayGateVerdict = "pass" | "fail" | "unknown";
 
+/**
+ * The public view of a replay case. Hidden scoring fields (`expected_candidates`,
+ * `collisions`, `gate_labels`, `outcome`) are deliberately absent: a plugin that
+ * received them could echo the answer key and score 1.0 without doing the work.
+ */
+export interface ReplayPublicCase {
+  metadata: ReplayMetadata;
+  constraints: ReplayCase["constraints"];
+  fragment: ReplayCase["fragment"];
+  prior_art: ReplayPriorArt[];
+}
+
+export function replayPublicCase(replay: ReplayCase): ReplayPublicCase {
+  return {
+    metadata: replay.metadata,
+    constraints: replay.constraints,
+    fragment: replay.fragment,
+    prior_art: replay.prior_art,
+  };
+}
+
 export interface ReplayGatePredictor {
   predict(input: {
-    case: ReplayCase;
+    case: ReplayPublicCase;
     idea: Idea;
     claims: Claim[];
   }): Promise<Record<string, ReplayGateVerdict>>;
 }
 
 export interface ReplayCollisionDetector {
-  detect(input: { case: ReplayCase; idea: Idea }): Promise<ReplayCollision[]>;
+  detect(input: { case: ReplayPublicCase; idea: Idea }): Promise<ReplayCollision[]>;
 }
 
 export interface ReplayRunOptions {
@@ -154,7 +180,9 @@ function overlap(a: string, b: string): number {
   for (const word of left) {
     if (right.has(word)) shared += 1;
   }
-  return shared / Math.min(left.size, right.size);
+  // Jaccard: a one-word hypothesis must not score 1.0 against a long seed.
+  const union = left.size + right.size - shared;
+  return shared / union;
 }
 
 function scoreCandidate(idea: Idea, replay: ReplayCase): ReplayCandidateScore {
@@ -238,16 +266,17 @@ export async function runReplayCase(
     now,
   });
 
+  const publicCase = replayPublicCase(options.case);
   const predictions = options.gatePredictor
     ? await options.gatePredictor.predict({
-        case: options.case,
+        case: publicCase,
         idea: developed.idea,
         claims: developed.claims,
       })
     : null;
   const detected = options.collisionDetector
     ? await options.collisionDetector.detect({
-        case: options.case,
+        case: publicCase,
         idea: developed.idea,
       })
     : null;
@@ -261,6 +290,9 @@ export async function runReplayCase(
     verified: developed.claims.filter((claim) => claim.status === "verified")
       .length,
   };
+  // `passed` deliberately covers candidate recovery, unsupported claims and gate
+  // agreement only. Variant coverage and collision precision/recall are reported
+  // as measurements; they are not pass/fail thresholds (see data/replay/README.md).
   const passed =
     candidate.seed_found &&
     claims.unsupported === 0 &&

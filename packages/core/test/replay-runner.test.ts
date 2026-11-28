@@ -114,12 +114,14 @@ test("a reconstructor that misses the seed fails", async () => {
   assert.equal(result.passed, false);
 });
 
+const answers = Object.fromEntries(
+  replay.gate_labels.map((label) => [label.gate, label.expected]),
+) as Record<string, "pass" | "fail" | "unknown">;
+
 test("gate agreement is measured when a predictor is supplied", async () => {
   const predictor: ReplayGatePredictor = {
-    async predict({ case: replayCase }) {
-      return Object.fromEntries(
-        replayCase.gate_labels.map((label) => [label.gate, label.expected]),
-      );
+    async predict() {
+      return answers;
     },
   };
   const result = await runReplayCase({
@@ -136,9 +138,9 @@ test("gate agreement is measured when a predictor is supplied", async () => {
 
 test("a wrong gate predictor lowers agreement", async () => {
   const predictor: ReplayGatePredictor = {
-    async predict({ case: replayCase }) {
+    async predict() {
       return Object.fromEntries(
-        replayCase.gate_labels.map((label) => [label.gate, "fail" as const]),
+        replay.gate_labels.map((label) => [label.gate, "fail" as const]),
       );
     },
   };
@@ -154,8 +156,8 @@ test("a wrong gate predictor lowers agreement", async () => {
 
 test("collision precision and recall are measured when a detector is supplied", async () => {
   const detector: ReplayCollisionDetector = {
-    async detect({ case: replayCase }) {
-      return replayCase.collisions;
+    async detect() {
+      return replay.collisions;
     },
   };
   const hit = await runReplayCase({
@@ -182,6 +184,62 @@ test("collision precision and recall are measured when a detector is supplied", 
   });
   assert.equal(miss.collision.precision, 1);
   assert.equal(miss.collision.recall, 0);
+});
+
+test("plugins receive a public case without the answer key", async () => {
+  let gateLeak = true;
+  let collisionLeak = true;
+  const predictor: ReplayGatePredictor = {
+    async predict({ case: publicCase }) {
+      gateLeak =
+        "gate_labels" in publicCase ||
+        "expected_candidates" in publicCase ||
+        "outcome" in publicCase;
+      return {};
+    },
+  };
+  const detector: ReplayCollisionDetector = {
+    async detect({ case: publicCase }) {
+      collisionLeak = "collisions" in publicCase;
+      return [];
+    },
+  };
+  const result = await runReplayCase({
+    case: replay,
+    vertical,
+    reconstructor: new FakeReconstructor(seed.statement),
+    gatePredictor: predictor,
+    collisionDetector: detector,
+    now: "2026-11-25T00:00:00Z",
+  });
+  assert.equal(gateLeak, false);
+  assert.equal(collisionLeak, false);
+  assert.equal(result.gate.compared, 0);
+  assert.equal(result.gate.agreement, null);
+});
+
+test("a predictor that echoes a leaked answer key scores nothing", async () => {
+  const predictor: ReplayGatePredictor = {
+    async predict({ case: publicCase }) {
+      const leaked = (
+        publicCase as unknown as {
+          gate_labels?: Array<{ gate: string; expected: "pass" | "fail" | "unknown" }>;
+        }
+      ).gate_labels;
+      return Object.fromEntries(
+        (leaked ?? []).map((label) => [label.gate, label.expected]),
+      );
+    },
+  };
+  const result = await runReplayCase({
+    case: replay,
+    vertical,
+    reconstructor: new FakeReconstructor(seed.statement),
+    gatePredictor: predictor,
+    now: "2026-11-25T00:00:00Z",
+  });
+  assert.equal(result.gate.compared, 0);
+  assert.equal(result.gate.agreement, null);
 });
 
 test("the markdown report names the case and the metrics", async () => {
