@@ -23,6 +23,7 @@ REPO = os.environ.get("GITHUB_REPOSITORY", "")
 TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
 CHECK_NAME = "ci-ok"
 REQUIRED_JOBS = ("spec", "node", "gate-tests")
+TRUSTED_WORKFLOW_PATH = ".github/workflows/ci.yml"
 
 
 def api(path: str, method: str = "GET", data: dict[str, Any] | None = None) -> Any:
@@ -71,6 +72,42 @@ def evaluate_jobs(jobs: list[dict[str, Any]]) -> tuple[bool, str]:
     if issues:
         return False, "; ".join(issues)
     return True, "spec, node and gate-tests all succeeded"
+
+
+def evaluate_run(facts: dict[str, Any]) -> tuple[bool, str]:
+    """The triggering run must be the trusted ci workflow on this head.
+
+    `workflow_run` matches a workflow by *name* and exposes no content hash, so a
+    pull request that edits `ci.yml` or adds another workflow called `ci` would
+    otherwise be published. The publisher requires the trusted path and workflow
+    id, the same repository, and an unchanged `ci.yml` blob at the head SHA.
+    """
+    issues: list[str] = []
+    if facts.get("run_path") != TRUSTED_WORKFLOW_PATH:
+        issues.append(f"run path {facts.get('run_path')!r} is not {TRUSTED_WORKFLOW_PATH}")
+    if facts.get("run_workflow_id") != facts.get("trusted_workflow_id"):
+        issues.append("run workflow id is not the trusted ci workflow")
+    if facts.get("run_event") != "pull_request":
+        issues.append(f"run event {facts.get('run_event')!r} is not pull_request")
+    if facts.get("run_head_sha") != facts.get("head_sha"):
+        issues.append("run head SHA does not match the published head")
+    if facts.get("run_head_repo") != facts.get("repo"):
+        issues.append("run did not come from this repository")
+    if facts.get("ci_blob_head") != facts.get("ci_blob_base"):
+        issues.append(
+            "ci.yml differs from the default branch: the run used a pull-request copy of the workflow"
+        )
+    if not facts.get("pr_open"):
+        issues.append("no open pull request at the head SHA")
+    elif facts.get("pr_base") != facts.get("default_branch"):
+        issues.append(
+            f"pull request base {facts.get('pr_base')!r} is not {facts.get('default_branch')!r}"
+        )
+    if facts.get("pr_head_sha") != facts.get("head_sha"):
+        issues.append("pull request head SHA does not match the published head")
+    if issues:
+        return False, "; ".join(issues)
+    return True, "triggered by the trusted ci workflow at this head"
 
 
 def latest_check(head: str) -> dict[str, Any] | None:
@@ -139,7 +176,45 @@ def main() -> None:
         print("ci-ok: GITHUB_REPOSITORY, RUN_ID and HEAD_SHA are required")
         sys.exit(1)
     try:
-        ok, detail = evaluate_jobs(run_jobs(run_id))
+        default_branch = str(
+            api(f"/repos/{REPO}").get("default_branch") or "main"
+        )
+        run = api(f"/actions/runs/{run_id}")
+        trusted = api("/actions/workflows/ci.yml")
+        head_blob = api(f"/contents/{TRUSTED_WORKFLOW_PATH}?ref={head}")
+        base_blob = api(f"/contents/{TRUSTED_WORKFLOW_PATH}?ref={default_branch}")
+        pulls = api(f"/commits/{head}/pulls?per_page=100")
+        pull = next(
+            (
+                candidate
+                for candidate in pulls
+                if str(candidate.get("state", "")) == "open"
+                and str(candidate.get("head", {}).get("sha", "")) == head
+            ),
+            {},
+        )
+        facts = {
+            "repo": REPO,
+            "head_sha": head,
+            "default_branch": default_branch,
+            "run_path": str(run.get("path") or ""),
+            "run_workflow_id": run.get("workflow_id"),
+            "trusted_workflow_id": trusted.get("id"),
+            "run_event": str(run.get("event") or ""),
+            "run_head_sha": str(run.get("head_sha") or ""),
+            "run_head_repo": str(
+                (run.get("head_repository") or {}).get("full_name") or ""
+            ),
+            "ci_blob_head": (head_blob or {}).get("sha"),
+            "ci_blob_base": (base_blob or {}).get("sha"),
+            "pr_open": bool(pull),
+            "pr_base": str((pull.get("base") or {}).get("ref") or ""),
+            "pr_head_sha": str((pull.get("head") or {}).get("sha") or ""),
+        }
+        trust_ok, trust_detail = evaluate_run(facts)
+        jobs_ok, jobs_detail = evaluate_jobs(run_jobs(run_id))
+        ok = trust_ok and jobs_ok
+        detail = trust_detail if not trust_ok else jobs_detail
         publish(head, ok, detail)
     except RuntimeError as error:
         print(f"ci-ok: ERROR — {error}")

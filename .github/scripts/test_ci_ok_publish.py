@@ -64,5 +64,71 @@ class EvaluateTests(unittest.TestCase):
         self.assertIn("gate-tests: skipped", detail)
 
 
+def trusted_facts(**overrides: object) -> dict[str, object]:
+    facts: dict[str, object] = {
+        "repo": "HugoXK/latent",
+        "head_sha": "a" * 40,
+        "default_branch": "main",
+        "run_path": ".github/workflows/ci.yml",
+        "run_workflow_id": 123,
+        "trusted_workflow_id": 123,
+        "run_event": "pull_request",
+        "run_head_sha": "a" * 40,
+        "run_head_repo": "HugoXK/latent",
+        "ci_blob_head": "blob123",
+        "ci_blob_base": "blob123",
+        "pr_open": True,
+        "pr_base": "main",
+        "pr_head_sha": "a" * 40,
+    }
+    facts.update(overrides)
+    return facts
+
+
+class EvaluateRunTests(unittest.TestCase):
+    def test_the_trusted_run_passes(self) -> None:
+        ok, detail = ci_ok_publish.evaluate_run(trusted_facts())
+        self.assertTrue(ok)
+        self.assertIn("trusted ci workflow", detail)
+
+    def test_a_pull_request_copy_of_ci_yml_fails(self) -> None:
+        ok, detail = ci_ok_publish.evaluate_run(
+            trusted_facts(ci_blob_head="weakened")
+        )
+        self.assertFalse(ok)
+        self.assertIn("ci.yml differs", detail)
+
+    def test_another_workflow_called_ci_fails(self) -> None:
+        ok, detail = ci_ok_publish.evaluate_run(
+            trusted_facts(run_path=".github/workflows/fake.yml")
+        )
+        self.assertFalse(ok)
+        self.assertIn("run path", detail)
+
+    def test_another_workflow_id_fails(self) -> None:
+        ok, detail = ci_ok_publish.evaluate_run(
+            trusted_facts(run_workflow_id=999)
+        )
+        self.assertFalse(ok)
+        self.assertIn("workflow id", detail)
+
+    def test_a_fork_run_fails(self) -> None:
+        ok, detail = ci_ok_publish.evaluate_run(
+            trusted_facts(run_head_repo="elsewhere/latent")
+        )
+        self.assertFalse(ok)
+        self.assertIn("this repository", detail)
+
+    def test_a_non_main_base_fails(self) -> None:
+        ok, detail = ci_ok_publish.evaluate_run(trusted_facts(pr_base="feat/x"))
+        self.assertFalse(ok)
+        self.assertIn("pull request base", detail)
+
+    def test_no_open_pull_request_fails(self) -> None:
+        ok, detail = ci_ok_publish.evaluate_run(trusted_facts(pr_open=False))
+        self.assertFalse(ok)
+        self.assertIn("no open pull request", detail)
+
+
 if __name__ == "__main__":
     unittest.main()

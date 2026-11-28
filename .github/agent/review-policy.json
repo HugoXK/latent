@@ -3,6 +3,5 @@
   "note": "Owner HugoXK keeps repository merge authority. Reviewer work is hosted by the HugoXK-bot account; a PASS must be written and posted by that login at the pull request head SHA. The author of the tip may never PASS it. The policy is read from the base branch, so a pull request cannot weaken its own gate.",
   "requiredPass": "HugoXK-bot",
   "reviewers": ["HugoXK-bot"],
-  "writers": ["HugoXK", "HugoXK-bot"],
-  "t0DocsAutoPass": true
+  "writers": ["HugoXK", "HugoXK-bot"]
 }
