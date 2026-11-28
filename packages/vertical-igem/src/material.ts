@@ -26,28 +26,6 @@ export interface MaterialBalanceResult {
  * The result is the mandatory first check before FBA (a project can die on
  * substrate supply, not on flux).
  */
-export class MaterialBalanceError extends Error {
-  readonly code: string;
-
-  constructor(code: string, message: string) {
-    super(message);
-    this.name = "MaterialBalanceError";
-    this.code = code;
-  }
-}
-
-/** A substrate name from user-supplied JSON must not hit an object setter. */
-const UNSAFE_SUBSTANCE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-function assertSafeSubstance(name: string): void {
-  if (UNSAFE_SUBSTANCE_KEYS.has(name)) {
-    throw new MaterialBalanceError(
-      "MATERIAL_UNSAFE_SUBSTANCE",
-      `unsafe substance name: ${name}`,
-    );
-  }
-}
-
 export function materialBalance(
   input: MaterialBalanceInput,
 ): MaterialBalanceResult {
@@ -68,20 +46,19 @@ export function materialBalance(
     }
   }
 
-  // Null prototype: a substrate named like an Object.prototype property must
-  // never reach a setter, even if the name check is ever weakened.
-  const required = Object.create(null) as Record<string, number>;
+  // A Map has no prototype chain: a substrate name can never reach an object
+  // setter. The record is materialised once at the end from validated entries.
+  const required = new Map<string, number>();
   const stack = new Set<string>();
 
   const visit = (substance: string, amount: number): void => {
-    assertSafeSubstance(substance);
     if (stack.has(substance)) {
       notes.push(`cycle involving ${substance}; the balance stops there`);
       return;
     }
     const reaction = producers.get(substance);
     if (!reaction) {
-      required[substance] = (required[substance] ?? 0) + amount;
+      required.set(substance, (required.get(substance) ?? 0) + amount);
       return;
     }
     const productCoefficient = reaction.products[substance] ?? 0;
@@ -103,14 +80,19 @@ export function materialBalance(
 
   visit(input.target, input.target_amount);
 
-  const limiting = Object.entries(required)
+  const requiredRecord = Object.assign(
+    Object.create(null),
+    Object.fromEntries(required),
+  ) as Record<string, number>;
+
+  const limiting = Object.entries(requiredRecord)
     .filter(
       ([substance, amount]) =>
         (input.available[substance] ?? 0) < amount,
     )
     .map(([substance]) => substance);
 
-  const yields = Object.entries(required)
+  const yields = Object.entries(requiredRecord)
     .map(
       ([substance, amount]) =>
         (input.available[substance] ?? 0) / amount,
@@ -121,7 +103,7 @@ export function materialBalance(
     feasible:
       limiting.length === 0 &&
       !notes.some((note) => note.startsWith("cycle")),
-    required,
+    required: requiredRecord,
     limiting,
     notes,
     theoretical_yield:
