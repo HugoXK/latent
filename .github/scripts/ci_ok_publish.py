@@ -11,8 +11,10 @@ duplicated; it creates one when the pull request removed the aggregate.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -74,6 +76,79 @@ def evaluate_jobs(jobs: list[dict[str, Any]]) -> tuple[bool, str]:
     return True, "spec, node and gate-tests all succeeded"
 
 
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def ci_tokens(text: str) -> list[tuple[str, str, str]]:
+    """Normalise a ci.yml file to comparable tokens.
+
+    A `uses:` line becomes ("uses", indent, "owner/repo/path@kind"), where kind is
+    "sha" for a 40-hex ref and "tag" for anything else. Every other line keeps its
+    raw content, so any trigger, permission, job, step or command change is a
+    token difference.
+    """
+    tokens: list[tuple[str, str, str]] = []
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        match = re.match(
+            r"^(\s*)(-\s*)?uses:\s*(\S+)\s*(?:#.*)?$",
+            line,
+        )
+        if match:
+            indent = match.group(1)
+            ref = match.group(3)
+            action, _, ref_value = ref.rpartition("@")
+            kind = "sha" if SHA_RE.match(ref_value) else "tag"
+            tokens.append(("uses", indent, f"{action}@{kind}:{ref_value}"))
+        else:
+            tokens.append(("line", "", line))
+    return tokens
+
+
+def evaluate_ref_only(base_text: str, head_text: str) -> tuple[bool, str]:
+    """Accept only a tag -> commit SHA change on an unchanged `uses:` line.
+
+    This is deliberately not a workflow exemption: it accepts exactly one shape,
+    because a moving tag is a supply-chain risk while its immutable commit is not.
+    Every other difference keeps the bootstrap rejection, and an unprovable diff
+    fails closed.
+    """
+    base_tokens = ci_tokens(base_text)
+    head_tokens = ci_tokens(head_text)
+    if len(base_tokens) != len(head_tokens):
+        return (
+            False,
+            f"ci.yml line count changed from {len(base_tokens)} to {len(head_tokens)}",
+        )
+    changed = 0
+    for index, (base_token, head_token) in enumerate(
+        zip(base_tokens, head_tokens), start=1
+    ):
+        if base_token == head_token:
+            continue
+        if base_token[0] == "uses" and head_token[0] == "uses":
+            if base_token[1] == head_token[1]:
+                base_action, _, base_ref = base_token[2].rpartition("@")
+                head_action, _, head_ref = head_token[2].rpartition("@")
+                base_kind, _, _ = base_ref.partition(":")
+                head_kind, _, _ = head_ref.partition(":")
+                if (
+                    base_action == head_action
+                    and base_kind == "tag"
+                    and head_kind == "sha"
+                ):
+                    changed += 1
+                    continue
+        return (
+            False,
+            f"ci.yml differs beyond a ref-only pin at line {index} "
+            f"({base_token[2]!r} -> {head_token[2]!r})",
+        )
+    if changed == 0:
+        return False, "ci.yml differs but no ref-only uses: pin was found"
+    return True, f"ci.yml differs only by {changed} uses: ref pin(s) (tag -> commit SHA)"
+
+
 def evaluate_run(facts: dict[str, Any]) -> tuple[bool, str]:
     """The triggering run must be the trusted ci workflow on this head.
 
@@ -94,9 +169,17 @@ def evaluate_run(facts: dict[str, Any]) -> tuple[bool, str]:
     if facts.get("run_head_repo") != facts.get("repo"):
         issues.append("run did not come from this repository")
     if facts.get("ci_blob_head") != facts.get("ci_blob_base"):
-        issues.append(
-            "ci.yml differs from the default branch: the run used a pull-request copy of the workflow"
-        )
+        head_text = facts.get("ci_text_head")
+        base_text = facts.get("ci_text_base")
+        if not isinstance(head_text, str) or not isinstance(base_text, str):
+            issues.append(
+                "ci.yml differs from the default branch and the contents are "
+                "unavailable to prove a ref-only change"
+            )
+        else:
+            ref_only, ref_detail = evaluate_ref_only(base_text, head_text)
+            if not ref_only:
+                issues.append(f"ci.yml differs from the default branch: {ref_detail}")
     if not facts.get("pr_open"):
         issues.append("no open pull request at the head SHA")
     elif facts.get("pr_base") != facts.get("default_branch"):
@@ -154,6 +237,17 @@ def publish(head: str, ok: bool, detail: str) -> None:
     print(f"ci-ok: {head[:7]} {conclusion} — {detail}")
 
 
+def blob_text(blob: Any) -> str | None:
+    """Decode a contents-API file body; return None when it is unavailable."""
+    content = (blob or {}).get("content")
+    if not isinstance(content, str) or not content:
+        return None
+    try:
+        return base64.b64decode(content).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return None
+
+
 def run_jobs(run_id: str) -> list[dict[str, Any]]:
     jobs: list[dict[str, Any]] = []
     page = 1
@@ -207,6 +301,8 @@ def main() -> None:
             ),
             "ci_blob_head": (head_blob or {}).get("sha"),
             "ci_blob_base": (base_blob or {}).get("sha"),
+            "ci_text_head": blob_text(head_blob),
+            "ci_text_base": blob_text(base_blob),
             "pr_open": bool(pull),
             "pr_base": str((pull.get("base") or {}).get("ref") or ""),
             "pr_head_sha": str((pull.get("head") or {}).get("sha") or ""),
