@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   ClaimStatus,
   ConfidenceBasis,
@@ -121,11 +122,39 @@ export function createReplayFetch(
   };
 }
 
+export type RecordModelFixturePrivacy = "public" | "private";
+
 export interface RecordModelFixtureInput {
   dir: string;
   requestBody: string;
   response: unknown;
   redact?: string[];
+  /**
+   * Whether the fragment behind the request may be recorded. The default is
+   * "private": the recorder must be told the content is public, so a caller
+   * cannot leak private content by forgetting a flag.
+   */
+  privacy?: RecordModelFixturePrivacy;
+  /**
+   * Per-call opt-in for recording a private fragment outside the repository's
+   * committed `data/` tree. It is never honored for a committed path.
+   */
+  allowPrivate?: boolean;
+}
+
+/** The repository root, resolved from `packages/adapters/src/`. */
+const REPO_ROOT = resolve(fileURLToPath(new URL("../../../", import.meta.url)));
+
+/** `data/` is committed; a fixture written here becomes git history. */
+const COMMITTED_DATA_DIR = join(REPO_ROOT, "data");
+
+/**
+ * True when `dir` resolves inside the repository's committed `data/` tree.
+ * This is the one place where a recorded fixture can become permanent history.
+ */
+export function isCommittedDataDir(dir: string): boolean {
+  const rel = relative(COMMITTED_DATA_DIR, resolve(dir));
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
 function redactValue(value: unknown, secrets: string[]): unknown {
@@ -153,14 +182,40 @@ function redactValue(value: unknown, secrets: string[]): unknown {
 /**
  * Record a response fixture without the request messages. Pass private strings
  * in `redact`; they are replaced in every response string before it is written.
+ *
+ * The file name is a deterministic hash of the request messages, so it is a
+ * content fingerprint, not an anonymous id. A private fragment is therefore
+ * refused by default, and always refused under the committed `data/` tree.
  */
 export function writeModelReplayFixture(input: RecordModelFixtureInput): string {
+  const privacy = input.privacy ?? "private";
+  const committed = isCommittedDataDir(input.dir);
+  const secrets = (input.redact ?? []).filter((secret) => secret.length > 0);
+
+  if (committed && privacy === "private") {
+    throw new ModelReplayError(
+      "REPLAY_PRIVATE_IN_COMMITTED_PATH",
+      `refusing to record a private fragment under the committed ${COMMITTED_DATA_DIR}: the fixture file name is a content fingerprint`,
+    );
+  }
+  if (committed && secrets.length === 0) {
+    throw new ModelReplayError(
+      "REPLAY_UNREDACTED_IN_COMMITTED_PATH",
+      "refusing to write an unredacted fixture under the committed data/ tree; pass redact with every private string",
+    );
+  }
+  if (!committed && privacy === "private" && input.allowPrivate !== true) {
+    throw new ModelReplayError(
+      "REPLAY_PRIVATE_RECORD_DENIED",
+      "recording a private fragment needs an explicit per-call allowPrivate: true outside the committed data/ tree",
+    );
+  }
+
   const key = modelRequestKey(input.requestBody);
   const request = JSON.parse(input.requestBody) as {
     model?: string;
     temperature?: number;
   };
-  const secrets = (input.redact ?? []).filter((secret) => secret.length > 0);
   const fixture: ModelReplayFixture = {
     model: request.model ?? null,
     temperature: request.temperature ?? null,

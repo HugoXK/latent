@@ -131,6 +131,7 @@ test("a recorded fixture is redacted and replayed", async () => {
       requestBody: body,
       response,
       redact: ["secret"],
+      privacy: "public",
     });
     const raw = readFileSync(path, "utf8");
     assert.ok(!raw.includes("secret"));
@@ -178,6 +179,7 @@ test("LATENT_MODEL_REPLAY replays the adapter without a network", async () => {
       dir,
       requestBody: captured,
       response: envelope,
+      privacy: "public",
     });
 
     const replay = reconstructorFromEnv({

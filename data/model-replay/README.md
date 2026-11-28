@@ -19,13 +19,36 @@ A private fragment is refused in replay: nothing leaves the machine, but a
 fixture file name is a fingerprint of the request, so private content is never
 recorded.
 
+## Offline is not the same as safe to commit
+
+The file name is a deterministic hash of the request messages, so it is a stable
+content fingerprint of the fragment, not an anonymous id. A fixture recorded from
+a private fragment would therefore join that idea to a public git history forever,
+even though replay never touches the network.
+
+The rules:
+
+- **Replay of a private fragment still needs the explicit opt-in.** The replay
+  branch uses `LATENT_MODEL_SEND_PRIVATE=true` exactly like the live branch; the
+  default is deny.
+- **A private fragment is never recorded under `data/`.** `writeModelReplayFixture`
+  refuses `privacy: "private"` when the target directory resolves inside the
+  repository's committed `data/` tree, even with `allowPrivate: true`.
+- **A committed fixture must be redacted.** An unredacted write under `data/` is
+  refused (`REPLAY_UNREDACTED_IN_COMMITTED_PATH`); pass `redact` with every string
+  that must not be stored.
+- **Private content outside `data/` needs a per-call opt-in.** `allowPrivate: true`
+  on the call is the only way to record it, and only into a scratch directory.
+- **`privacy` defaults to `"private"`.** A caller must say `privacy: "public"` to
+  record public content, so forgetting a flag fails closed.
+
 ## Fixture format
 
 ```json
 {
   "model": "replay-model",
   "temperature": 0,
-  "redacted": false,
+  "redacted": true,
   "response": {
     "choices": [{ "message": { "content": "..." } }]
   }
@@ -37,10 +60,11 @@ stored.
 
 ## Record
 
-Use `writeModelReplayFixture({ dir, requestBody, response, redact })` from
-[`packages/adapters/src/model-reconstructor.ts`](../../packages/adapters/src/model-reconstructor.ts).
+Use `writeModelReplayFixture({ dir, requestBody, response, redact, privacy, allowPrivate })`
+from [`packages/adapters/src/model-reconstructor.ts`](../../packages/adapters/src/model-reconstructor.ts).
 It computes the key, replaces every string in `redact` with `[redacted]`, and
-writes `<key>.json`. A CLI is not shipped yet.
+writes `<key>.json` only after the privacy and committed-path checks pass. A CLI
+is not shipped yet.
 
 ## Sample
 
