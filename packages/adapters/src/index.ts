@@ -12,8 +12,10 @@ import {
   ModelReconstructor,
   createReplayFetch,
 } from "./model-reconstructor.js";
+import { HttpAgentRuntime, RuntimeError } from "./http-runtime.js";
 
 export * from "./model-reconstructor.js";
+export * from "./http-runtime.js";
 
 /**
  * A deterministic, offline reconstructor for the v0.2 vertical slice.
@@ -130,6 +132,32 @@ export class NoopAgentRuntime implements AgentRuntime {
   async cancel(): Promise<void> {
     return;
   }
+}
+
+export function runtimeFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): AgentRuntime {
+  const kind = (env.LATENT_RUNTIME ?? "").trim().toLowerCase();
+  const baseUrl = (env.LATENT_RUNTIME_URL ?? env.FLYBOT_BASE_URL ?? "").trim();
+  const token = (env.LATENT_RUNTIME_TOKEN ?? env.FLYBOT_RUNTIME_TOKEN ?? "").trim();
+
+  if (kind === "none" || kind === "local") {
+    return new NoopAgentRuntime();
+  }
+  if (kind === "" && baseUrl === "" && token === "") {
+    return new NoopAgentRuntime();
+  }
+  if (baseUrl === "" || token === "") {
+    throw new RuntimeError(
+      "RUNTIME_CONFIG_INCOMPLETE",
+      "set LATENT_RUNTIME_URL and LATENT_RUNTIME_TOKEN (or FlyBot aliases), or LATENT_RUNTIME=none",
+    );
+  }
+  return new HttpAgentRuntime({
+    baseUrl,
+    token,
+    callbackUrl: env.LATENT_CALLBACK_URL?.trim() || undefined,
+  });
 }
 
 export class InMemoryCalibrator implements Calibrator {
