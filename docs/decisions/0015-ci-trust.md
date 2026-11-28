@@ -84,3 +84,19 @@ in-workflow aggregate is the bootstrap path.
   failure, not a code verdict. Do not bypass the gate to work around it.
 - The exact job set is a string contract; renaming a job in `ci.yml` without
   updating `REQUIRED_JOBS` turns `ci-ok` red. That is intentional.
+
+## Known limitation — the gate-tests harness is PR-controlled
+
+`gate-tests` runs from the checked-out head, and the runner script and the gate
+scripts it exercises are the PR's copies. A PR that replaced `gate-tests.sh` with
+`exit 0`, or that added a shadowing module such as `.github/scripts/unittest.py`,
+could therefore pass its own gate. `test-integrity.sh` narrows this (a base-branch
+test that is weakened or deleted fails), but it cannot close it: the runner that
+checks the check is still the runner under test.
+
+This is the same class as check-name spoofing and is **not** fixed by script
+logic. Mitigation is plan A: `main` requires a real non-author approval
+(`review:claimed` + verdict at the head) and CODEOWNERS ownership of
+`.github/**`, so the workflow edits that would defeat the harness cannot merge
+without a reviewer. Revisit if a separate runner identity or a GitHub App is
+adopted.

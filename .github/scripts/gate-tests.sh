@@ -29,12 +29,12 @@ for path in "$DIR"/*.py "$DIR"/*.sh; do
   cp "$path" "$TMP/"
 done
 
-# The drift test reads the workflow file; in a flat temp dir the relative path
-# inside the repo no longer resolves, so hand it the base copy explicitly.
-if git cat-file -e "$BASE:.github/workflows/ci.yml" 2>/dev/null; then
-  git show "$BASE:.github/workflows/ci.yml" > "$TMP/ci.yml"
-  export CI_YML_PATH="$TMP/ci.yml"
-fi
+# The drift test asserts that REQUIRED_JOBS and the aggregate's needs match the
+# workflow this PR ships, so it must read the HEAD working-tree ci.yml, not the
+# base copy: base has no gate-tests job yet on bootstrap, and a base copy would
+# make the assertion unpassable before merge. Weakening ci.yml is caught by the
+# publisher's blob-equality check, not here.
+export CI_YML_PATH="$PWD/.github/workflows/ci.yml"
 
 if [ "$found" -eq 1 ]; then
   echo "running base-branch gate tests against head scripts"
