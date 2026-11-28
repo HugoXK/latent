@@ -197,23 +197,29 @@ export function compileBrief(input: CompileInput): Brief {
   };
 }
 
+/**
+ * Escape a value for one Markdown table cell. A cell cannot contain a raw pipe
+ * or a line break: escape the backslash first so a caller-supplied `\|` stays one
+ * escaped pipe, then collapse CR/LF so the row cannot spill into the next line.
+ * Exported so every table renderer shares one implementation.
+ */
+export function escapeMarkdownCell(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\r\n?|\n/g, " ");
+}
+
 export function renderBriefMarkdown(brief: Brief): string {
   const collisionCheck = brief.collision_check ?? {
     status: "not_checked" as const,
     note: "The novelty check did not run; this is not a clean result.",
   };
-  // A Markdown table cell cannot contain a raw pipe or a line break. Escape the
-  // backslash first so a caller-supplied `\|` stays one escaped pipe, then collapse
-  // CR/LF so the row cannot spill into the next line.
-  const cell = (value: string) =>
-    value
-      .replace(/\\/g, "\\\\")
-      .replace(/\|/g, "\\|")
-      .replace(/\r\n?|\n/g, " ");
+
   const risks =
     brief.risks.length > 0
       ? brief.risks
-          .map((r) => `| ${cell(r.risk)} | ${cell(r.trigger)} | ${cell(r.fallback)} |`)
+          .map((r) => `| ${escapeMarkdownCell(r.risk)} | ${escapeMarkdownCell(r.trigger)} | ${escapeMarkdownCell(r.fallback)} |`)
           .join("\n")
       : "| — | — | — |";
 
@@ -261,7 +267,7 @@ export function renderBriefMarkdown(brief: Brief): string {
           "|---|---|---|---|---|---|",
           ...brief.collisions.map(
             (collision) =>
-              `| ${collision.kind} | ${cell(collision.prior_label)} | ${collision.severity} | ${cell(collision.note)} | ${cell((collision.claim_ids ?? []).join(", ") || "—")} | ${cell(collision.source_url ?? "—")} |`,
+              `| ${collision.kind} | ${escapeMarkdownCell(collision.prior_label)} | ${collision.severity} | ${escapeMarkdownCell(collision.note)} | ${escapeMarkdownCell((collision.claim_ids ?? []).join(", ") || "—")} | ${escapeMarkdownCell(collision.source_url ?? "—")} |`,
           ),
           "",
         ]

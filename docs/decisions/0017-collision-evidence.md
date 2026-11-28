@@ -1,6 +1,6 @@
 # 0017 — Collision evidence and an explicit "not checked" state
 
-- Status: proposed (T2)
+- Status: accepted (T2)
 - Date: 2026-11-28
 - Owner: HugoXK
 - Issue: #38
@@ -33,6 +33,9 @@ onto `main`'s own renderer rather than importing the stack's `compiler.ts`.
    so a caller-supplied `\|` and a raw newline both stay inside one cell.
 5. **No new store table.** The brief already stores the structured field; the
    schema change is additive and optional.
+6. **Source URLs are data, not navigation.** `source_url` is rendered as escaped
+   text; no exporter turns it into an `href`, so a hostile value has no link
+   surface. A later exporter must state its own policy before linking it.
 
 ## Fixture policy
 
