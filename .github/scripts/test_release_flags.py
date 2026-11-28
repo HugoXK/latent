@@ -86,6 +86,52 @@ class ReleaseWorkflowShapeTests(unittest.TestCase):
         for token in ("--prerelease", "--latest"):
             self.assertNotIn(token, text)
 
+    def release_flags_run_block(self) -> str:
+        lines = self.workflow().splitlines()
+        try:
+            start = next(
+                index
+                for index, line in enumerate(lines)
+                if line.strip() == "id: release_flags"
+            )
+        except StopIteration:
+            self.fail("release.yml has no step with `id: release_flags`")
+        run = None
+        for index in range(start + 1, len(lines)):
+            stripped = lines[index].strip()
+            if stripped.startswith("run:"):
+                run = index
+                break
+            if stripped.startswith("- "):
+                break
+        if run is None:
+            self.fail("the release_flags step has no run block")
+        indent = len(lines[run]) - len(lines[run].lstrip())
+        block: list[str] = []
+        for line in lines[run + 1 :]:
+            if line.strip() and len(line) - len(line.lstrip()) <= indent:
+                break
+            block.append(line)
+        return "\n".join(block)
+
+    def test_the_flags_step_cannot_swallow_a_failure(self) -> None:
+        # The step runs as `bash -e`: a failing command substitution written
+        # inside `echo "value=$(...)"` only makes the echo fail, and the step
+        # still writes `value=` and exits 0 -- the real error then surfaces a
+        # step later as a misleading changelog error. Assign first, echo after,
+        # so a bad version stops this step with its own message.
+        block = self.release_flags_run_block()
+        self.assertRegex(
+            block,
+            r"(?m)^\s*value=\$\(",
+            "the release_flags run block must assign value=$(...) on its own line",
+        )
+        self.assertNotIn(
+            'echo "value=$(',
+            block,
+            "the release_flags run block wraps the command substitution in echo",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

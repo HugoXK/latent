@@ -174,7 +174,8 @@ jobs:
       - name: Compute the release flags
         id: release_flags
         run: |
-          echo "value=$(python3 .github/scripts/release.py --version "${{ inputs.version }}" --release-flags)" >> "$GITHUB_OUTPUT"
+          value=$(python3 .github/scripts/release.py --version "${{ inputs.version }}" --release-flags)
+          echo "value=$value" >> "$GITHUB_OUTPUT"
 
       - name: Build the SBOM, archive and release
         env:
