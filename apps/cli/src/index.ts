@@ -412,9 +412,21 @@ async function main(): Promise<number> {
         } catch {
           throw new CliError(`unknown vertical: ${verticalId}`, 1);
         }
+        let teamBsl: number | undefined;
+        if (flags.bsl !== undefined) {
+          teamBsl = Number(flags.bsl);
+          if (!Number.isInteger(teamBsl) || teamBsl < 1 || teamBsl > 4) {
+            throw new CliError("--bsl must be an integer from 1 to 4", 1);
+          }
+        }
         let result;
         try {
-          result = await develop({ fragment, vertical: pack, reconstructor });
+          result = await develop({
+            fragment,
+            vertical: pack,
+            reconstructor,
+            team_bsl: teamBsl,
+          });
         } catch (error) {
           if (error instanceof BiosafetyError) {
             store.appendEvent("biosafety.refused", fragment.id, {

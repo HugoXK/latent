@@ -382,7 +382,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
 
   app.post("/v1/ideas", { preHandler: scope("ideas:write") }, async (req, reply) => {
     const body = req.body as
-      | { fragment_id?: string; vertical?: string }
+      | { fragment_id?: string; vertical?: string; bsl?: number }
       | null;
     if (!body?.fragment_id) {
       return reply.code(400).send({
@@ -395,6 +395,17 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         error: {
           code: "NOT_FOUND",
           message: `fragment not found: ${body.fragment_id}`,
+        },
+      });
+    }
+    if (
+      body.bsl !== undefined &&
+      (!Number.isInteger(body.bsl) || body.bsl < 1 || body.bsl > 4)
+    ) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_BSL",
+          message: "bsl must be an integer from 1 to 4",
         },
       });
     }
@@ -412,7 +423,12 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     }
     let result;
     try {
-      result = await develop({ fragment, vertical: pack, reconstructor });
+      result = await develop({
+        fragment,
+        vertical: pack,
+        reconstructor,
+        team_bsl: body.bsl,
+      });
     } catch (error) {
       if (error instanceof BiosafetyError) {
         store.appendEvent("biosafety.refused", fragment.id, {
