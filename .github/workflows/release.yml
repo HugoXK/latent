@@ -45,8 +45,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          SHA=$(gh run list --branch main --workflow ci --limit 1 --json headSha,conclusion --jq '.[0].headSha // empty')
-          CONCLUSION=$(gh run list --branch main --workflow ci --limit 1 --json conclusion --jq '.[0].conclusion // empty')
+          # This step runs before checkout, so gh has no repository context:
+          # every call needs -R or it dies with "not a git repository".
+          SHA=$(gh run list -R "$GITHUB_REPOSITORY" --branch main --workflow ci --limit 1 --json headSha,conclusion --jq '.[0].headSha // empty')
+          CONCLUSION=$(gh run list -R "$GITHUB_REPOSITORY" --branch main --workflow ci --limit 1 --json conclusion --jq '.[0].conclusion // empty')
           echo "main head $SHA: $CONCLUSION"
           if [ "$CONCLUSION" != "success" ]; then
             echo "release refused: main is not green"
