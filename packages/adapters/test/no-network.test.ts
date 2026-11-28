@@ -1,9 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ModelReconstructionError,
   ModelReconstructor,
+  ModelReplayError,
   TemplateReconstructor,
   createReplayFetch,
 } from "../src/index.js";
@@ -111,28 +115,26 @@ test("no adapter escapes to the network", async () => {
     });
     assert.equal(modelOutput.title, "synthetic");
 
-    const sampleDir = fileURLToPath(
-      new URL("../../../data/model-replay/", import.meta.url),
-    );
-    const replay = createReplayFetch({ dir: sampleDir });
-    const sampleBody = JSON.stringify({
-      model: "replay-model",
-      temperature: 0,
-      messages: [
-        { role: "system", content: "latent replay sample" },
-        { role: "user", content: "hello" },
-      ],
-    });
-    const replayResponse = await replay("https://replay.invalid", {
-      method: "POST",
-      headers: {},
-      body: sampleBody,
-      signal: new AbortController().signal,
-    });
-    const replayJson = (await replayResponse.json()) as {
-      choices: Array<{ message: { content: string } }>;
-    };
-    assert.equal(replayJson.choices[0]?.message.content, "sample");
+    const emptyDir = mkdtempSync(join(tmpdir(), "latent-nonet-"));
+    try {
+      const replay = createReplayFetch({ dir: emptyDir });
+      await assert.rejects(
+        () =>
+          replay("https://replay.invalid", {
+            method: "POST",
+            headers: {},
+            body: JSON.stringify({
+              model: "replay-model",
+              temperature: 0,
+              messages: [{ role: "user", content: "hello" }],
+            }),
+            signal: new AbortController().signal,
+          }),
+        ModelReplayError,
+      );
+    } finally {
+      rmSync(emptyDir, { recursive: true, force: true });
+    }
 
     await assert.rejects(
       () =>

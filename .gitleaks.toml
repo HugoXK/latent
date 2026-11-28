@@ -1,9 +1,0 @@
-# Model replay fixtures are request-keyed test data. The 64-character value is a
-# SHA-256 file name, not a credential. Keep the allowlist narrow: only the replay
-# fixture files are exempt, and the rest of the repository still uses the default
-# gitleaks rules.
-[allowlist]
-description = "Model replay fixtures are SHA-256-keyed test data, not secrets."
-paths = [
-  '''data/model-replay/[0-9a-f]{64}\.json''',
-]

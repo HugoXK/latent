@@ -15,7 +15,9 @@ LATENT_MODEL_TEMPERATURE=0 \
 pnpm latent develop <fragment-id>
 ```
 
-A private fragment is allowed in replay because nothing leaves the machine.
+A private fragment is refused in replay: nothing leaves the machine, but a
+fixture file name is a fingerprint of the request, so private content is never
+recorded.
 
 ## Fixture format
 
@@ -42,6 +44,5 @@ writes `<key>.json`. A CLI is not shipped yet.
 
 ## Sample
 
-The committed fixture is synthetic and is used by
-[`packages/adapters/test/model-replay.test.ts`](../../packages/adapters/test/model-replay.test.ts).
-It contains no private content.
+No fixture is committed. `data/model-replay/` holds local, untracked fixtures for
+public content only; recording a private fragment is refused by the adapter.

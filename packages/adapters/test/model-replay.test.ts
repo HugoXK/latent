@@ -188,34 +188,13 @@ test("LATENT_MODEL_REPLAY replays the adapter without a network", async () => {
       LATENT_MODEL_TEMPERATURE: "0",
       LATENT_MODEL_JSON_MODE: "true",
     });
-    const second = await replay.reconstruct({ fragment, verticalId: "igem" });
+    // The replay path no longer accepts private fragments by default.
+    const second = await replay.reconstruct({
+      fragment: { ...fragment, privacy: "public" },
+      verticalId: "igem",
+    });
     assert.equal(second.title, first.title);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-});
-
-test("the committed sample fixture replays", async () => {
-  const dir = fileURLToPath(
-    new URL("../../../data/model-replay/", import.meta.url),
-  );
-  const body = JSON.stringify({
-    model: "replay-model",
-    temperature: 0,
-    messages: [
-      { role: "system", content: "latent replay sample" },
-      { role: "user", content: "hello" },
-    ],
-  });
-  const fetchImpl = createReplayFetch({ dir });
-  const result = await fetchImpl("https://replay.invalid", {
-    method: "POST",
-    headers: {},
-    body,
-    signal: new AbortController().signal,
-  });
-  const json = (await result.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
-  assert.equal(json.choices[0]?.message.content, "sample");
 });
