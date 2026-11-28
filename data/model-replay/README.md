@@ -15,6 +15,10 @@ LATENT_MODEL_TEMPERATURE=0 \
 pnpm latent develop <fragment-id>
 ```
 
+A private fragment is refused in replay: nothing leaves the machine, but a
+fixture file name is a fingerprint of the request, so private content is never
+recorded.
+
 ## Offline is not the same as safe to commit
 
 The file name is a deterministic hash of the request messages, so it is a stable
@@ -64,7 +68,5 @@ is not shipped yet.
 
 ## Sample
 
-No fixture is committed. `data/model-replay/` only holds this README; the format is
-exercised by
-[`packages/adapters/test/model-replay.test.ts`](../../packages/adapters/test/model-replay.test.ts)
-in scratch directories, and a missing fixture stays a typed error.
+No fixture is committed. `data/model-replay/` holds local, untracked fixtures for
+public content only; recording a private fragment is refused by the adapter.

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { igem } from "../src/index.js";
+import { assertValidPack } from "@latent/core";
 
 test("the iGEM pack has unique variables and gates", () => {
   assert.equal(igem.id, "igem");
@@ -36,4 +37,8 @@ test("every gate names a falsifier and an allowed fallback", () => {
     assert.ok(gate.falsifier.length > 0, gate.key);
     assert.ok(allowed.has(gate.fallback), gate.key);
   }
+});
+
+test("the iGEM pack validates against the pack contract", () => {
+  assert.doesNotThrow(() => assertValidPack(igem));
 });

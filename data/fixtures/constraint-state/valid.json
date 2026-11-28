@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "vertical": "igem",
+  "variables": {
+    "lab.bsl": {
+      "value": 1,
+      "confidence": 1,
+      "source": "user",
+      "updated_at": "2026-11-25T00:00:00Z"
+    }
+  },
+  "unknowns": [
+    "problem.who"
+  ],
+  "blocking_unknowns": [],
+  "updated_at": "2026-11-25T00:00:00Z",
+  "schema_version": "1.0.0"
+}

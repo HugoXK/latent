@@ -66,6 +66,18 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
 
+  packages/novelty:
+    dependencies:
+      '@latent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/retrieval:
+    dependencies:
+      '@latent/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/store:
     dependencies:
       '@latent/core':

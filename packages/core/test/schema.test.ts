@@ -41,6 +41,32 @@ test("a constraint state passes validation", () => {
   );
 });
 
+test("date-time and numeric bounds are enforced", () => {
+  assert.throws(
+    () =>
+      assertValid("fragment", {
+        id: "frg_fixture0001",
+        captured_at: "not-a-date",
+        kind: "text",
+        content: "x",
+        privacy: "private",
+      }),
+    SchemaValidationError,
+  );
+  assert.throws(
+    () =>
+      assertValid("claim", {
+        id: "clm_fixture0001",
+        text: "x",
+        status: "unknown",
+        confidence: 1.5,
+        confidence_basis: "C",
+        sources: [],
+      }),
+    SchemaValidationError,
+  );
+});
+
 test("an idea with no hypotheses is rejected", () => {
   assert.throws(
     () =>

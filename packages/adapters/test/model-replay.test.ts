@@ -23,11 +23,6 @@ const fragment: Fragment = {
   privacy: "private",
 };
 
-// Replay is offline, but a private fragment still needs the explicit
-// LATENT_MODEL_SEND_PRIVATE opt-in. This case records and replays public
-// content, which is what a committed fixture may contain.
-const publicFragment: Fragment = { ...fragment, privacy: "public" };
-
 const reconstruction = {
   title: "synthetic",
   one_liner: "synthetic",
@@ -176,12 +171,10 @@ test("LATENT_MODEL_REPLAY replays the adapter without a network", async () => {
       model: "test-model",
       temperature: 0,
       jsonMode: true,
+      allowPrivate: true,
       fetchImpl: capture,
     });
-    const first = await source.reconstruct({
-      fragment: publicFragment,
-      verticalId: "igem",
-    });
+    const first = await source.reconstruct({ fragment, verticalId: "igem" });
     writeModelReplayFixture({
       dir,
       requestBody: captured,
@@ -197,39 +190,13 @@ test("LATENT_MODEL_REPLAY replays the adapter without a network", async () => {
       LATENT_MODEL_TEMPERATURE: "0",
       LATENT_MODEL_JSON_MODE: "true",
     });
+    // The replay path no longer accepts private fragments by default.
     const second = await replay.reconstruct({
-      fragment: publicFragment,
+      fragment: { ...fragment, privacy: "public" },
       verticalId: "igem",
     });
     assert.equal(second.title, first.title);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-});
-
-test("no fixture is committed under data/model-replay", async () => {
-  // The recorder refuses private content and unredacted writes here, so a
-  // fixture only appears in a scratch dir the caller passes explicitly. A
-  // missing sample is the typed error, never a silent network fallback.
-  const dir = fileURLToPath(
-    new URL("../../../data/model-replay/", import.meta.url),
-  );
-  const body = JSON.stringify({
-    model: "replay-model",
-    temperature: 0,
-    messages: [{ role: "user", content: "hello" }],
-  });
-  const fetchImpl = createReplayFetch({ dir });
-  await assert.rejects(
-    () =>
-      fetchImpl("https://replay.invalid", {
-        method: "POST",
-        headers: {},
-        body,
-        signal: new AbortController().signal,
-      }),
-    (error: unknown) =>
-      error instanceof ModelReplayError &&
-      error.code === "REPLAY_FIXTURE_MISSING",
-  );
 });

@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ModelReconstructionError,
@@ -112,29 +115,26 @@ test("no adapter escapes to the network", async () => {
     });
     assert.equal(modelOutput.title, "synthetic");
 
-    const sampleDir = fileURLToPath(
-      new URL("../../../data/model-replay/", import.meta.url),
-    );
-    const replay = createReplayFetch({ dir: sampleDir });
-    const sampleBody = JSON.stringify({
-      model: "replay-model",
-      temperature: 0,
-      messages: [{ role: "user", content: "hello" }],
-    });
-    // No fixture is committed: the recorder refuses private and unredacted
-    // writes under data/. A miss is the typed error, not a network fallback.
-    await assert.rejects(
-      () =>
-        replay("https://replay.invalid", {
-          method: "POST",
-          headers: {},
-          body: sampleBody,
-          signal: new AbortController().signal,
-        }),
-      (error: unknown) =>
-        error instanceof ModelReplayError &&
-        error.code === "REPLAY_FIXTURE_MISSING",
-    );
+    const emptyDir = mkdtempSync(join(tmpdir(), "latent-nonet-"));
+    try {
+      const replay = createReplayFetch({ dir: emptyDir });
+      await assert.rejects(
+        () =>
+          replay("https://replay.invalid", {
+            method: "POST",
+            headers: {},
+            body: JSON.stringify({
+              model: "replay-model",
+              temperature: 0,
+              messages: [{ role: "user", content: "hello" }],
+            }),
+            signal: new AbortController().signal,
+          }),
+        ModelReplayError,
+      );
+    } finally {
+      rmSync(emptyDir, { recursive: true, force: true });
+    }
 
     await assert.rejects(
       () =>

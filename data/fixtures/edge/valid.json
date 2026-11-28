@@ -1,0 +1,12 @@
+{
+  "id": "edg_fixture0001",
+  "owner_id": "local",
+  "from": { "type": "fragment", "id": "frg_fixture0001" },
+  "to": { "type": "idea", "id": "idea_fixture0001" },
+  "relation": "derived_from",
+  "weight": 1,
+  "provenance": "develop",
+  "created_at": "2026-11-25T00:00:00Z",
+  "deleted_at": null,
+  "schema_version": "1.0.0"
+}

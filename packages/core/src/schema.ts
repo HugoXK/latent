@@ -26,13 +26,39 @@ function load(name: string): Record<string, unknown> {
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
 
+const SCHEMA_FILES = {
+  fragment: "fragment.schema.json",
+  constraint: "constraint-state.schema.json",
+  claim: "claim.schema.json",
+  idea: "idea.schema.json",
+  gate: "gate.schema.json",
+  brief: "brief.schema.json",
+  edge: "edge.schema.json",
+  replayCase: "replay-case.schema.json",
+} as const;
+
+// Register every schema first so a cross-schema `$ref` (replay-case refers to
+// constraint-state and fragment by `$id`) resolves when each validator compiles.
+for (const file of Object.values(SCHEMA_FILES)) {
+  ajv.addSchema(load(file));
+}
+
+function getValidator(file: string): ValidateFunction {
+  const id = `https://latent.dev/schemas/${file}`;
+  const validator = ajv.getSchema(id);
+  if (!validator) throw new Error(`schema not found: ${id}`);
+  return validator;
+}
+
 const validators = {
-  fragment: ajv.compile(load("fragment.schema.json")),
-  constraint: ajv.compile(load("constraint-state.schema.json")),
-  claim: ajv.compile(load("claim.schema.json")),
-  idea: ajv.compile(load("idea.schema.json")),
-  gate: ajv.compile(load("gate.schema.json")),
-  brief: ajv.compile(load("brief.schema.json")),
+  fragment: getValidator(SCHEMA_FILES.fragment),
+  constraint: getValidator(SCHEMA_FILES.constraint),
+  claim: getValidator(SCHEMA_FILES.claim),
+  idea: getValidator(SCHEMA_FILES.idea),
+  gate: getValidator(SCHEMA_FILES.gate),
+  brief: getValidator(SCHEMA_FILES.brief),
+  edge: getValidator(SCHEMA_FILES.edge),
+  replayCase: getValidator(SCHEMA_FILES.replayCase),
 } satisfies Record<string, ValidateFunction>;
 
 export type SchemaName = keyof typeof validators;

@@ -42,7 +42,7 @@ CLI does, the API can do. The OpenAPI 3.1 document ships in `v0.2`.
 | Claim | `/v1/ideas/{id}/claims` | List, verify, contradict |
 | Gate | `/v1/ideas/{id}/gates` | Run, decide, waive |
 | Brief | `/v1/ideas/{id}/brief` | Compile, get, export |
-| Memory | `/v1/memory` | Search, connections |
+| Memory | `/v1/memory` | Search, connection explanations, owner-scoped export; fragment delete blocks on references |
 | Jobs | `/v1/jobs` | Incubation and research jobs |
 | Health | `/healthz`, `/readyz` | Liveness, readiness |
 
@@ -229,7 +229,9 @@ latent answer <idea-id> <variable> <value>  # answer a blocking constraint
 latent constraints <idea-id>                # state, blocking set, next question
 latent confirm <idea-id> <assumption-id> | --all [--refute]
 latent decide <idea-id> <gate-id>|--all <pass|fail|unknown|waive> [--reason "..."]
-latent brief <idea-id> [--format md|json]
+latent brief <idea-id> [--format md|json|html] [--verify]
+latent spec <idea-id> [--format md|json]
+latent ledger export <idea-id> [--format jsonl|md]
 latent show <id>
 ```
 
