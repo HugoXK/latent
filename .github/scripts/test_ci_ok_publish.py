@@ -9,7 +9,9 @@ import os
 
 import ci_ok_publish
 
-CI_YML = os.path.join(os.path.dirname(__file__), "..", "workflows", "ci.yml")
+CI_YML = os.environ.get("CI_YML_PATH") or os.path.join(
+    os.path.dirname(__file__), "..", "workflows", "ci.yml"
+)
 
 
 class EvaluateTests(unittest.TestCase):
@@ -141,6 +143,19 @@ class EvaluateRunTests(unittest.TestCase):
         jobs = set(re.findall(r"^  ([a-z0-9-]+):$", text, re.M))
         for job in ci_ok_publish.REQUIRED_JOBS:
             self.assertIn(job, jobs, f"{job} is required but not defined in ci.yml")
+
+    def test_the_aggregate_needs_every_required_job(self) -> None:
+        with open(CI_YML, encoding="utf-8") as fh:
+            text = fh.read()
+        block = re.search(
+            r"^  ci-ok:\n(?:.*\n)*?    needs: \[([^\]]*)\]", text, re.M
+        )
+        self.assertIsNotNone(block, "ci-ok job has no needs: [...] line")
+        needed = {item.strip() for item in block.group(1).split(",") if item.strip()}
+        for job in ci_ok_publish.REQUIRED_JOBS:
+            self.assertIn(
+                job, needed, f"ci-ok does not depend on {job}, so its aggregate can lie"
+            )
 
 if __name__ == "__main__":
     unittest.main()

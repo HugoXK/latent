@@ -8,11 +8,18 @@ itself cannot rot.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
 
 SCRIPT = os.path.join(os.path.dirname(__file__), "test-integrity.sh")
+SAMPLE_TEST = (
+    "import unittest\n\n"
+    "class SampleTests(unittest.TestCase):\n"
+    "    def test_a(self):\n"
+    "        self.assertTrue(True)\n"
+)
 TEST_FILE = os.path.join(".github", "scripts", "test_sample.py")
 SCRIPT_FILE = os.path.join(".github", "scripts", "sample.py")
 
@@ -32,7 +39,7 @@ class GuardTests(unittest.TestCase):
         git(repo, "config", "user.name", "test")
         os.makedirs(os.path.join(repo, ".github", "scripts"), exist_ok=True)
         with open(os.path.join(repo, TEST_FILE), "w", encoding="utf-8") as fh:
-            fh.write("def test_a():\n    assert True\n")
+            fh.write(SAMPLE_TEST)
         with open(os.path.join(repo, SCRIPT_FILE), "w", encoding="utf-8") as fh:
             fh.write("x = 1\n")
         git(repo, "add", "-A")
@@ -59,7 +66,7 @@ class GuardTests(unittest.TestCase):
         repo, base = self.make_repo()
         try:
             with open(os.path.join(repo, TEST_FILE), "w", encoding="utf-8") as fh:
-                fh.write("def test_a():\n    assert False\n")
+                fh.write(SAMPLE_TEST.replace("assertTrue(True)", "assertTrue(False)"))
             result = self.run_guard(repo, base)
             self.assertEqual(result.returncode, 1)
             self.assertIn("must not be weakened", result.stderr)
@@ -76,6 +83,35 @@ class GuardTests(unittest.TestCase):
         finally:
             subprocess.run(["rm", "-rf", repo], check=False)
 
+
+    def test_the_base_has_tests_path_passes(self) -> None:
+        """The path every PR takes after this merges: base already has tests."""
+        repo = tempfile.mkdtemp()
+        scripts = os.path.join(repo, ".github", "scripts")
+        try:
+            os.makedirs(scripts, exist_ok=True)
+            source = os.path.dirname(os.path.abspath(__file__))
+            for name in ("gate-tests.sh", "test-integrity.sh"):
+                shutil.copy(os.path.join(source, name), os.path.join(scripts, name))
+            with open(os.path.join(scripts, "sample.py"), "w", encoding="utf-8") as fh:
+                fh.write("x = 1\n")
+            with open(os.path.join(scripts, "test_sample.py"), "w", encoding="utf-8") as fh:
+                fh.write(SAMPLE_TEST)
+            git(repo, "init", "-q")
+            git(repo, "config", "user.email", "t@example.invalid")
+            git(repo, "config", "user.name", "test")
+            git(repo, "add", "-A")
+            git(repo, "commit", "-q", "-m", "base")
+            result = subprocess.run(
+                ["bash", ".github/scripts/gate-tests.sh", "HEAD"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("running base-branch gate tests", result.stdout)
+        finally:
+            subprocess.run(["rm", "-rf", repo], check=False)
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,12 +21,20 @@ while IFS= read -r path; do
   found=1
 done < <(git ls-tree -r --name-only "$BASE" "$DIR" | grep -E '^.*/test_.*\.py$' || true)
 
-for path in "$DIR"/*.py; do
+for path in "$DIR"/*.py "$DIR"/*.sh; do
+  [ -e "$path" ] || continue
   case "$(basename "$path")" in
     test_*) continue ;;
   esac
   cp "$path" "$TMP/"
 done
+
+# The drift test reads the workflow file; in a flat temp dir the relative path
+# inside the repo no longer resolves, so hand it the base copy explicitly.
+if git cat-file -e "$BASE:.github/workflows/ci.yml" 2>/dev/null; then
+  git show "$BASE:.github/workflows/ci.yml" > "$TMP/ci.yml"
+  export CI_YML_PATH="$TMP/ci.yml"
+fi
 
 if [ "$found" -eq 1 ]; then
   echo "running base-branch gate tests against head scripts"
