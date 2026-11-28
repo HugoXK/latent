@@ -82,6 +82,15 @@ It scores:
 - unsupported claims: the brief compiler's blocking set.
 
 The harness never passes `expected_candidates`, `collisions`, `gate_labels` or
-`outcome` to the reconstructor; they are scoring-only fields. The CLI uses the
-template reconstructor by default; `LATENT_MODEL_REPLAY=1` makes the model adapter
-read recorded fixtures instead of a provider.
+`outcome` to the reconstructor, and plugins (`ReplayGatePredictor`,
+`ReplayCollisionDetector`) receive `ReplayPublicCase` — `metadata`, `constraints`,
+`fragment` and `prior_art` only. The hidden fields stay inside the scorer, so a
+plugin cannot echo the answer key and score 1.0.
+
+`passed` means seed recovery, zero unsupported claims and, when a gate predictor is
+supplied, gate agreement of at least 0.75. Variant coverage and collision
+precision/recall are reported measurements, not pass thresholds. Seed overlap is
+Jaccard over content words, so a one-word hypothesis cannot reach 1.0 against a
+long seed. The CLI uses the template reconstructor by default;
+`LATENT_MODEL_REPLAY=1` makes the model adapter read recorded fixtures instead of
+a provider.
