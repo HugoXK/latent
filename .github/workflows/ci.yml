@@ -83,6 +83,7 @@ jobs:
               "docs/roadmap.md", "docs/security.md", "docs/api.md",
               "docs/glossary.md", "docs/code-standards.md",
               "docs/vertical-igem.md",
+              "docs/replay-plan.md",
               "docs/review.md",
               "data/schemas/README.md",
               "verticals/igem/README.md",

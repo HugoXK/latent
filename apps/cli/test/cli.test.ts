@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -184,5 +185,43 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
     assert.match(briefHtml.stdout, /<!doctype html>/);
   } finally {
     cleanup();
+  }
+});
+
+test("a select-agent direction is refused by the biosafety screen", () => {
+  const captured = run([
+    "capture",
+    "Bacillus anthracis spore production for aerosol release",
+    "--json",
+  ]);
+  assert.equal(captured.status, 0, captured.stderr);
+  const fragmentId = String(
+    (JSON.parse(captured.stdout) as { id: string }).id,
+  );
+
+  const refused = run(["develop", fragmentId, "--json"]);
+  assert.equal(refused.status, 1, refused.stderr);
+  assert.equal(refused.stdout, "", "a refused develop writes nothing to stdout");
+  assert.match(refused.stderr, /biosafety review is required/i);
+  assert.equal(
+    /anthracis/i.test(refused.stderr),
+    false,
+    `the refusal must not echo the matched term: ${refused.stderr}`,
+  );
+
+  const db = new DatabaseSync(dbPath);
+  try {
+    const audit = db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM events WHERE type = 'biosafety.refused' AND subject = ?",
+      )
+      .get(fragmentId) as { n: number };
+    assert.equal(audit.n, 1, "the refusal is recorded once");
+    const developed = db
+      .prepare("SELECT COUNT(*) AS n FROM events WHERE type = 'idea.developed'")
+      .get() as { n: number };
+    assert.equal(developed.n, 0, "a refused develop creates no idea");
+  } finally {
+    db.close();
   }
 });
