@@ -24,10 +24,15 @@ The workflow:
      `CHANGELOG.md`;
    - bumps the root, `packages/*` and `apps/*` `package.json` versions;
    - deletes the consumed fragments and leaves `changelog.d/README.md`;
-5. commits on `release/v0.3.0`, pushes the branch and opens a release PR.
+5. commits on `release/v0.3.0` and pushes the branch. It opens a release PR **only** when a `RELEASE_PR_TOKEN` secret exists; with the default `GITHUB_TOKEN` the pull request would not trigger `ci`/`pr-lint`/`review-gate`, so instead it prints the compare URL and a human opens the PR. Either path ends in a normal, fully checked release PR.
 
 The release PR is mechanical: it contains the changelog and version changes only.
-It is reviewed and merged like any other PR.
+It is reviewed and merged like any other PR, with the same required checks — which is why the no-token path exists.
+
+Publishing is atomic: the release is created as a **draft**, its assets are
+uploaded, provenance is attested, and only then is the draft published. A failed
+or cancelled `verify` never reaches `publish`, and a failed attestation leaves
+nothing public.
 
 ## 2. Publish
 

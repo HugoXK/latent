@@ -144,7 +144,9 @@ jobs:
 
   publish:
     name: publish
-    needs: [verify, prepare]
+    # Only verify: prepare is skipped in publish mode, and an implicit success()
+    # on a skipped dependency would skip publish for ever.
+    needs: verify
     if: inputs.mode == 'publish' && needs.verify.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -191,7 +193,10 @@ jobs:
             --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git archive --format=tar.gz --prefix="latent-$VERSION/" \
             -o "latent-$VERSION.tar.gz" "${{ needs.verify.outputs.sha }}"
+          # Draft until attestation succeeds: a release that exists without its
+          # provenance is the half-published state we are avoiding.
           gh release create "v$VERSION" \
+            --draft \
             --target "${{ needs.verify.outputs.sha }}" \
             --title "v$VERSION" \
             --notes-file /tmp/notes.md
@@ -209,7 +214,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
       id-token: write
       attestations: write
     steps:
@@ -220,3 +225,11 @@ jobs:
       - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         with:
           subject-path: latent-${{ inputs.version }}.tar.gz
+
+      # Publish only after provenance exists, so the release is never visible
+      # without its attestation.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: gh release edit "v$VERSION" --draft=false
