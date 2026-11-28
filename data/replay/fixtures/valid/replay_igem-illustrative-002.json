@@ -1,0 +1,189 @@
+{
+  "metadata": {
+    "id": "replay_igem-illustrative-002",
+    "title": "A paper-strip RNA thermosensor for water contamination",
+    "vertical": "igem",
+    "season": 2024,
+    "village": "Diagnostics",
+    "illustrative": true,
+    "temporal_cutoff": "2023-12-31",
+    "created_at": "2026-11-25T00:00:00Z",
+    "owner": "HugoXK",
+    "license": "CC-BY-4.0"
+  },
+  "constraints": {
+    "version": 1,
+    "vertical": "igem",
+    "variables": {
+      "lab.bsl": {
+        "value": 1,
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "lab.readers": {
+        "value": "plate_reader",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "time.summer_weeks": {
+        "value": 6,
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      },
+      "success.metric": {
+        "value": "detection_limit",
+        "confidence": 1,
+        "source": "user",
+        "updated_at": "2026-11-20T00:00:00Z"
+      }
+    },
+    "unknowns": [
+      "problem.who",
+      "budget.total"
+    ],
+    "blocking_unknowns": [],
+    "updated_at": "2026-11-20T00:00:00Z",
+    "schema_version": "1.0.0"
+  },
+  "fragment": {
+    "id": "frg_replay0002",
+    "captured_at": "2026-11-20T00:00:00Z",
+    "kind": "text",
+    "content": "A low-cost field test for water contamination using an RNA thermosensor and a cell-free paper strip; the readout must work without a lab.",
+    "privacy": "private",
+    "schema_version": "1.0.0"
+  },
+  "prior_art": [
+    {
+      "id": "pa_002-prior-1",
+      "title": "RNA thermometers for temperature-controlled expression",
+      "kind": "paper",
+      "year": 2020,
+      "url": "https://example.org/rna-thermo",
+      "published_at": "2020-06-01",
+      "mechanism": "RNA thermosensor",
+      "interface": "cell-free expression",
+      "source_grade": "A"
+    },
+    {
+      "id": "pa_002-prior-2",
+      "title": "Cell-free paper strips for water testing",
+      "kind": "paper",
+      "year": 2021,
+      "url": "https://example.org/paper-strip-2",
+      "published_at": "2021-03-01",
+      "mechanism": "cell-free paper strip",
+      "interface": "colorimetric water sample",
+      "source_grade": "B"
+    },
+    {
+      "id": "pa_002-prior-3",
+      "title": "Field-deployable water contamination assays",
+      "kind": "project",
+      "year": 2019,
+      "url": "https://example.org/field-water",
+      "published_at": "2019-09-01",
+      "mechanism": "colorimetric assay",
+      "interface": "field water sample",
+      "source_grade": "B"
+    }
+  ],
+  "expected_candidates": [
+    {
+      "id": "cand_002-conservative",
+      "statement": "Use a characterised RNA thermosensor with a cell-free colorimetric readout.",
+      "variant": "conservative",
+      "mechanism": "RNA thermosensor",
+      "interface": "cell-free colorimetric",
+      "host": "cell-free",
+      "readout": "colorimetric",
+      "is_seed": false
+    },
+    {
+      "id": "cand_002-ambitious",
+      "statement": "Move the RNA thermosensor into a paper strip for field water testing.",
+      "variant": "ambitious",
+      "mechanism": "RNA thermosensor",
+      "interface": "paper strip",
+      "host": "cell-free",
+      "readout": "colorimetric",
+      "is_seed": true
+    },
+    {
+      "id": "cand_002-cross-domain",
+      "statement": "Borrow a lateral-flow readout from diagnostics for the same thermosensor.",
+      "variant": "cross_domain",
+      "mechanism": "RNA thermosensor",
+      "interface": "lateral flow",
+      "host": "cell-free",
+      "readout": "lateral flow",
+      "is_seed": false
+    }
+  ],
+  "collisions": [
+    {
+      "id": "col_002-1",
+      "kind": "mechanism",
+      "prior_art_id": "pa_002-prior-1",
+      "note": "The thermosensor is characterised; the novelty is the field paper-strip interface."
+    },
+    {
+      "id": "col_002-2",
+      "kind": "interface",
+      "prior_art_id": "pa_002-prior-2",
+      "note": "A cell-free paper strip exists, but not with this thermosensor and water matrix."
+    }
+  ],
+  "gate_labels": [
+    {
+      "gate": "readout",
+      "expected": "pass",
+      "rationale": "A colorimetric cell-free readout is plausible.",
+      "source": "constraint lab.readers"
+    },
+    {
+      "gate": "bsl",
+      "expected": "pass",
+      "rationale": "Cell-free work is BSL-1.",
+      "source": "constraint lab.bsl"
+    },
+    {
+      "gate": "dbtl",
+      "expected": "unknown",
+      "rationale": "Paper-strip stability across one loop is unproven.",
+      "source": null
+    },
+    {
+      "gate": "advantage",
+      "expected": "unknown",
+      "rationale": "Field cost versus a lab assay still needs a number.",
+      "source": null
+    },
+    {
+      "gate": "stakeholder",
+      "expected": "pass",
+      "rationale": "A water utility contact exists.",
+      "source": null
+    },
+    {
+      "gate": "contribution",
+      "expected": "pass",
+      "rationale": "A characterised thermosensor and protocol can be shared.",
+      "source": null
+    }
+  ],
+  "outcome": {
+    "hidden": true,
+    "seed_title": "Move the RNA thermosensor into a paper strip for field water testing.",
+    "seed_doi": null,
+    "decision": "tested",
+    "evidence": [
+      "Illustrative: a colorimetric paper strip was assumed",
+      "Illustrative: a field water sample was assumed"
+    ],
+    "notes": "Illustrative case for the replay harness; it is not a historical claim."
+  }
+}

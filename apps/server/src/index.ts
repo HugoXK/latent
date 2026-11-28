@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
+  BiosafetyError,
   BriefValidationError,
   ConstraintAnswerError,
   GateError,
@@ -120,11 +121,19 @@ export function buildServer(options: ServerOptions): FastifyInstance {
 
   app.post("/v1/ideas", async (req, reply) => {
     const body = req.body as
-      | { fragment_id?: string; vertical?: string }
+      | { fragment_id?: string; vertical?: string; bsl?: number }
       | null;
     if (!body?.fragment_id) {
       return reply.code(400).send({
         error: { code: "INVALID_IDEA", message: "fragment_id is required" },
+      });
+    }
+    if (
+      body.bsl !== undefined &&
+      (!Number.isInteger(body.bsl) || body.bsl < 1 || body.bsl > 4)
+    ) {
+      return reply.code(400).send({
+        error: { code: "INVALID_BSL", message: "bsl must be an integer from 1 to 4" },
       });
     }
     const fragment = store.getFragment(body.fragment_id);
@@ -142,7 +151,33 @@ export function buildServer(options: ServerOptions): FastifyInstance {
         error: { code: "UNKNOWN_VERTICAL", message: `unknown vertical: ${vertical}` },
       });
     }
-    const result = await develop({ fragment, vertical: igem, reconstructor });
+    let result;
+    try {
+      result = await develop({
+        fragment,
+        vertical: igem,
+        reconstructor,
+        team_bsl: body.bsl,
+      });
+    } catch (error) {
+      if (error instanceof BiosafetyError) {
+        store.appendEvent("biosafety.refused", fragment.id, {
+          category: error.verdict.category,
+          bsl: error.verdict.bsl,
+        });
+        return reply.code(422).send({
+          error: {
+            code: error.code,
+            message: error.message,
+            details: {
+              category: error.verdict.category,
+              bsl: error.verdict.bsl,
+            },
+          },
+        });
+      }
+      throw error;
+    }
     store.putIdea(result.idea);
     store.putClaims(result.idea.id, result.claims);
     store.putGates(result.idea.id, result.gates);

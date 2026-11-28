@@ -3,6 +3,7 @@ import type { VerticalPack } from "@latent/core";
 export const igem: VerticalPack = {
   id: "igem",
   name: "iGEM topic selection",
+  biosafety: true,
   variables: [
     "team.size",
     "team.years",

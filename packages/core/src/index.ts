@@ -11,6 +11,7 @@ export * from "./vertical.js";
 export * from "./replay.js";
 export * from "./replay-runner.js";
 export * from "./verifier.js";
+export * from "./biosafety.js";
 export * from "./units.js";
 export * from "./claim-versioning.js";
 export * from "./contradiction.js";
