@@ -4,6 +4,7 @@ import { blocksBrief, validateLedger } from "./ledger.js";
 import type {
   Brief,
   BriefCollision,
+  BriefCollisionCheck,
   BriefExtraSection,
   BriefRisk,
   BriefValidator,
@@ -159,6 +160,17 @@ export function compileBrief(input: CompileInput): Brief {
     },
   ];
 
+  const collisionCheck: BriefCollisionCheck =
+    input.collisions === undefined
+      ? {
+          status: "not_checked",
+          note: "The novelty check did not run; this is not a clean result.",
+        }
+      : {
+          status: "checked",
+          note: "The novelty check ran over the supplied prior-art list; confirm the list is complete.",
+        };
+
   return {
     id: newId("brf"),
     idea_id: input.idea.id,
@@ -175,6 +187,7 @@ export function compileBrief(input: CompileInput): Brief {
     evidence,
     risks,
     collisions: input.collisions ?? [],
+    collision_check: collisionCheck,
     sections: input.sections ?? [],
     next_steps: nextSteps,
     unknowns,
@@ -184,11 +197,29 @@ export function compileBrief(input: CompileInput): Brief {
   };
 }
 
+/**
+ * Escape a value for one Markdown table cell. A cell cannot contain a raw pipe
+ * or a line break: escape the backslash first so a caller-supplied `\|` stays one
+ * escaped pipe, then collapse CR/LF so the row cannot spill into the next line.
+ * Exported so every table renderer shares one implementation.
+ */
+export function escapeMarkdownCell(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\r\n?|\n/g, " ");
+}
+
 export function renderBriefMarkdown(brief: Brief): string {
+  const collisionCheck = brief.collision_check ?? {
+    status: "not_checked" as const,
+    note: "The novelty check did not run; this is not a clean result.",
+  };
+
   const risks =
     brief.risks.length > 0
       ? brief.risks
-          .map((r) => `| ${r.risk} | ${r.trigger} | ${r.fallback} |`)
+          .map((r) => `| ${escapeMarkdownCell(r.risk)} | ${escapeMarkdownCell(r.trigger)} | ${escapeMarkdownCell(r.fallback)} |`)
           .join("\n")
       : "| — | — | — |";
 
@@ -226,15 +257,17 @@ export function renderBriefMarkdown(brief: Brief): string {
     "|---|---|---|",
     risks,
     "",
+    "## Novelty and collisions",
+    "",
+    `Status: **${collisionCheck.status}** — ${collisionCheck.note}`,
+    "",
     ...(brief.collisions && brief.collisions.length > 0
       ? [
-          "## Novelty and collisions",
-          "",
-          "| Kind | Prior | Severity | Note |",
-          "|---|---|---|---|",
+          "| Kind | Prior | Severity | Note | Claims | Source |",
+          "|---|---|---|---|---|---|",
           ...brief.collisions.map(
             (collision) =>
-              `| ${collision.kind} | ${collision.prior_label} | ${collision.severity} | ${collision.note} |`,
+              `| ${collision.kind} | ${escapeMarkdownCell(collision.prior_label)} | ${collision.severity} | ${escapeMarkdownCell(collision.note)} | ${escapeMarkdownCell((collision.claim_ids ?? []).join(", ") || "—")} | ${escapeMarkdownCell(collision.source_url ?? "—")} |`,
           ),
           "",
         ]

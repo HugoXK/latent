@@ -125,10 +125,29 @@ jobs:
       - name: Test
         run: pnpm test
 
+  gate-tests:
+    name: gate-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+      - name: Unit-test the gate scripts from the base branch
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: bash .github/scripts/gate-tests.sh "$BASE_SHA"
+
+  # Bootstrap aggregate: branch protection still requires this `ci-ok` context.
+  # ci-ok-publish.yml publishes the trusted `ci-ok-published` context; once
+  # protection requires that name, a follow-up PR retires this job.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [spec, node]
+    needs: [spec, node, gate-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -136,6 +155,7 @@ jobs:
         env:
           SPEC: ${{ needs.spec.result }}
           NODE: ${{ needs.node.result }}
+          GATE_TESTS: ${{ needs.gate-tests.result }}
         run: |
-          echo "spec=$SPEC node=$NODE"
-          [ "$SPEC" = success ] && [ "$NODE" = success ]
+          echo "spec=$SPEC node=$NODE gate-tests=$GATE_TESTS"
+          [ "$SPEC" = success ] && [ "$NODE" = success ] && [ "$GATE_TESTS" = success ]

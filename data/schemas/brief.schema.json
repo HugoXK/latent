@@ -38,6 +38,15 @@
       "type": "array",
       "items": { "$ref": "#/$defs/collision" }
     },
+    "collision_check": {
+      "type": "object",
+      "required": ["status", "note"],
+      "properties": {
+        "status": { "enum": ["checked", "not_checked"] },
+        "note": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "sections": {
       "type": "array",
       "items": { "$ref": "#/$defs/extraSection" }
@@ -108,7 +117,12 @@
         "prior_id": { "type": "string", "minLength": 1 },
         "prior_label": { "type": "string", "minLength": 1 },
         "severity": { "enum": ["high", "medium"] },
-        "note": { "type": "string", "minLength": 1 }
+        "note": { "type": "string", "minLength": 1 },
+        "claim_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "source_url": { "type": ["string", "null"] }
       },
       "additionalProperties": false
     },

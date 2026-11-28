@@ -79,3 +79,52 @@ test("the diff reports added and removed evidence, unknowns and collisions", () 
   assert.deepEqual(diff.removed_collisions, ["interface:pa_1"]);
   assert.match(renderBriefDiffMarkdown(diff), /# Brief diff/);
 });
+
+test("HTML renders the collision status, claims and source", () => {
+  const html = exportBriefHtml(
+    brief({
+      collision_check: { status: "checked", note: "1 collision found." },
+      collisions: [
+        {
+          kind: "mechanism",
+          prior_id: "pa_1",
+          prior_label: "Prior",
+          severity: "high",
+          note: "collides",
+          claim_ids: ["clm_1"],
+          source_url: "https://example.org/pa_1",
+        },
+      ],
+    }),
+  );
+  assert.match(html, /Novelty and collisions/);
+  assert.match(html, /Status: <strong>checked<\/strong>/);
+  assert.match(html, /https:\/\/example\.org\/pa_1/);
+  assert.match(html, /clm_1/);
+});
+
+test("HTML says when the novelty check did not run", () => {
+  const html = exportBriefHtml(brief());
+  assert.match(html, /Status: <strong>not_checked<\/strong>/);
+  assert.match(html, /not a clean result/);
+});
+
+test("HTML escapes hostile claim and source values", () => {
+  const html = exportBriefHtml(
+    brief({
+      collisions: [
+        {
+          kind: "mechanism",
+          prior_id: "pa_1",
+          prior_label: "Prior",
+          severity: "high",
+          note: "collides",
+          claim_ids: ["<script>alert(1)</script>"],
+          source_url: "https://example.org/?q=<script>",
+        },
+      ],
+    }),
+  );
+  assert.equal(html.includes("<script>alert(1)</script>"), false);
+  assert.match(html, /&lt;script&gt;/);
+});
