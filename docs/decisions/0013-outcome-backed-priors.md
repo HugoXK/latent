@@ -45,16 +45,22 @@ are follow-ups, not part of this change.
 7. **Own-property read only.** The constraint state is read with an own-property
    check, so a question variable named `__proto__` or `constructor` cannot read
    through the prototype chain and become an observation.
-8. **One observation per idea and question.** A correction is a newer outcome:
-   the newest `decided_at` wins for that idea, ties and undated records fall back
-   to the last input entry. An idea cannot contribute the same question twice, so
-   a corrected outcome does not double its weight.
+8. **One observation per idea and question.** A correction is a newer outcome.
+   Behaviour, exactly: when both records carry a valid `decided_at`, the newer
+   one wins (equal timestamps: the later input entry); a dated record beats an
+   undated one; when both are undated, the later input entry wins. An idea cannot
+   contribute the same question twice, so a corrected outcome does not double its
+   weight.
 9. **Duplicate option values are deduplicated, first declaration wins.** A
    declared list with two entries for the same value would otherwise receive the
    same count twice and push the distribution above 1; the value is a single
    option in the distribution and in the smoothing denominator.
 10. **`minSamples` must be finite.** A non-finite or non-numeric override is a
     `PriorsError` (`INVALID_MIN_SAMPLES`), not a silently uniform prior.
+11. **Public entry point.** The module is exported from the package root
+    (`export * from "./priors.js"` in `packages/core/src/index.ts`).
+    `packages/core/package.json` exposes only `"."`, so the root import is the
+    supported path; no subpath import and no stable deep-module path is promised.
 
 ## Migration note
 
