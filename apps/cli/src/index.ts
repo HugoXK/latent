@@ -98,10 +98,17 @@ function print(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
+function escapeTableCell(text: string): string {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, " ");
+}
+
 function renderLedgerMarkdown(claims: Claim[]): string {
   const rows = claims.map(
     (claim) =>
-      `| ${claim.id} | ${claim.status} | ${claim.confidence.toFixed(2)} | ${claim.text.replace(/\|/g, "\\|")} |`,
+      `| ${claim.id} | ${claim.status} | ${claim.confidence.toFixed(2)} | ${escapeTableCell(claim.text)} |`,
   );
   return [
     "| Claim | Status | Confidence | Text |",

@@ -102,7 +102,15 @@ function supports(claimText: string, span: string): boolean {
   for (const token of claimTokens) {
     if (spanTokens.has(token)) overlap += 1;
   }
-  return overlap >= Math.min(2, claimTokens.size);
+  // Conservative rule: a span supports a claim only when it covers at least
+  // two claim terms and at least 60% of them. A plain two-token overlap marked
+  // an unrelated span ("the protein was purified in vitro") as support for a
+  // different claim, i.e. fabricated evidence under AGENTS.md rule 2.
+  const required = Math.max(
+    Math.min(2, claimTokens.size),
+    Math.ceil(claimTokens.size * 0.6),
+  );
+  return overlap >= required;
 }
 
 function firstSpan(claim: Claim): string | null {

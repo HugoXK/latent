@@ -1,4 +1,4 @@
-# 0007 — ReplayCase: a blind benchmark case and its anti-leakage rules
+# 0009 — ReplayCase: a blind benchmark case and its anti-leakage rules
 
 - Status: accepted
 - Date: 2026-11-28

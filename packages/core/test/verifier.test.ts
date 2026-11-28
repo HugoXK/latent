@@ -136,3 +136,21 @@ test("the model verifier fails closed when the model says no", async () => {
   const result = await verifier.verify(claim());
   assert.equal(result.supported, false);
 });
+
+test("an unrelated span sharing two common tokens is not support", async () => {
+  const verifier = new DeterministicClaimVerifier({ now: () => NOW });
+  const overlapOnly = claim({
+    text: "The protein folds correctly in vitro.",
+    sources: [
+      {
+        kind: "paper",
+        url: "https://example.org/paper",
+        span: "The protein was purified in vitro",
+        accessed_at: NOW,
+      },
+    ],
+  });
+  const result = await verifier.verify(overlapOnly);
+  assert.equal(result.supported, false);
+  assert.equal(applyVerification(overlapOnly, result).status, "unsupported");
+});

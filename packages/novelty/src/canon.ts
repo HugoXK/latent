@@ -9,11 +9,21 @@ const FAMILIES = new Map<string, string>([
 ]);
 
 function normalize(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "-")
-    .replace(/^-+|-+$/g, "");
+  // Single linear pass over code points: a quantified negated class over the
+  // whole input is a polynomial-ReDoS sink (CodeQL js/polynomial-redos).
+  const letters = /[\p{L}\p{N}]/u;
+  let out = "";
+  let separator = false;
+  for (const char of value.trim().toLowerCase()) {
+    if (letters.test(char)) {
+      if (separator && out.length > 0) out += "-";
+      out += char;
+      separator = false;
+    } else {
+      separator = true;
+    }
+  }
+  return out;
 }
 
 export function mechanismFamily(value: string): string {
