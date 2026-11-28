@@ -1,10 +1,12 @@
 """The spec job's required-docs list must match a checked, existing set.
 
 gate-tests.sh discovers test_*.py on the base tree and also copies head-only
-test files, so this runs locally and in CI without a ci.yml change. The
-authoritative list lives in ci.yml's "Check required files" step; it is parsed
-with the stdlib (no PyYAML) instead of being retyped here. `docs/replay-plan.md`
-is part of the required set but is not in that step, so it is added explicitly.
+test files, so this runs locally and in CI without a ci.yml change. FROZEN below
+is this test's own source of truth: `main`'s list plus `docs/replay-plan.md`,
+which the test itself covers because the spec step does not list it. The
+authoritative ci.yml list is parsed with the stdlib (no PyYAML) and compared for
+exact equality, so a path dropped from the step fails the same way as a path
+added to it silently.
 
 In base mode the tests run from a flat temp dir, so the repo root is resolved
 from the environment, never from __file__.
@@ -17,9 +19,9 @@ import re
 import unittest
 from pathlib import Path
 
-# ci.yml's required list as of this commit, plus the replay plan. If ci.yml gains
-# a path that is not here, the drift assertion below fails.
-EXPECTED = {
+# The required set: ci.yml's list plus the replay plan. Equality against the
+# parsed list is asserted below, in both directions, so this cannot drift.
+FROZEN = {
     "README.md",
     "README.zh.md",
     "LICENSE",
@@ -49,7 +51,8 @@ EXPECTED = {
     ".github/workflows/pr-lint.yml",
 }
 
-REPLAY_PLAN = "docs/replay-plan.md"
+# Required, but deliberately not listed in the spec step: the test covers it.
+COVERED_BY_TEST = {"docs/replay-plan.md"}
 
 
 def repo_root() -> Path:
@@ -76,19 +79,20 @@ def ci_required(root: Path) -> set[str]:
 class RequiredDocsTest(unittest.TestCase):
     def setUp(self) -> None:
         self.root = repo_root()
-        self.ci = ci_required(self.root)
-        self.required = self.ci | {REPLAY_PLAN}
 
-    def test_ci_list_does_not_drift_from_this_test(self) -> None:
-        unchecked = self.required - EXPECTED
+    def test_ci_list_matches_the_frozen_set_exactly(self) -> None:
+        expected = FROZEN - COVERED_BY_TEST
+        ci_list = ci_required(self.root)
         self.assertEqual(
-            unchecked,
-            set(),
-            f"ci.yml requires paths this test does not check: {sorted(unchecked)}",
+            expected,
+            ci_list,
+            "ci.yml's required list drifted from this test's frozen set: "
+            f"only in ci.yml {sorted(ci_list - expected)}, "
+            f"only in the frozen set {sorted(expected - ci_list)}",
         )
 
     def test_every_required_doc_exists(self) -> None:
-        missing = [path for path in sorted(self.required) if not (self.root / path).is_file()]
+        missing = [path for path in sorted(FROZEN) if not (self.root / path).is_file()]
         self.assertEqual(missing, [], f"required docs missing: {missing}")
 
 
