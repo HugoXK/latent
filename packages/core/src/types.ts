@@ -1,19 +1,9 @@
+import type * as GeneratedSchemas from "./generated/schemas.js";
+
 export type Privacy = "private" | "team" | "public";
 export type FragmentKind = "text" | "voice" | "image" | "link" | "sketch";
 
-export interface Fragment {
-  id: string;
-  captured_at: string;
-  kind: FragmentKind;
-  content: string;
-  language?: string | null;
-  media?: string | null;
-  source?: string | null;
-  tags?: string[];
-  privacy: Privacy;
-  embedding_ref?: string | null;
-  schema_version?: "1.0.0";
-}
+export type Fragment = GeneratedSchemas.Fragment;
 
 export type ConfidenceBasis = "A" | "B" | "C" | "expert";
 export type ClaimStatus =
@@ -40,21 +30,7 @@ export interface Source {
   accessed_at: string;
 }
 
-export interface Claim {
-  id: string;
-  text: string;
-  value?: number | string | null;
-  unit?: string | null;
-  conditions?: Record<string, unknown> | null;
-  status: ClaimStatus;
-  confidence: number;
-  confidence_basis: ConfidenceBasis;
-  sources: Source[];
-  contradictions?: Source[];
-  verified_at?: string | null;
-  verifier?: string | null;
-  schema_version?: "1.0.0";
-}
+export type Claim = GeneratedSchemas.Claim;
 
 export type IdeaStatus =
   | "fragment"
@@ -225,15 +201,4 @@ export interface MemoryNodeRef {
   id: string;
 }
 
-export interface MemoryEdge {
-  id: string;
-  owner_id: string;
-  from: MemoryNodeRef;
-  to: MemoryNodeRef;
-  relation: MemoryRelation;
-  weight?: number;
-  provenance: string;
-  created_at: string;
-  deleted_at?: string | null;
-  schema_version?: "1.0.0";
-}
+export type MemoryEdge = GeneratedSchemas.MemoryEdge;

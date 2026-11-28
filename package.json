@@ -12,7 +12,9 @@
     "test": "node --import tsx --test packages/*/test/*.test.ts apps/*/test/*.test.ts",
     "check": "pnpm typecheck && pnpm test",
     "dev": "tsx apps/server/src/index.ts",
-    "latent": "tsx apps/cli/src/index.ts"
+    "latent": "tsx apps/cli/src/index.ts",
+    "schema:types": "tsx scripts/generate-schema-types.ts",
+    "schema:types:check": "tsx scripts/generate-schema-types.ts --check"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
