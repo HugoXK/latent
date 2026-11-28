@@ -32,7 +32,9 @@ be attributable to one job and resist replay.
 4. **Transport is TLS-only.** The base URL must be `https:`, except loopback
    (`localhost`, `127.0.0.1`, `::1`) or an explicit test-only
    `allowInsecureHttp`; userinfo is rejected, and every request uses
-   `redirect: "error"` so the Bearer token cannot follow a redirect.
+   `redirect: "error"` so the Bearer token cannot follow a redirect. The callback
+   URL is validated with the same rules, so results cannot be posted to a
+   plaintext endpoint.
 5. **Callbacks are job-scoped, canonical and replay-safe.** The root secret is
    shared out of band and must be at least 16 characters. The key id is part of
    the signed data: the job secret is
@@ -40,10 +42,11 @@ be attributable to one job and resist replay.
    covers a domain separator plus length-prefixed `key_id`, `job_id`, `timestamp`,
    `nonce` and raw body, so different field pairs cannot collide. The verifier
    rejects a bad signature, another job, a missing/oversized nonce, a timestamp
-   more than 5 s in the future, and one older than 300 s. When a caller supplies a
-   seen-nonce set the check-and-add is synchronous; a callback route persists the
-   nonce set or `callbackSignatureHash` for durability. It compares in constant
-   time.
+   more than 5 s in the future, and one older than 300 s. The verifier **requires**
+   a seen-nonce set: a stateless call throws `CALLBACK_GUARD_REQUIRED`, because it
+   would accept a replay. The callback route must persist the set (or
+   `callbackSignatureHash`) against the job's terminal state and pass it in; the
+   check-and-add is synchronous inside the process. It compares in constant time.
 6. **The payload is a descriptor, not a data channel.** `schedule()` accepts only
    `seed {type,id}`, `budget` and `since`, rejects unknown fields (notably private
    fragment text) and caps the serialized payload at 64 KiB. The callback object is

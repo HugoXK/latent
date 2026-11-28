@@ -120,6 +120,36 @@ function validateJobPayload(payload: unknown): Record<string, unknown> {
   return payload;
 }
 
+function assertSafeRuntimeUrl(
+  value: string,
+  label: string,
+  allowInsecureHttp: boolean,
+): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new RuntimeError("RUNTIME_CONFIG", `${label} must be an absolute URL`);
+  }
+  if (parsed.username || parsed.password) {
+    throw new RuntimeError("RUNTIME_CONFIG", `${label} must not contain userinfo`);
+  }
+  const loopback =
+    parsed.hostname === "localhost" ||
+    parsed.hostname === "127.0.0.1" ||
+    parsed.hostname === "::1" ||
+    parsed.hostname === "[::1]";
+  if (
+    parsed.protocol !== "https:" &&
+    !(parsed.protocol === "http:" && (loopback || allowInsecureHttp))
+  ) {
+    throw new RuntimeError(
+      "RUNTIME_CONFIG",
+      `${label} must use https (http is allowed only for loopback or tests)`,
+    );
+  }
+}
+
 /**
  * Strip trailing slashes without a backtracking regular expression. The base URL
  * is library input (CodeQL flags a `/+$` rewrite as a ReDoS), so this is a single
@@ -153,19 +183,12 @@ export class HttpAgentRuntime implements AgentRuntime {
   constructor(options: HttpAgentRuntimeOptions) {
     if (!options.baseUrl.trim()) throw new RuntimeError("RUNTIME_CONFIG", "baseUrl is required");
     if (!options.token.trim()) throw new RuntimeError("RUNTIME_CONFIG", "token is required");
-    const parsed = new URL(options.baseUrl);
-    if (parsed.username || parsed.password) {
-      throw new RuntimeError("RUNTIME_CONFIG", "baseUrl must not contain userinfo");
-    }
-    const loopback =
-      parsed.hostname === "localhost" ||
-      parsed.hostname === "127.0.0.1" ||
-      parsed.hostname === "::1" ||
-      parsed.hostname === "[::1]";
-    if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && (loopback || options.allowInsecureHttp))) {
-      throw new RuntimeError(
-        "RUNTIME_CONFIG",
-        "baseUrl must use https (http is allowed only for loopback or tests)",
+    assertSafeRuntimeUrl(options.baseUrl, "baseUrl", options.allowInsecureHttp === true);
+    if (options.callbackUrl?.trim()) {
+      assertSafeRuntimeUrl(
+        options.callbackUrl.trim(),
+        "callbackUrl",
+        options.allowInsecureHttp === true,
       );
     }
     const timeoutMs = options.timeoutMs ?? 10_000;
@@ -352,8 +375,12 @@ export interface VerifyCallbackInput extends CallbackInput {
   signature: string;
   toleranceSeconds?: number;
   now?: number;
-  /** Nonces already accepted; the caller persists them atomically. */
-  seenNonces?: Set<string>;
+  /**
+   * Nonces already accepted. Required: a stateless verifier accepts a replay, so
+   * the callback route must persist this set (or callbackSignatureHash) against
+   * the job's terminal state and pass it in.
+   */
+  seenNonces: Set<string>;
 }
 
 /**
@@ -378,9 +405,13 @@ export function verifyJobCallback(input: VerifyCallbackInput): boolean {
   if (left.length !== right.length || !timingSafeEqual(left, right)) {
     return false;
   }
-  if (input.seenNonces) {
-    if (input.seenNonces.has(input.nonce)) return false;
-    input.seenNonces.add(input.nonce);
+  if (!(input.seenNonces instanceof Set)) {
+    throw new RuntimeError(
+      "CALLBACK_GUARD_REQUIRED",
+      "seenNonces is required; persist it against the job's terminal state",
+    );
   }
+  if (input.seenNonces.has(input.nonce)) return false;
+  input.seenNonces.add(input.nonce);
   return true;
 }

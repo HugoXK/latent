@@ -83,12 +83,13 @@ const ok = verifyJobCallback({
 A wrong job id, a tampered body, a missing nonce, a timestamp more than 5 seconds
 in the future and one older than 300 seconds are rejected; the signature covers a
 length-prefixed canonical form, so dot-collision pairs cannot substitute a body.
-The verifier takes a seen-nonce set (or a callback route persists
-`callbackSignatureHash`) so a captured callback cannot be replayed. The comparison
-is constant-time.
+The verifier **requires** a seen-nonce set; without it the call throws
+`CALLBACK_GUARD_REQUIRED` rather than accepting a replay. The callback route must
+persist the set (or `callbackSignatureHash`) against the job's terminal state. The
+comparison is constant-time.
 
-The base URL must be `https:` (loopback is the only exception), userinfo is
-rejected and requests use `redirect: "error"`, so the runtime token cannot be
+The base URL and callback URL must be `https:` (loopback is the only exception),
+userinfo is rejected and requests use `redirect: "error"`, so the runtime token cannot be
 carried over clear text or a redirect. `LATENT_RUNTIME` accepts only an empty kind
 with a URL pair, `flybot`, `none` or `local`; anything else fails closed.
 

@@ -160,19 +160,19 @@ test("callbacks are job-scoped, canonical, nonce-bound and replay-safe", () => {
   );
   assert.equal(
     verifyJobCallback({
-      secret, jobId, timestamp, nonce: "nonce-2", body, signature, now: CALLBACK_NOW,
+      secret, jobId, timestamp, nonce: "nonce-2", body, signature, now: CALLBACK_NOW, seenNonces: seen,
     }),
     false,
   );
   assert.equal(
     verifyJobCallback({
-      secret, jobId: "job_2", timestamp, nonce, body, signature, now: CALLBACK_NOW,
+      secret, jobId: "job_2", timestamp, nonce, body, signature, now: CALLBACK_NOW, seenNonces: seen,
     }),
     false,
   );
   assert.equal(
     verifyJobCallback({
-      secret, jobId, timestamp, nonce, body: '{"status":"failed"}', signature, now: CALLBACK_NOW,
+      secret, jobId, timestamp, nonce, body: '{"status":"failed"}', signature, now: CALLBACK_NOW, seenNonces: seen,
     }),
     false,
   );
@@ -187,7 +187,7 @@ test("a future or stale callback is rejected", () => {
   assert.equal(
     verifyJobCallback({
       secret: CALLBACK_SECRET, jobId: "job_1", timestamp: future, nonce: "n-future",
-      body: "{}", signature: futureSig, now: CALLBACK_NOW,
+      body: "{}", signature: futureSig, now: CALLBACK_NOW, seenNonces: new Set(),
     }),
     false,
   );
@@ -198,7 +198,7 @@ test("a future or stale callback is rejected", () => {
   assert.equal(
     verifyJobCallback({
       secret: CALLBACK_SECRET, jobId: "job_1", timestamp, nonce: "n-stale",
-      body: "{}", signature: staleSig, now: CALLBACK_NOW + 600_000,
+      body: "{}", signature: staleSig, now: CALLBACK_NOW + 600_000, seenNonces: new Set(),
     }),
     false,
   );
@@ -229,6 +229,7 @@ test("dot-separated field pairs cannot collide into the same signature", () => {
       body: "500.x",
       signature: first,
       now: CALLBACK_NOW,
+      seenNonces: new Set(),
     }),
     false,
   );
@@ -242,7 +243,7 @@ test("a callback signed with another key id is rejected", () => {
   assert.equal(
     verifyJobCallback({
       secret: CALLBACK_SECRET, jobId: "job_1", timestamp, nonce: "n", body: "{}",
-      signature, keyId: "v1", now: CALLBACK_NOW,
+      signature, keyId: "v1", now: CALLBACK_NOW, seenNonces: new Set(),
     }),
     false,
   );
@@ -308,6 +309,55 @@ test("job payload is a descriptor allowlist, not a private data channel", async 
     (error: unknown) => error instanceof RuntimeError && error.code === "INVALID_JOB_PAYLOAD",
   );
   assert.equal(calls, 0);
+});
+
+test("the verifier refuses to run without a replay guard", () => {
+  const timestamp = "2026-11-27T00:00:00Z";
+  const signature = signJobCallback({
+    secret: CALLBACK_SECRET, jobId: "job_1", timestamp, nonce: "n", body: "{}",
+  });
+  assert.throws(
+    () =>
+      verifyJobCallback({
+        secret: CALLBACK_SECRET,
+        jobId: "job_1",
+        timestamp,
+        nonce: "n",
+        body: "{}",
+        signature,
+        now: CALLBACK_NOW,
+      } as unknown as Parameters<typeof verifyJobCallback>[0]),
+    (error: unknown) =>
+      error instanceof RuntimeError && error.code === "CALLBACK_GUARD_REQUIRED",
+  );
+});
+
+test("callbackUrl follows the same TLS and userinfo rules", () => {
+  assert.throws(
+    () =>
+      new HttpAgentRuntime({
+        baseUrl: "https://fly.example",
+        token: "t",
+        callbackUrl: "http://latent.example/callback",
+      }),
+    (error: unknown) => error instanceof RuntimeError && error.code === "RUNTIME_CONFIG",
+  );
+  assert.throws(
+    () =>
+      new HttpAgentRuntime({
+        baseUrl: "https://fly.example",
+        token: "t",
+        callbackUrl: "https://user:pass@latent.example/callback",
+      }),
+    (error: unknown) => error instanceof RuntimeError && error.code === "RUNTIME_CONFIG",
+  );
+  assert.ok(
+    new HttpAgentRuntime({
+      baseUrl: "https://fly.example",
+      token: "t",
+      callbackUrl: "http://127.0.0.1:8787/callback",
+    }),
+  );
 });
 
 test("runtimeFromEnv fails closed and defaults to the no-op runtime", () => {
