@@ -11,9 +11,14 @@ import os
 import re
 import unittest
 
-WORKFLOW = os.path.join(
-    os.path.dirname(__file__), "..", "workflows", "release.yml"
+# Base-mode runs the tests from a flat temp dir, so __file__ cannot locate the
+# repository. gate-tests.sh exports REPO_ROOT; GITHUB_WORKSPACE covers CI.
+ROOT = (
+    os.environ.get("REPO_ROOT")
+    or os.environ.get("GITHUB_WORKSPACE")
+    or os.getcwd()
 )
+WORKFLOW = os.path.join(ROOT, ".github", "workflows", "release.yml")
 
 
 def text() -> str:
