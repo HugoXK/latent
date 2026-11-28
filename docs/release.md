@@ -34,6 +34,12 @@ uploaded, provenance is attested, and only then is the draft published. A failed
 or cancelled `verify` never reaches `publish`, and a failed attestation leaves
 nothing public.
 
+A version containing a hyphen (`0.2.0-alpha.1`, `1.0.0-rc.2`) is a **prerelease**:
+it publishes with `--prerelease --latest=false` and is never the repository's
+"Latest" release. A final version (`1.0.0`) publishes with `--latest`. The rule
+lives once, in `release.py --release-flags`, and both the `gh release create` and
+the `gh release edit --draft=false` call consume that single output.
+
 ## 2. Publish
 
 After the release PR is merged and `main` is green again:

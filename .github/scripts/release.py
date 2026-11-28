@@ -139,6 +139,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="print the CHANGELOG section for --version instead of folding",
     )
+    parser.add_argument(
+        "--release-flags",
+        action="store_true",
+        help=(
+            "print the gh release flags for --version: a hyphenated version is a "
+            "prerelease and never Latest; a final version is Latest"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -146,6 +154,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     if not VERSION_RE.match(args.version):
         raise ReleaseError(f"not a semantic version: {args.version}")
+    if args.release_flags:
+        # One implementation of the publish rule; release.yml only consumes it.
+        print(
+            "--prerelease --latest=false"
+            if "-" in args.version
+            else "--latest"
+        )
+        return 0
     if not DATE_RE.match(args.date):
         raise ReleaseError(f"not a YYYY-MM-DD date: {args.date}")
     root = Path(args.root).resolve()
