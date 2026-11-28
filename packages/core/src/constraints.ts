@@ -24,13 +24,40 @@ export interface QuestionOption {
   prior?: number;
 }
 
+export type QuestionKind = "single" | "multi" | "text";
+
+export interface QuestionDependency {
+  variable: string;
+  equals: unknown;
+}
+
 export interface QuestionDefinition {
   id: string;
   variable: string;
   prompt: string;
   options: QuestionOption[];
   blocking?: boolean;
+  /** @deprecated use `kind: "text"` */
   freeText?: boolean;
+  kind?: QuestionKind;
+  allowOther?: boolean;
+  dependsOn?: QuestionDependency[];
+}
+
+export function questionKind(question: QuestionDefinition): QuestionKind {
+  return (
+    question.kind ??
+    (question.freeText === true ? "text" : "single")
+  );
+}
+
+export function questionApplies(
+  question: QuestionDefinition,
+  state: ConstraintState,
+): boolean {
+  return (question.dependsOn ?? []).every((dependency) =>
+    Object.is(state.variables[dependency.variable]?.value, dependency.equals),
+  );
 }
 
 export class ConstraintError extends Error {
@@ -44,24 +71,125 @@ export class ConstraintError extends Error {
   }
 }
 
+export class ConstraintAnswerError extends Error {
+  readonly code = "INVALID_CONSTRAINT_ANSWER";
+  readonly variable: string;
+
+  constructor(variable: string, message: string) {
+    super(message);
+    this.name = "ConstraintAnswerError";
+    this.variable = variable;
+  }
+}
+
+function optionMatches(
+  question: QuestionDefinition,
+  value: unknown,
+): boolean {
+  if (question.options.some((option) => Object.is(option.value, value))) {
+    return true;
+  }
+  return (
+    question.allowOther === true &&
+    typeof value === "string" &&
+    value.trim() !== ""
+  );
+}
+
+function validateAnswer(
+  question: QuestionDefinition,
+  value: unknown,
+): void {
+  const kind = questionKind(question);
+  if (kind === "text") {
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new ConstraintAnswerError(
+        question.variable,
+        `${question.variable} needs a non-empty text answer`,
+      );
+    }
+    return;
+  }
+  if (kind === "multi") {
+    if (!Array.isArray(value) || value.length === 0) {
+      throw new ConstraintAnswerError(
+        question.variable,
+        `${question.variable} needs at least one selected option`,
+      );
+    }
+    for (const item of value) {
+      if (!optionMatches(question, item)) {
+        throw new ConstraintAnswerError(
+          question.variable,
+          `${question.variable} does not accept ${JSON.stringify(item)}`,
+        );
+      }
+    }
+    return;
+  }
+  if (!optionMatches(question, value)) {
+    throw new ConstraintAnswerError(
+      question.variable,
+      `${question.variable} does not accept ${JSON.stringify(value)}`,
+    );
+  }
+}
+
 export function createConstraintState(
   vertical: string,
   questions: QuestionDefinition[],
   now = new Date().toISOString(),
 ): ConstraintState {
   const unknowns = Array.from(new Set(questions.map((q) => q.variable)));
-  const blocking = Array.from(
-    new Set(questions.filter((q) => q.blocking === true).map((q) => q.variable)),
-  );
-  return {
+  const state: ConstraintState = {
     version: 1,
     vertical,
     variables: {},
     unknowns,
-    blocking_unknowns: blocking,
+    blocking_unknowns: [],
     updated_at: now,
     schema_version: "1.0.0",
   };
+  state.blocking_unknowns = Array.from(
+    new Set(
+      questions
+        .filter(
+          (q) => q.blocking === true && questionApplies(q, state),
+        )
+        .map((q) => q.variable),
+    ),
+  );
+  return state;
+}
+
+const VARIABLE_SEGMENT = /^[A-Za-z][A-Za-z0-9_-]*$/;
+const RESERVED_VARIABLE_NAMES = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
+/**
+ * Constraint state is a plain object keyed by a caller-provided variable name.
+ * Reject anything outside the documented shape so `__proto__`, `constructor`
+ * and other prototype keys can never be written (CodeQL
+ * js/remote-property-injection).
+ */
+function assertVariableName(variable: string): void {
+  const segments = variable.split(".");
+  const valid =
+    segments.length > 0 &&
+    segments.every((segment) => VARIABLE_SEGMENT.test(segment)) &&
+    !RESERVED_VARIABLE_NAMES.has(variable.toLowerCase()) &&
+    segments.every(
+      (segment) => !RESERVED_VARIABLE_NAMES.has(segment.toLowerCase()),
+    );
+  if (!valid) {
+    throw new ConstraintAnswerError(
+      variable,
+      `${variable} is not a valid constraint variable name`,
+    );
+  }
 }
 
 export function setConstraintVariable(
@@ -72,6 +200,7 @@ export function setConstraintVariable(
   confidence = 1,
   now = new Date().toISOString(),
 ): ConstraintState {
+  assertVariableName(variable);
   if (confidence < 0 || confidence > 1) {
     throw new Error("confidence must be between 0 and 1");
   }
@@ -95,6 +224,8 @@ export function answerConstraint(
   confidence = 1,
   now = new Date().toISOString(),
 ): ConstraintState {
+  const question = questions.find((q) => q.variable === variable);
+  if (question) validateAnswer(question, value);
   const next = setConstraintVariable(state, variable, value, "user", confidence, now);
   return {
     ...next,
@@ -124,11 +255,12 @@ export function questionInformationGain(
   question: QuestionDefinition,
   state: ConstraintState,
 ): number {
+  if (!questionApplies(question, state)) return 0;
   const known = state.variables[question.variable];
   const confidence = known?.confidence ?? 0;
   if (confidence >= 0.999) return 0;
 
-  if (question.freeText === true) return 1 - confidence;
+  if (questionKind(question) === "text") return 1 - confidence;
 
   const weights = question.options.map((option) => option.prior ?? 1);
   const base = entropy(weights) * (1 - confidence);
@@ -158,6 +290,7 @@ export function blockingQuestions(
   return questions.filter(
     (q) =>
       q.blocking === true &&
+      questionApplies(q, state) &&
       (state.variables[q.variable]?.confidence ?? 0) < 0.6,
   );
 }

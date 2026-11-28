@@ -247,8 +247,19 @@ A versioned idea graph plus a taste model:
 - which gates failed and why;
 - which ideas reached a decided state.
 
+The graph is implemented as typed, owner-scoped edges in SQLite (see
+[decisions/0008-memory-graph.md](decisions/0008-memory-graph.md)): `derived_from`,
+`references`, `supports`, `contradicts`, `supersedes`, `duplicates`,
+`collided_with` and `outcome_of`. Every edge carries provenance and a timestamp; a
+connection is explained by a bounded, deterministic path, not an embedding score.
+
+Deletion is explicit. A fragment referenced by a live idea blocks deletion by
+default; an explicit mark soft-deletes the fragment and its edges and records the
+orphaned idea ids in the audit log. A fragment is never silently orphaned.
+
 The taste model is used to bias reconstruction away from the user's known
-rejections and away from the population average (anti-homogenisation).
+rejections and away from the population average (anti-homogenisation). It is not
+implemented in `v0.3`; it consumes recorded outcomes (#54, #28).
 
 ### Evaluation harness
 
@@ -267,6 +278,8 @@ Canonical JSON Schema 2020-12 in [`../data/schemas/`](../data/schemas/):
 | `claim.schema.json` | `Claim` | `value`, `unit`, `conditions`, `status`, `confidence`, `sources[]` |
 | `gate.schema.json` | `Gate` | `criteria`, `falsifier`, `evidence[]`, `status`, `fallback` |
 | `brief.schema.json` | `Brief` | `one_liner`, `problem`, `approach`, `evidence`, `risks`, `unknowns` |
+| `edge.schema.json` | `MemoryEdge` | `owner_id`, `from`, `to`, `relation`, `provenance`, `deleted_at` |
+| `replay-case.schema.json` | `ReplayCase` | `metadata`, `constraints`, `fragment`, `prior_art`, `expected_candidates`, `collisions`, `gate_labels`, `outcome` |
 
 The schemas are the source of truth. Every store write is validated against
 `data/schemas/` with Ajv 2020-12 before it is persisted; the TypeScript types are
@@ -276,7 +289,9 @@ task. A change to a schema requires an ADR and a migration note.
 ## Storage
 
 - **SQLite** (`node:sqlite`) as the single-writer store: users, fragments, ideas,
-  constraint states, claims, gates, briefs, schedules, outcomes, audit events.
+  constraint states, claims, gates, briefs, memory edges, schedules, outcomes,
+  audit events. Shape changes run through ordered migrations tracked by
+  `PRAGMA user_version`.
 - **Object store** for blobs: audio, images, retrieved snapshots, compiled files.
   On a single machine this is a content-addressed directory (hash → file).
 - **Append-only event log** for audit: `event_id`, `at`, `actor`, `type`,

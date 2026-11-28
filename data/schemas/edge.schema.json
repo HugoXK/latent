@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent.dev/schemas/edge.schema.json",
+  "title": "MemoryEdge",
+  "description": "A typed, owned edge between two memory nodes. Edges are proposals and provenance records, never silent edits.",
+  "type": "object",
+  "required": [
+    "id",
+    "owner_id",
+    "from",
+    "to",
+    "relation",
+    "provenance",
+    "created_at"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^edg_[a-z0-9]{8,}$" },
+    "owner_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Local mode uses 'local'. A hosted store scopes every query by owner."
+    },
+    "from": { "$ref": "#/$defs/node" },
+    "to": { "$ref": "#/$defs/node" },
+    "relation": {
+      "enum": [
+        "derived_from",
+        "references",
+        "supports",
+        "contradicts",
+        "supersedes",
+        "duplicates",
+        "collided_with",
+        "outcome_of"
+      ]
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1
+    },
+    "provenance": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What created the edge: a job, a human decision, a replay run."
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "deleted_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Soft delete. A deleted edge is retained for audit but excluded from live queries."
+    },
+    "schema_version": { "const": "1.0.0" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": {
+          "enum": ["fragment", "idea", "claim", "gate", "outcome"]
+        },
+        "id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

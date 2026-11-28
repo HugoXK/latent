@@ -1,0 +1,53 @@
+{
+  "id": "idea_fixture0001",
+  "version": 1,
+  "fragment_ids": [
+    "frg_fixture0001"
+  ],
+  "vertical": "igem",
+  "title": "A fixture idea",
+  "one_liner": "A fixture one-liner.",
+  "status": "developed",
+  "hypotheses": [
+    {
+      "id": "hyp_1",
+      "variant": "conservative",
+      "statement": "A conservative reading.",
+      "confidence": 0.4,
+      "confidence_basis": "C",
+      "assumption_ids": [
+        "asm_1"
+      ],
+      "claim_ids": [
+        "clm_fixture0001"
+      ]
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "asm_1",
+      "statement": "The readout is quantitative.",
+      "status": "unconfirmed",
+      "risk": "high"
+    }
+  ],
+  "claims": [
+    "clm_fixture0001"
+  ],
+  "open_questions": [
+    {
+      "id": "q_1",
+      "question": "What is the one measurable number?",
+      "expected_information_gain": 0.7,
+      "variable": "success.metric",
+      "answered": false
+    }
+  ],
+  "gate_ids": [
+    "gate_fixture0001"
+  ],
+  "brief_ref": null,
+  "created_at": "2026-11-25T00:00:00Z",
+  "updated_at": "2026-11-25T00:00:00Z",
+  "schema_version": "1.0.0"
+}

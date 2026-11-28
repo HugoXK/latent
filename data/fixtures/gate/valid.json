@@ -1,0 +1,16 @@
+{
+  "id": "gate_fixture0001",
+  "idea_id": "idea_fixture0001",
+  "name": "measurable readout",
+  "status": "unknown",
+  "criteria": "A dose response with a dynamic range.",
+  "falsifier": "No response above 2x background.",
+  "controls": [],
+  "evidence": [],
+  "fallback": "change_readout",
+  "hard": true,
+  "decided_by": "rule",
+  "reason": null,
+  "decided_at": null,
+  "schema_version": "1.0.0"
+}

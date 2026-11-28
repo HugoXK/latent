@@ -3,6 +3,8 @@ import { blockingGates } from "./gates.js";
 import { blocksBrief, validateLedger } from "./ledger.js";
 import type {
   Brief,
+  BriefCollision,
+  BriefExtraSection,
   BriefRisk,
   BriefValidator,
   BriefValidatorName,
@@ -32,6 +34,9 @@ export interface CompileInput {
    * supplied it is recorded as `skipped`, never as `pass`.
    */
   validators?: Partial<Record<BriefValidatorName, BriefValidator>>;
+  collisions?: BriefCollision[];
+  sections?: BriefExtraSection[];
+  extraRisks?: BriefRisk[];
 }
 
 export function compileBrief(input: CompileInput): Brief {
@@ -86,6 +91,7 @@ export function compileBrief(input: CompileInput): Brief {
       });
     }
   }
+  risks.push(...(input.extraRisks ?? []));
 
   const unknowns = [
     ...(input.unknowns ?? []),
@@ -168,6 +174,8 @@ export function compileBrief(input: CompileInput): Brief {
     },
     evidence,
     risks,
+    collisions: input.collisions ?? [],
+    sections: input.sections ?? [],
     next_steps: nextSteps,
     unknowns,
     compiled_at: now,
@@ -202,6 +210,12 @@ export function renderBriefMarkdown(brief: Brief): string {
     "",
     brief.approach.text,
     "",
+    ...(brief.sections ?? []).flatMap((section) => [
+      `## ${section.title}`,
+      "",
+      section.text,
+      "",
+    ]),
     "## Evidence",
     "",
     evidence,
@@ -212,6 +226,19 @@ export function renderBriefMarkdown(brief: Brief): string {
     "|---|---|---|",
     risks,
     "",
+    ...(brief.collisions && brief.collisions.length > 0
+      ? [
+          "## Novelty and collisions",
+          "",
+          "| Kind | Prior | Severity | Note |",
+          "|---|---|---|---|",
+          ...brief.collisions.map(
+            (collision) =>
+              `| ${collision.kind} | ${collision.prior_label} | ${collision.severity} | ${collision.note} |`,
+          ),
+          "",
+        ]
+      : []),
     "## Next steps",
     "",
     brief.next_steps.map((s, i) => `${i + 1}. ${s}`).join("\n"),

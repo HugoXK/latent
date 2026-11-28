@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   ClaimStatus,
   ConfidenceBasis,
@@ -21,6 +25,208 @@ export type FetchLike = (
   text(): Promise<string>;
   json(): Promise<unknown>;
 }>;
+
+export interface ModelReplayFixture {
+  model: string | null;
+  temperature: number | null;
+  redacted: boolean;
+  response: unknown;
+}
+
+export class ModelReplayError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "ModelReplayError";
+    this.code = code;
+  }
+}
+
+function stable(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stable).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    return `{${keys
+      .map((key) => `${JSON.stringify(key)}:${stable(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/**
+ * A stable key over the parts of a chat-completions request that change the
+ * answer. The request messages are hashed, never stored.
+ */
+export function modelRequestKey(body: string): string {
+  const parsed = JSON.parse(body) as {
+    model?: unknown;
+    temperature?: unknown;
+    messages?: unknown;
+    response_format?: unknown;
+  };
+  const keyInput = {
+    model: parsed.model ?? null,
+    temperature: parsed.temperature ?? null,
+    messages: parsed.messages ?? null,
+    response_format: parsed.response_format ?? null,
+  };
+  return createHash("sha256").update(stable(keyInput)).digest("hex");
+}
+
+export interface ReplayFetchOptions {
+  dir?: string;
+}
+
+/**
+ * A FetchLike that never touches the network. A missing fixture is a typed
+ * error, not a fallback to a provider.
+ */
+export function createReplayFetch(
+  options: ReplayFetchOptions = {},
+): FetchLike {
+  const dir = options.dir ?? "data/model-replay";
+  return async (_url, init) => {
+    const key = modelRequestKey(init.body);
+    const path = join(dir, `${key}.json`);
+    let raw: string;
+    try {
+      raw = readFileSync(path, "utf8");
+    } catch {
+      throw new ModelReplayError(
+        "REPLAY_FIXTURE_MISSING",
+        `no model replay fixture for ${key} at ${path}`,
+      );
+    }
+    let fixture: Partial<ModelReplayFixture> & { response?: unknown };
+    try {
+      fixture = JSON.parse(raw) as Partial<ModelReplayFixture> & {
+        response?: unknown;
+      };
+    } catch {
+      throw new ModelReplayError(
+        "REPLAY_FIXTURE_INVALID",
+        `model replay fixture is not valid JSON: ${path}`,
+      );
+    }
+    const response = fixture.response ?? fixture;
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(response),
+      json: async () => response,
+    };
+  };
+}
+
+export type RecordModelFixturePrivacy = "public" | "private";
+
+export interface RecordModelFixtureInput {
+  dir: string;
+  requestBody: string;
+  response: unknown;
+  redact?: string[];
+  /**
+   * Whether the fragment behind the request may be recorded. The default is
+   * "private": the recorder must be told the content is public, so a caller
+   * cannot leak private content by forgetting a flag.
+   */
+  privacy?: RecordModelFixturePrivacy;
+  /**
+   * Per-call opt-in for recording a private fragment outside the repository's
+   * committed `data/` tree. It is never honored for a committed path.
+   */
+  allowPrivate?: boolean;
+}
+
+/** The repository root, resolved from `packages/adapters/src/`. */
+const REPO_ROOT = resolve(fileURLToPath(new URL("../../../", import.meta.url)));
+
+/** `data/` is committed; a fixture written here becomes git history. */
+const COMMITTED_DATA_DIR = join(REPO_ROOT, "data");
+
+/**
+ * True when `dir` resolves inside the repository's committed `data/` tree.
+ * This is the one place where a recorded fixture can become permanent history.
+ */
+export function isCommittedDataDir(dir: string): boolean {
+  const rel = relative(COMMITTED_DATA_DIR, resolve(dir));
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+function redactValue(value: unknown, secrets: string[]): unknown {
+  if (typeof value === "string") {
+    let out = value;
+    for (const secret of secrets) {
+      out = out.split(secret).join("[redacted]");
+    }
+    return out;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => redactValue(item, secrets));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        redactValue(item, secrets),
+      ]),
+    );
+  }
+  return value;
+}
+
+/**
+ * Record a response fixture without the request messages. Pass private strings
+ * in `redact`; they are replaced in every response string before it is written.
+ *
+ * The file name is a deterministic hash of the request messages, so it is a
+ * content fingerprint, not an anonymous id. A private fragment is therefore
+ * refused by default, and always refused under the committed `data/` tree.
+ */
+export function writeModelReplayFixture(input: RecordModelFixtureInput): string {
+  const privacy = input.privacy ?? "private";
+  const committed = isCommittedDataDir(input.dir);
+  const secrets = (input.redact ?? []).filter((secret) => secret.length > 0);
+
+  if (committed && privacy === "private") {
+    throw new ModelReplayError(
+      "REPLAY_PRIVATE_IN_COMMITTED_PATH",
+      `refusing to record a private fragment under the committed ${COMMITTED_DATA_DIR}: the fixture file name is a content fingerprint`,
+    );
+  }
+  if (committed && secrets.length === 0) {
+    throw new ModelReplayError(
+      "REPLAY_UNREDACTED_IN_COMMITTED_PATH",
+      "refusing to write an unredacted fixture under the committed data/ tree; pass redact with every private string",
+    );
+  }
+  if (!committed && privacy === "private" && input.allowPrivate !== true) {
+    throw new ModelReplayError(
+      "REPLAY_PRIVATE_RECORD_DENIED",
+      "recording a private fragment needs an explicit per-call allowPrivate: true outside the committed data/ tree",
+    );
+  }
+
+  const key = modelRequestKey(input.requestBody);
+  const request = JSON.parse(input.requestBody) as {
+    model?: string;
+    temperature?: number;
+  };
+  const fixture: ModelReplayFixture = {
+    model: request.model ?? null,
+    temperature: request.temperature ?? null,
+    redacted: secrets.length > 0,
+    response: redactValue(input.response, secrets),
+  };
+  mkdirSync(input.dir, { recursive: true });
+  const path = join(input.dir, `${key}.json`);
+  writeFileSync(path, `${JSON.stringify(fixture, null, 2)}\n`, "utf8");
+  return path;
+}
 
 export interface ModelReconstructorOptions {
   baseUrl: string;
@@ -275,6 +481,19 @@ function buildPrompt(input: ReconstructInput): string {
   ].join("\n");
 }
 
+/**
+ * Strip trailing slashes with a linear scan. The previous /\/+$/ regex was
+ * quadratic on a long slash run that is not at the end of the string
+ * (CodeQL js/polynomial-redos), and baseUrl is caller-supplied.
+ */
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
+}
+
 export class ModelReconstructor implements Reconstructor {
   readonly #baseUrl: string;
   readonly #apiKey: string;
@@ -289,7 +508,7 @@ export class ModelReconstructor implements Reconstructor {
     if (!options.baseUrl.trim()) throw new Error("baseUrl is required");
     if (!options.apiKey.trim()) throw new Error("apiKey is required");
     if (!options.model.trim()) throw new Error("model is required");
-    this.#baseUrl = options.baseUrl.replace(/\/+$/, "");
+    this.#baseUrl = trimTrailingSlashes(options.baseUrl);
     this.#apiKey = options.apiKey;
     this.#model = options.model;
     this.#temperature = options.temperature ?? 0;

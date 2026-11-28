@@ -28,6 +28,60 @@ function cleanup(): void {
   }
 }
 
+test("eval validate accepts a valid replay case and reports a leak", () => {
+  try {
+    const valid = run([
+      "eval",
+      "validate",
+      "data/replay/fixtures/valid/igem-illustrative-001.json",
+    ]);
+    assert.equal(valid.status, 0, valid.stderr);
+    const parsed = JSON.parse(valid.stdout) as {
+      ok: boolean;
+      id: string;
+      illustrative: boolean;
+    };
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.id, "replay_igem-illustrative-001");
+    assert.equal(parsed.illustrative, true);
+
+    const invalid = run([
+      "eval",
+      "validate",
+      "data/replay/fixtures/invalid/leak-seed.json",
+    ]);
+    assert.equal(invalid.status, 1, invalid.stderr);
+    const result = JSON.parse(invalid.stdout) as {
+      ok: boolean;
+      issues: Array<{ code: string }>;
+    };
+    assert.equal(result.ok, false);
+    assert.ok(result.issues.some((issue) => issue.code === "SEED_LEAK"));
+  } finally {
+    cleanup();
+  }
+});
+
+test("eval replay runs the harness on a valid case", () => {
+  try {
+    const result = run([
+      "eval",
+      "replay",
+      "data/replay/fixtures/valid/igem-illustrative-001.json",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    const parsed = JSON.parse(result.stdout) as {
+      case_id: string;
+      candidate: { seed_found: boolean };
+      passed: boolean;
+    };
+    assert.equal(parsed.case_id, "replay_igem-illustrative-001");
+    assert.equal(typeof parsed.candidate.seed_found, "boolean");
+  } finally {
+    cleanup();
+  }
+});
+
 test("capture -> develop -> confirm -> decide -> brief", () => {
   try {
     const capture = run(["capture", "soil biosensor for heavy metals"]);
@@ -37,6 +91,22 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
     const develop = run(["develop", fragment.id]);
     assert.equal(develop.status, 0, develop.stderr);
     const idea = JSON.parse(develop.stdout) as { id: string };
+
+    const ledger = run(["ledger", "export", idea.id]);
+    assert.equal(ledger.status, 0, ledger.stderr);
+    const firstClaim = JSON.parse(
+      ledger.stdout.trim().split("\n")[0] ?? "{}",
+    ) as { id?: string };
+    assert.ok(firstClaim.id?.startsWith("clm_"));
+    const ledgerMarkdown = run([
+      "ledger",
+      "export",
+      idea.id,
+      "--format",
+      "md",
+    ]);
+    assert.equal(ledgerMarkdown.status, 0, ledgerMarkdown.stderr);
+    assert.match(ledgerMarkdown.stdout, /\| Claim \|/);
 
     const blocked = run(["brief", idea.id]);
     assert.equal(blocked.status, 3, "a brief must be blocked before decisions");
@@ -59,13 +129,48 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
       assert.equal(answer.status, 0, answer.stderr);
     }
 
+    const multi = run([
+      "answer",
+      idea.id,
+      "lab.equipment",
+      "plate_reader",
+      "hplc",
+    ]);
+    assert.equal(multi.status, 0, multi.stderr);
+    const multiValue = JSON.parse(multi.stdout) as { value: unknown };
+    assert.deepEqual(multiValue.value, ["plate_reader", "hplc"]);
+
+    const textAnswer = run([
+      "answer",
+      idea.id,
+      "candidate.a",
+      "soil biosensor for arsenic",
+    ]);
+    assert.equal(textAnswer.status, 0, textAnswer.stderr);
+    const textValue = JSON.parse(textAnswer.stdout) as { value: unknown };
+    assert.equal(textValue.value, "soil biosensor for arsenic");
+
     const confirm = run(["confirm", idea.id, "--all"]);
     assert.equal(confirm.status, 0, confirm.stderr);
 
     const decide = run(["decide", idea.id, "--all", "pass", "--reason", "test"]);
     assert.equal(decide.status, 0, decide.stderr);
 
-    const brief = run(["brief", idea.id, "--format", "json"]);
+    const spec = run(["spec", idea.id]);
+    assert.equal(spec.status, 0, spec.stderr);
+    assert.match(spec.stdout, /## Tests/);
+    const specJson = run(["spec", idea.id, "--format", "json"]);
+    assert.equal(specJson.status, 0, specJson.stderr);
+    const parsedSpec = JSON.parse(specJson.stdout) as { tests: unknown[] };
+    assert.ok(parsedSpec.tests.length >= 1);
+
+    const brief = run([
+      "brief",
+      idea.id,
+      "--format",
+      "json",
+      "--verify",
+    ]);
     assert.equal(brief.status, 0, brief.stderr);
     const parsed = JSON.parse(brief.stdout) as {
       unknowns: string[];
@@ -73,6 +178,10 @@ test("capture -> develop -> confirm -> decide -> brief", () => {
     };
     assert.ok(parsed.unknowns.length >= 1);
     assert.equal(parsed.validators.length, 4);
+
+    const briefHtml = run(["brief", idea.id, "--format", "html"]);
+    assert.equal(briefHtml.status, 0, briefHtml.stderr);
+    assert.match(briefHtml.stdout, /<!doctype html>/);
   } finally {
     cleanup();
   }

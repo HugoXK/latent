@@ -99,3 +99,24 @@ and owner approval.
 - Every claim carries a snapshot hash; a changed source can be detected and the
   claim re-verified.
 - The ledger adds friction to generation. That friction is the product.
+
+## Amendment — 2026-11-28: what counts as span support
+
+- Context: review found `supports()` marking a span as support on a two-token
+  overlap, including cases where the span stated the **opposite polarity**
+  ("does not respond" vs "responds") or named a **different chassis**
+  ("in B. subtilis" supporting a claim "in E. coli"). Both are fabricated
+  evidence under AGENTS.md rule 2, not a tuning preference.
+- Decision: `DeterministicClaimVerifier` marks a span as support only when all of
+  these hold: (a) at least two claim terms are shared and at least 60% of the
+  claim's terms are covered; (b) the claim and the span agree on negation
+  polarity; (c) when both name a chassis or species, at least one matches.
+- Limits (accepted, recorded): the negation cue list and the chassis alias list
+  are curated English/small; a span that names no host is not treated as a
+  contradiction; an unknown host is not compared. `ModelClaimVerifier` remains
+  the escape hatch for text these heuristics cannot judge.
+- Evidence: `packages/core/test/verifier.test.ts` carries the three
+  counterexamples (two-term overlap, polarity inversion, chassis swap) and each
+  failed before this amendment and passes after it.
+- Reconsider when: the corpus stops being English, the chassis list drifts, or a
+  third-party evidence format needs different rules.

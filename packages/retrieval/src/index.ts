@@ -220,3 +220,5 @@ export class LocalRetrievalIndex implements SearchProvider {
     }));
   }
 }
+
+export * from "./corpus.js";

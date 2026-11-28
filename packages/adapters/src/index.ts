@@ -8,7 +8,10 @@ import type {
   SearchHit,
   SearchProvider,
 } from "@latent/core";
-import { ModelReconstructor } from "./model-reconstructor.js";
+import {
+  ModelReconstructor,
+  createReplayFetch,
+} from "./model-reconstructor.js";
 
 export * from "./model-reconstructor.js";
 
@@ -145,6 +148,23 @@ export function reconstructorFromEnv(
 ): Reconstructor {
   const mode = env.LATENT_RECONSTRUCTOR ?? "template";
   if (mode === "template") return new TemplateReconstructor();
+  if (mode === "model" && env.LATENT_MODEL_REPLAY === "1") {
+    const temperature = Number(env.LATENT_MODEL_TEMPERATURE ?? "0");
+    return new ModelReconstructor({
+      baseUrl: env.LATENT_MODEL_BASE_URL ?? "http://replay.invalid",
+      apiKey: env.LATENT_MODEL_API_KEY ?? "replay",
+      model: env.LATENT_MODEL_NAME ?? "replay-model",
+      jsonMode: env.LATENT_MODEL_JSON_MODE !== "false",
+      temperature: Number.isFinite(temperature) ? temperature : 0,
+      // Replay is offline, but the same default-deny applies: a private
+      // fragment is only reconstructed when the operator sets
+      // LATENT_MODEL_SEND_PRIVATE. Recording it under data/ is refused anyway.
+      allowPrivate: env.LATENT_MODEL_SEND_PRIVATE === "true",
+      fetchImpl: createReplayFetch({
+        dir: env.LATENT_MODEL_REPLAY_DIR ?? "data/model-replay",
+      }),
+    });
+  }
   if (mode === "model") {
     const baseUrl = env.LATENT_MODEL_BASE_URL;
     const apiKey = env.LATENT_MODEL_API_KEY;
