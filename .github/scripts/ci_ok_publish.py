@@ -177,7 +177,7 @@ def main() -> None:
         sys.exit(1)
     try:
         default_branch = str(
-            api(f"/repos/{REPO}").get("default_branch") or "main"
+            api("").get("default_branch") or "main"
         )
         run = api(f"/actions/runs/{run_id}")
         trusted = api("/actions/workflows/ci.yml")
