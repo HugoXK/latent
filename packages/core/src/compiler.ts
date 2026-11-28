@@ -274,7 +274,8 @@ export function renderBriefMarkdown(brief: Brief): string {
           "| Kind | Prior | Severity | Note | Claims | Source |",
           "|---|---|---|---|---|---|",
           ...brief.collisions.map((collision) => {
-            const cell = (value: string) => value.replace(/\|/g, "\\|");
+            const cell = (value: string) =>
+              value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
             return `| ${collision.kind} | ${cell(collision.prior_label)} | ${collision.severity} | ${cell(collision.note)} | ${(collision.claim_ids ?? []).join(", ") || "—"} | ${cell(collision.source_url ?? "—")} |`;
           }),
           "",

@@ -244,3 +244,25 @@ test("an empty checked list still says checked", () => {
   assert.equal(brief.collision_check?.status, "checked");
   assert.match(brief.collision_check?.note ?? "", /No mechanism or interface/);
 });
+
+test("a collision cell escapes a backslash before a pipe", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    collisions: [
+      {
+        kind: "interface",
+        prior_id: "pa_escape",
+        prior_label: "c\\|d",
+        severity: "medium",
+        note: "a\\|b",
+      },
+    ],
+  });
+  const markdown = renderBriefMarkdown(brief);
+  assert.ok(
+    markdown.includes("a\\\\\\|b"),
+    `a backslash before a pipe must stay inside one cell:\n${markdown}`,
+  );
+});

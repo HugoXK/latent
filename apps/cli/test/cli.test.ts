@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -297,11 +297,9 @@ test("every command has a parseable --json envelope and stable exit codes", () =
     assert.equal(ledgerMd.status, 0, ledgerMd.stderr);
     assert.match(ledgerMd.stdout, /Sources \(span\)/);
 
-    const noveltyPath = join(tmpdir(), `latent-novelty-${process.pid}.json`);
-    const collisionsPath = join(
-      tmpdir(),
-      `latent-collisions-${process.pid}.json`,
-    );
+    const tempDir = mkdtempSync(join(tmpdir(), "latent-collisions-"));
+    const noveltyPath = join(tempDir, "novelty.json");
+    const collisionsPath = join(tempDir, "collisions.json");
     try {
       writeFileSync(
         noveltyPath,
@@ -369,8 +367,7 @@ test("every command has a parseable --json envelope and stable exit codes", () =
       assert.match(markdown.stdout, /Novelty and collisions/);
       assert.match(markdown.stdout, /https:\/\/example\.org\/pa_1/);
     } finally {
-      rmSync(noveltyPath, { force: true });
-      rmSync(collisionsPath, { force: true });
+      rmSync(tempDir, { recursive: true, force: true });
     }
 
     const outcome = run([
