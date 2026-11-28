@@ -6,6 +6,7 @@ export * from "./state.js";
 export * from "./ledger.js";
 export * from "./gates.js";
 export * from "./compiler.js";
+export type * as GeneratedSchemas from "./generated/schemas.js";
 export * from "./ports.js";
 export * from "./vertical.js";
 export * from "./replay.js";
