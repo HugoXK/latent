@@ -11,14 +11,7 @@ export type ConfidenceBasis = GeneratedSchemas.Claim["confidence_basis"];
 export type ClaimStatus = GeneratedSchemas.Claim["status"];
 export type SourceKind = GeneratedSchemas.ClaimSource["kind"];
 
-export interface Source {
-  kind: SourceKind;
-  url: string;
-  title?: string | null;
-  span?: string | null;
-  snapshot_hash?: string | null;
-  accessed_at: string;
-}
+export type Source = GeneratedSchemas.ClaimSource;
 
 export type Claim = GeneratedSchemas.Claim;
 

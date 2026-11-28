@@ -43,13 +43,13 @@ path happened to exercise the difference.
    with no workflow change. `pnpm schema:types` / `pnpm schema:types:check` remain
    the human and agent interface (write / check by hand).
 4. **Consume where practical.** `packages/core/src/index.ts` re-exports
-   `GeneratedSchemas`, and `types.ts` aliases the three shapes that are exactly 1:1
-   today: `Fragment`, `Claim`, `MemoryEdge`. The enum unions are derived from those
+   `GeneratedSchemas`, and `types.ts` aliases the four shapes that are exactly 1:1
+   today: `Fragment`, `Claim`, `MemoryEdge`, `Source`. The enum unions are derived from those
    generated types — `Privacy`, `FragmentKind`, `ClaimStatus`, `ConfidenceBasis`,
    `SourceKind`, `MemoryRelation` — so a schema enum change widens the union at the
    use sites, not only inside the generated file. `packages/core/test/schema-types.test.ts`
    also asserts equality for `Idea` and `Brief` (equal today, kept hand-written in
-   this PR to keep the diff to three aliases); a schema change that makes any pair
+   this PR to keep the diff to four aliases); a schema change that makes any pair
    differ fails `tsc --noEmit`.
 5. **`data/schemas/` remains the single source of truth.** The generated file is
    never edited by hand; a schema change is reviewed together with its regenerated

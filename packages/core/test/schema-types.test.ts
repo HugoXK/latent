@@ -2,7 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as generated from "../src/generated/schemas.js";
 import type * as Generated from "../src/generated/schemas.js";
-import type { Brief, Claim, Fragment, Idea, MemoryEdge } from "../src/index.js";
+import type {
+  Brief,
+  Claim,
+  Fragment,
+  Idea,
+  MemoryEdge,
+  Source,
+} from "../src/index.js";
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <
   T,
@@ -19,6 +26,7 @@ type _Claim = Assert<Equal<Claim, Generated.Claim>>;
 type _MemoryEdge = Assert<Equal<MemoryEdge, Generated.MemoryEdge>>;
 type _Idea = Assert<Equal<Idea, Generated.Idea>>;
 type _Brief = Assert<Equal<Brief, Generated.Brief>>;
+type _Source = Assert<Equal<Source, Generated.ClaimSource>>;
 
 // Exceptions (documented in ADR 0021): Gate, ConstraintState and ReplayCase
 // deliberately differ from the schema today, so they are not asserted here.
