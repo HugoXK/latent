@@ -11,6 +11,11 @@ The newest verdict at the head SHA is the one that counts. A new commit moves th
 head, so an older PASS no longer applies. A REQUEST_CHANGES is a blocking
 verdict even if a PASS was posted earlier.
 
+A pull request is never waived by path: every pull request needs a verdict
+at its head SHA. An
+explicit REQUEST_CHANGES still blocks; an explicit PASS still counts. Code, CI,
+schema and vertical changes never qualify.
+
 This script is read-only with respect to the pull request; it executes no pull
 request code. It creates the required `review-gate` check run on the head SHA so
 the gate also works for commit comments, which do not trigger a workflow.
@@ -27,7 +32,7 @@ import urllib.request
 from typing import Any
 
 API = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
-REPO = os.environ["GITHUB_REPOSITORY"]
+REPO = os.environ.get("GITHUB_REPOSITORY", "")
 TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
 REVIEWER_FALLBACK = os.environ.get("REVIEWER_LOGIN", "HugoXK-bot")
 CHECK_NAME = "review-gate"
@@ -35,7 +40,19 @@ VERDICT_RE = re.compile(
     r"(?:^|\n)\s*(?:Verdict\s*:\s*|##\s*Review\s*[—-]\s*)(PASS|REQUEST_CHANGES)\b",
     re.IGNORECASE,
 )
-SHA_RE = re.compile(r"\b([0-9a-f]{7,40})\b", re.IGNORECASE)
+
+DOC_FILES = {
+    "README.md",
+    "README.zh.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    "AGENTS.md",
+    "LESSONS.md",
+}
+DOC_PREFIXES = ("docs/", "changelog.d/")
 
 
 def api(path: str, method: str = "GET", data: dict[str, Any] | None = None) -> Any:
@@ -62,16 +79,21 @@ def api(path: str, method: str = "GET", data: dict[str, Any] | None = None) -> A
         raise RuntimeError(f"GitHub API {exc.code} {path}: {body}") from exc
 
 
-def reviewer_login() -> str:
-    """Read the reviewer from the base-branch policy, falling back to the env."""
+def load_policy() -> dict[str, Any]:
+    """Read the policy from the base branch checkout."""
     try:
         with open(".github/agent/review-policy.json", encoding="utf-8") as handle:
-            policy = json.load(handle)
-        value = policy.get("requiredPass")
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+            value = json.load(handle)
+        return value if isinstance(value, dict) else {}
     except (FileNotFoundError, json.JSONDecodeError):
-        pass
+        return {}
+
+
+def reviewer_login(policy: dict[str, Any] | None = None) -> str:
+    policy = policy if policy is not None else load_policy()
+    value = policy.get("requiredPass")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
     return REVIEWER_FALLBACK
 
 
@@ -106,6 +128,16 @@ def pull_numbers(payload: dict[str, Any]) -> list[int]:
         if issue.get("pull_request") and issue.get("number"):
             return [int(issue["number"])]
         return []
+    if name == "commit_comment":
+        sha = str(payload.get("comment", {}).get("commit_id") or "")
+        if not sha:
+            return []
+        pulls = api(f"/commits/{sha}/pulls?per_page=100")
+        return [
+            int(pull["number"])
+            for pull in pulls
+            if str(pull.get("state", "")) == "open"
+        ]
     explicit = os.environ.get("PR") or payload.get("inputs", {}).get("pr")
     if explicit:
         return [int(explicit)]
@@ -113,12 +145,15 @@ def pull_numbers(payload: dict[str, Any]) -> list[int]:
     return [int(pull["number"]) for pull in open_pulls]
 
 
-def newest_verdict(pull: dict[str, Any], reviewer: str) -> tuple[bool, str]:
+def newest_verdict(pull: dict[str, Any], reviewer: str) -> tuple[bool | None, str]:
     number = int(pull["number"])
     head = str(pull["head"]["sha"])
     author = str(pull.get("user", {}).get("login", ""))
     if author == reviewer:
-        return False, f"{reviewer} is the pull request author; identities must be separate"
+        return (
+            False,
+            f"{reviewer} is the pull request author; identities must be separate",
+        )
 
     verdicts: list[tuple[str, str, str]] = []
 
@@ -163,17 +198,23 @@ def newest_verdict(pull: dict[str, Any], reviewer: str) -> tuple[bool, str]:
             )
 
     if not verdicts:
-        return (
-            False,
-            f"no verdict from {reviewer} at {head[:7]}; "
-            "post an APPROVED review, a PASS comment with the head SHA, or a commit comment",
-        )
+        return None, f"no verdict from {reviewer} at {head[:7]}"
 
     verdicts.sort(key=lambda item: item[0])
     stamp, verdict, source = verdicts[-1]
     if verdict == "PASS":
         return True, f"{reviewer} PASS at {head[:7]} ({source}, {stamp})"
     return False, f"{reviewer} REQUEST_CHANGES at {head[:7]} ({source}, {stamp})"
+
+
+def evaluate(
+    pull: dict[str, Any], reviewer: str
+) -> tuple[bool, str]:
+    head = str(pull["head"]["sha"])
+    verdict, detail = newest_verdict(pull, reviewer)
+    if verdict is not None:
+        return verdict, detail
+    return False, detail
 
 
 def latest_check(head: str) -> dict[str, Any] | None:
@@ -187,13 +228,26 @@ def latest_check(head: str) -> dict[str, Any] | None:
 def publish_check(pull: dict[str, Any], ok: bool, detail: str) -> None:
     head = str(pull["head"]["sha"])
     conclusion = "success" if ok else "failure"
+    output = {
+        "title": f"review-gate: {'PASS' if ok else 'BLOCKED'}",
+        "summary": detail,
+    }
     current = latest_check(head)
     if (
         current
         and current.get("status") == "completed"
         and current.get("conclusion") == conclusion
     ):
-        print(f"review-gate: {head[:7]} already {conclusion}")
+        current_summary = str((current.get("output") or {}).get("summary") or "")
+        if current_summary == detail:
+            print(f"review-gate: {head[:7]} already {conclusion}")
+            return
+        api(
+            f"/check-runs/{current.get('id')}",
+            method="PATCH",
+            data={"output": output},
+        )
+        print(f"review-gate: {head[:7]} refreshed — {detail}")
         return
     api(
         "/check-runs",
@@ -203,17 +257,15 @@ def publish_check(pull: dict[str, Any], ok: bool, detail: str) -> None:
             "head_sha": head,
             "status": "completed",
             "conclusion": conclusion,
-            "output": {
-                "title": f"review-gate: {'PASS' if ok else 'BLOCKED'}",
-                "summary": detail,
-            },
+            "output": output,
         },
     )
     print(f"review-gate: {head[:7]} {conclusion} — {detail}")
 
 
 def main() -> None:
-    reviewer = reviewer_login()
+    policy = load_policy()
+    reviewer = reviewer_login(policy)
     payload = event()
     numbers = pull_numbers(payload)
     if not numbers:
@@ -226,7 +278,7 @@ def main() -> None:
             if pull.get("draft") is True:
                 print(f"review-gate: #{number} is a draft; skipped")
                 continue
-            ok, detail = newest_verdict(pull, reviewer)
+            ok, detail = evaluate(pull, reviewer)
             publish_check(pull, ok, detail)
         except RuntimeError as error:
             failures += 1
