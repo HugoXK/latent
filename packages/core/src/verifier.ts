@@ -94,7 +94,73 @@ function tokens(text: string): Set<string> {
   );
 }
 
+const NEGATION_CUES = new Set([
+  "not",
+  "no",
+  "never",
+  "none",
+  "cannot",
+  "without",
+  "lacks",
+  "lack",
+  "absent",
+  "fails",
+  "failed",
+  "fail",
+  "unable",
+]);
+
+function words(text: string): string[] {
+  return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+function negated(text: string): boolean {
+  return words(text).some((word) => NEGATION_CUES.has(word));
+}
+
+// Curated chassis / species aliases. Matching only runs when both the claim and
+// the span name a host; a span that omits the host is not a contradiction.
+const CHASSIS: Array<[RegExp, string]> = [
+  [/\be coli\b/, "ecoli"],
+  [/\bescherichia coli\b/, "ecoli"],
+  [/\bb subtilis\b/, "bsubtilis"],
+  [/\bbacillus subtilis\b/, "bsubtilis"],
+  [/\bs cerevisiae\b/, "yeast"],
+  [/\bsaccharomyces cerevisiae\b/, "yeast"],
+  [/\byeast\b/, "yeast"],
+  [/\bp putida\b/, "pputida"],
+  [/\bpseudomonas putida\b/, "pputida"],
+  [/\bc reinhardtii\b/, "chlamy"],
+  [/\bchlamydomonas reinhardtii\b/, "chlamy"],
+  [/\bhela\b/, "hela"],
+  [/\bhek293\b/, "hek293"],
+  [/\bhuman\b/, "human"],
+  [/\bmouse\b/, "mouse"],
+];
+
+function chassis(text: string): Set<string> {
+  const normalized = words(text).join(" ");
+  const found = new Set<string>();
+  for (const [pattern, name] of CHASSIS) {
+    if (pattern.test(normalized)) found.add(name);
+  }
+  return found;
+}
+
 function supports(claimText: string, span: string): boolean {
+  // A span that states the opposite polarity is not support, however many terms
+  // it shares: "does not respond" vs "responds" has the same token set.
+  if (negated(claimText) !== negated(span)) return false;
+  // A span about another chassis is not support for a claim about this one.
+  const claimHosts = chassis(claimText);
+  const spanHosts = chassis(span);
+  if (claimHosts.size > 0 && spanHosts.size > 0) {
+    let shared = false;
+    for (const host of claimHosts) {
+      if (spanHosts.has(host)) shared = true;
+    }
+    if (!shared) return false;
+  }
   const claimTokens = tokens(claimText);
   if (claimTokens.size === 0) return false;
   const spanTokens = tokens(span);

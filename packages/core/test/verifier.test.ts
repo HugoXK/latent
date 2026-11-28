@@ -154,3 +154,39 @@ test("an unrelated span sharing two common tokens is not support", async () => {
   assert.equal(result.supported, false);
   assert.equal(applyVerification(overlapOnly, result).status, "unsupported");
 });
+
+test("a negated span does not support the opposite claim", async () => {
+  const verifier = new DeterministicClaimVerifier({ now: () => NOW });
+  const negated = claim({
+    text: "The ArsR repressor does not respond to arsenite.",
+    sources: [
+      {
+        kind: "paper",
+        url: "https://example.org/paper",
+        span: "The ArsR repressor responds to arsenite",
+        accessed_at: NOW,
+      },
+    ],
+  });
+  const result = await verifier.verify(negated);
+  assert.equal(result.supported, false);
+  assert.equal(applyVerification(negated, result).status, "unsupported");
+});
+
+test("a span about a different chassis does not support the claim", async () => {
+  const verifier = new DeterministicClaimVerifier({ now: () => NOW });
+  const swapped = claim({
+    text: "The construct expresses GFP in E. coli.",
+    sources: [
+      {
+        kind: "paper",
+        url: "https://example.org/paper",
+        span: "The construct expresses GFP in B. subtilis",
+        accessed_at: NOW,
+      },
+    ],
+  });
+  const result = await verifier.verify(swapped);
+  assert.equal(result.supported, false);
+  assert.equal(applyVerification(swapped, result).status, "unsupported");
+});
