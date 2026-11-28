@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -112,7 +112,18 @@ export function createReplayFetch(
         `model replay fixture is not valid JSON: ${path}`,
       );
     }
-    const response = fixture.response ?? fixture;
+    const candidate = fixture.response ?? fixture;
+    const isEnvelope =
+      typeof candidate === "object" &&
+      candidate !== null &&
+      Array.isArray((candidate as { choices?: unknown }).choices);
+    if (!isEnvelope) {
+      throw new ModelReplayError(
+        "REPLAY_FIXTURE_INVALID",
+        `model replay fixture has no response envelope with choices: ${path}`,
+      );
+    }
+    const response = candidate;
     return {
       ok: true,
       status: 200,
@@ -148,12 +159,24 @@ const REPO_ROOT = resolve(fileURLToPath(new URL("../../../", import.meta.url)));
 /** `data/` is committed; a fixture written here becomes git history. */
 const COMMITTED_DATA_DIR = join(REPO_ROOT, "data");
 
+// Resolve through symlinks: a scratch directory that links at the committed
+// data directory must be classified as committed, not as a safe target.
+function realOrResolved(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+const COMMITTED_DATA_DIR_REAL = realOrResolved(COMMITTED_DATA_DIR);
+
 /**
  * True when `dir` resolves inside the repository's committed `data/` tree.
  * This is the one place where a recorded fixture can become permanent history.
  */
 export function isCommittedDataDir(dir: string): boolean {
-  const rel = relative(COMMITTED_DATA_DIR, resolve(dir));
+  const rel = relative(COMMITTED_DATA_DIR_REAL, realOrResolved(dir));
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 

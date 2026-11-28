@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +14,7 @@ import {
   ModelReconstructionError,
   ModelReplayError,
   modelRequestKey,
+  isCommittedDataDir,
   reconstructorFromEnv,
   writeModelReplayFixture,
 } from "../src/index.js";
@@ -151,6 +158,17 @@ test("the default replay constructor refuses a private fragment", async () => {
         error instanceof ModelReconstructionError &&
         error.code === "PRIVATE_FRAGMENT_BLOCKED",
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a symlink into the committed data dir counts as committed", () => {
+  const dir = mkdtempSync(join(tmpdir(), "latent-symlink-"));
+  try {
+    const link = join(dir, "data-link");
+    symlinkSync(fileURLToPath(new URL("../../../data/", import.meta.url)), link);
+    assert.equal(isCommittedDataDir(link), true);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
