@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 type JsonSchema = {
@@ -179,10 +179,18 @@ function generate(): string {
   return `${chunks.join("\n").trimEnd()}\n`;
 }
 
-const output = generate();
+/** Pure: render the generated file in memory (used by the drift test). */
+export function renderSchemaTypes(): string {
+  return generate();
+}
+
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const output = renderSchemaTypes();
 const check = process.argv.includes("--check");
 
-if (check) {
+if (invokedDirectly && check) {
   let existing = "";
   try {
     existing = readFileSync(OUT, "utf8");
@@ -202,7 +210,7 @@ if (check) {
     process.exit(1);
   }
   console.log("generated schema types are up to date");
-} else {
+} else if (invokedDirectly) {
   mkdirSync(join(ROOT, "packages/core/src/generated"), { recursive: true });
   writeFileSync(OUT, output);
   console.log(`wrote ${OUT.replace(`${ROOT}/`, "")}`);

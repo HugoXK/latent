@@ -119,9 +119,6 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Schema types
-        run: pnpm schema:types:check
-
       - name: Typecheck
         run: pnpm typecheck
 

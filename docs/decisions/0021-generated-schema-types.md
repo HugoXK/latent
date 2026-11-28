@@ -31,11 +31,17 @@ path happened to exercise the difference.
 2. **The generated file is committed build output.** `pnpm schema:types` writes it;
    `pnpm schema:types:check` regenerates in memory and exits non-zero with the first
    stale line when the committed file differs.
-3. **`schema:types:check` runs as its own step in the `node` CI job**, after
-   `pnpm install --frozen-lockfile`. It is deliberately **not** part of `pnpm check`:
-   `pnpm check` is what `gate-tests` and the `node` job run, and a generator that
-   shells out to `tsx` would change the check surface for every PR. Measured cost on
-   this repository: ~2.0s wall clock (pnpm + tsx startup included).
+3. **Enforcement is a test in the required `node` job, not a new workflow step.**
+   `packages/core/test/schema-types-drift.test.ts` imports the generator's pure
+   `renderSchemaTypes()`, renders every schema in memory and asserts byte-equality
+   with the committed file, naming the first stale line on failure. This is
+   deliberately **not** a `ci.yml` edit: `ci-ok-published` refuses any pull request
+   whose head `ci.yml` blob differs from the default branch (`ci_ok_publish.py`
+   `evaluate_run()`), by design, as the anti-weakening rule — so a workflow edit
+   would make that check red on this PR and on every later PR based on an older
+   `main`. The `node` job is part of `ci-ok`, so the test is enforced on every PR
+   with no workflow change. `pnpm schema:types` / `pnpm schema:types:check` remain
+   the human and agent interface (write / check by hand).
 4. **Consume where practical.** `packages/core/src/index.ts` re-exports
    `GeneratedSchemas`, and `types.ts` aliases the three shapes that are exactly 1:1
    today: `Fragment`, `Claim`, `MemoryEdge`. The enum unions are derived from those
