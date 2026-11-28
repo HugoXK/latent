@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -196,6 +196,34 @@ test("LATENT_MODEL_REPLAY replays the adapter without a network", async () => {
       verticalId: "igem",
     });
     assert.equal(second.title, first.title);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a fixture without a response envelope is a typed error", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "latent-replay-invalid-"));
+  try {
+    const body = JSON.stringify({
+      model: "m",
+      temperature: 0,
+      messages: [{ role: "user", content: "x" }],
+    });
+    const key = modelRequestKey(body);
+    writeFileSync(join(dir, `${key}.json`), JSON.stringify({ response: null }));
+    const fetchImpl = createReplayFetch({ dir });
+    await assert.rejects(
+      () =>
+        fetchImpl("https://replay.invalid", {
+          method: "POST",
+          headers: {},
+          body,
+          signal: new AbortController().signal,
+        }),
+      (error: unknown) =>
+        error instanceof ModelReplayError &&
+        error.code === "REPLAY_FIXTURE_INVALID",
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
