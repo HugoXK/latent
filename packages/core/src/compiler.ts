@@ -213,7 +213,7 @@ export function renderBriefMarkdown(brief: Brief): string {
   const risks =
     brief.risks.length > 0
       ? brief.risks
-          .map((r) => `| ${r.risk} | ${r.trigger} | ${r.fallback} |`)
+          .map((r) => `| ${cell(r.risk)} | ${cell(r.trigger)} | ${cell(r.fallback)} |`)
           .join("\n")
       : "| — | — | — |";
 

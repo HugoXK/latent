@@ -247,3 +247,19 @@ test("an explicit collision list is checked, including an empty one", () => {
   const markdown = renderBriefMarkdown(brief);
   assert.match(markdown, /Status: \*\*checked\*\*/);
 });
+
+test("risk cells escape a pipe and collapse a raw newline", () => {
+  const brief = compileBrief({
+    idea: idea(),
+    claims: [claim()],
+    gates: [gate()],
+    extraRisks: [
+      { risk: "a|b", trigger: "t\nx", fallback: "reduce_scope" },
+    ],
+  });
+  const markdown = renderBriefMarkdown(brief);
+  const row = markdown.split("\n").find((line) => line.includes("a\\|b"));
+  assert.ok(row, `the risk row must stay on one line:\n${markdown}`);
+  assert.match(row, /a\\\|b/);
+  assert.ok(row.includes("t x"), `the trigger must collapse its newline: ${row}`);
+});
