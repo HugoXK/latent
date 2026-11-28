@@ -35,6 +35,16 @@ for path in "$DIR"/*.py "$DIR"/*.sh; do
 done
 
 if [ "$found" -eq 1 ]; then
+  # Also run the PR's own new test files: base mode copies only files that exist
+  # on base, so a PR adding test_new.py would otherwise never execute it.
+  # Editing or deleting a base test is still caught by test-integrity.sh above.
+  for path in "$DIR"/test_*.py; do
+    [ -e "$path" ] || continue
+    name="$(basename "$path")"
+    if ! git cat-file -e "$BASE:$DIR/$name" 2>/dev/null; then
+      cp "$path" "$TMP/"
+    fi
+  done
   # Base-branch test code against head scripts. Anti-weakening is the base copy
   # of the tests plus test-integrity.sh, not which ci.yml they read.
   echo "running base-branch gate tests against head scripts"
