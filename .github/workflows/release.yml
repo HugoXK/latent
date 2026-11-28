@@ -155,6 +155,8 @@ jobs:
     permissions:
       contents: write
       actions: read
+    outputs:
+      release_flags: ${{ steps.release_flags.outputs.value }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -169,10 +171,17 @@ jobs:
         with:
           version: 11.1.2
 
+      - name: Compute the release flags
+        id: release_flags
+        run: |
+          value=$(python3 .github/scripts/release.py --version "${{ inputs.version }}" --release-flags)
+          echo "value=$value" >> "$GITHUB_OUTPUT"
+
       - name: Build the SBOM, archive and release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
+          FLAGS: ${{ steps.release_flags.outputs.value }}
         run: |
           EXTRA=$(find changelog.d -maxdepth 1 -name '*.md' ! -name README.md -print)
           if [ -n "$EXTRA" ]; then
@@ -201,7 +210,8 @@ jobs:
             --draft \
             --target "${{ needs.verify.outputs.sha }}" \
             --title "v$VERSION" \
-            --notes-file /tmp/notes.md
+            --notes-file /tmp/notes.md \
+            $FLAGS
           gh release upload "v$VERSION" sbom.json "latent-$VERSION.tar.gz"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -237,4 +247,5 @@ jobs:
           # No checkout in this job, so gh cannot infer the repository from a
           # work tree; GH_REPO supplies it for every call in this step.
           GH_REPO: ${{ github.repository }}
-        run: gh release edit "v$VERSION" --draft=false
+          FLAGS: ${{ needs.publish.outputs.release_flags }}
+        run: gh release edit "v$VERSION" --draft=false $FLAGS
