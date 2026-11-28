@@ -9,15 +9,15 @@ The required contexts on `main` are exactly what the checks API reports:
 
 | Context | Workflow | What it proves |
 |---|---|---|
-| `ci-ok` | `ci-ok-publish.yml` | `spec`, `node` and `gate-tests` passed at the tip; published from the default branch |
+| `ci-ok-published` | `ci-ok-publish.yml` | `spec`, `node` and `gate-tests` passed at the tip; published from the default branch. Required after the protection flip; `ci-ok` stays the required context during bootstrap |
 | `pr-lint` | `pr-lint.yml` | the PR body has a linked issue, one risk tier, an evidence block and a changelog obligation |
 | `review-gate` | `review-gate.yml` | `HugoXK-bot` posted a PASS at the pull request head SHA |
 
-`ci-ok` is published by `ci-ok-publish.yml` from the default branch on the
+`ci-ok-published` is published by `ci-ok-publish.yml` from the default branch on the
 `workflow_run` completion of `ci`. It requires exactly `spec` (schemas, local
 links, required files), `node` (install, typecheck, tests) and `gate-tests`
 (the review-gate unit tests). A PR that removes `gate-tests` cannot get a green
-`ci-ok`. The aggregate job in `ci.yml` is bootstrap only.
+`ci-ok-published`. During bootstrap the in-workflow `ci-ok` aggregate in `ci.yml` is still the required context; a follow-up PR retires it once protection requires `ci-ok-published`.
 
 Advisory (not required yet):
 

@@ -137,10 +137,11 @@ jobs:
       - name: Unit-test the review gate and the ci-ok publisher
         run: python3 -m unittest discover -s .github/scripts -p "test_*.py"
 
-  # Aggregate only. The trusted `ci-ok` context is published by
-  # ci-ok-publish.yml from the default branch, so a pull request cannot write it.
-  ci-aggregate:
-    name: ci-aggregate
+  # Bootstrap aggregate: branch protection still requires this `ci-ok` context.
+  # ci-ok-publish.yml publishes the trusted `ci-ok-published` context; once
+  # protection requires that name, a follow-up PR retires this job.
+  ci-ok:
+    name: ci-ok
     if: always()
     needs: [spec, node, gate-tests]
     runs-on: ubuntu-latest

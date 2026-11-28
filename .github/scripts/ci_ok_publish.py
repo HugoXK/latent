@@ -1,11 +1,11 @@
-"""Publish the required `ci-ok` check from the default branch.
+"""Publish the `ci-ok-published` check from the default branch.
 
 A pull request can edit its own `ci.yml` and weaken the in-workflow aggregate.
 This publisher runs from a `workflow_run` on the default branch, reads the jobs of
-the triggering run, and publishes `ci-ok` on the pull request head only when the
+the triggering run, and publishes `ci-ok-published` on the pull request head only when the
 exact required job set succeeded.
 
-It updates an existing `ci-ok` check run when one is present so the context is not
+It updates an existing `ci-ok-published` check run when one is present so the context is not
 duplicated; it creates one when the pull request removed the aggregate.
 """
 
@@ -21,7 +21,7 @@ from typing import Any
 API = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
-CHECK_NAME = "ci-ok"
+CHECK_NAME = "ci-ok-published"
 REQUIRED_JOBS = ("spec", "node", "gate-tests")
 TRUSTED_WORKFLOW_PATH = ".github/workflows/ci.yml"
 
@@ -121,7 +121,7 @@ def latest_check(head: str) -> dict[str, Any] | None:
 def publish(head: str, ok: bool, detail: str) -> None:
     conclusion = "success" if ok else "failure"
     output = {
-        "title": f"ci-ok: {'PASS' if ok else 'BLOCKED'}",
+        "title": f"ci-ok-published: {'PASS' if ok else 'BLOCKED'}",
         "summary": detail,
     }
     current = latest_check(head)
@@ -131,7 +131,7 @@ def publish(head: str, ok: bool, detail: str) -> None:
         and current.get("conclusion") == conclusion
     ):
         if str((current.get("output") or {}).get("summary") or "") == detail:
-            print(f"ci-ok: {head[:7]} already {conclusion}")
+            print(f"ci-ok-published: {head[:7]} already {conclusion}")
             return
         api(
             f"/check-runs/{current.get('id')}",
